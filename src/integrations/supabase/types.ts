@@ -14,16 +14,334 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      comments: {
+        Row: {
+          created_at: string
+          id: string
+          request_id: string
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          request_id: string
+          text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          request_id?: string
+          text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lease_agreements: {
+        Row: {
+          created_at: string
+          document_file: string | null
+          end_date: string
+          id: string
+          monthly_payment: number
+          owner_id: string
+          property_id: string
+          start_date: string
+          status: string
+          tenant_id: string
+          unit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_file?: string | null
+          end_date: string
+          id?: string
+          monthly_payment?: number
+          owner_id: string
+          property_id: string
+          start_date: string
+          status?: string
+          tenant_id: string
+          unit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_file?: string | null
+          end_date?: string
+          id?: string
+          monthly_payment?: number
+          owner_id?: string
+          property_id?: string
+          start_date?: string
+          status?: string
+          tenant_id?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_agreements_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_agreements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_agreements_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          id: string
+          name?: string
+          phone?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      properties: {
+        Row: {
+          address: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          photos: string[]
+          status: string
+          type: Database["public"]["Enums"]["property_type"]
+        }
+        Insert: {
+          address?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          photos?: string[]
+          status?: string
+          type?: Database["public"]["Enums"]["property_type"]
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          photos?: string[]
+          status?: string
+          type?: Database["public"]["Enums"]["property_type"]
+        }
+        Relationships: []
+      }
+      requests: {
+        Row: {
+          category: Database["public"]["Enums"]["request_category"]
+          created_at: string
+          description: string
+          id: string
+          owner_id: string
+          photo: string | null
+          property_id: string | null
+          status: Database["public"]["Enums"]["request_status"]
+          tenant_id: string
+          title: string
+          unit_id: string | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["request_category"]
+          created_at?: string
+          description?: string
+          id?: string
+          owner_id: string
+          photo?: string | null
+          property_id?: string | null
+          status?: Database["public"]["Enums"]["request_status"]
+          tenant_id: string
+          title: string
+          unit_id?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["request_category"]
+          created_at?: string
+          description?: string
+          id?: string
+          owner_id?: string
+          photo?: string | null
+          property_id?: string | null
+          status?: Database["public"]["Enums"]["request_status"]
+          tenant_id?: string
+          title?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          owner_id: string
+          phone: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          id?: string
+          name: string
+          owner_id: string
+          phone?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          phone?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      units: {
+        Row: {
+          area: number | null
+          created_at: string
+          id: string
+          name: string
+          property_id: string
+          status: string
+        }
+        Insert: {
+          area?: number | null
+          created_at?: string
+          id?: string
+          name: string
+          property_id: string
+          status?: string
+        }
+        Update: {
+          area?: number | null
+          created_at?: string
+          id?: string
+          name?: string
+          property_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "units_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_see_request: { Args: { _request_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_my_tenant_record: { Args: { _tenant_id: string }; Returns: boolean }
+      owns_property: { Args: { _property_id: string }; Returns: boolean }
+      tenant_can_see_property: {
+        Args: { _property_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "owner" | "tenant"
+      property_type: "apartment" | "warehouse" | "commercial" | "other"
+      request_category: "repair" | "question" | "payment" | "other"
+      request_status: "new" | "in_progress" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +468,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "owner", "tenant"],
+      property_type: ["apartment", "warehouse", "commercial", "other"],
+      request_category: ["repair", "question", "payment", "other"],
+      request_status: ["new", "in_progress", "closed"],
+    },
   },
 } as const
