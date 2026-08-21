@@ -45,6 +45,7 @@ function AuthPage() {
   const [phone, setPhone] = useState("");
   const [accountRole, setAccountRole] = useState<"owner" | "tenant">("owner");
   const [busy, setBusy] = useState(false);
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
 
   useEffect(() => {
     if (!loading && session && role) {
@@ -57,7 +58,7 @@ function AuthPage() {
     setBusy(true);
     try {
       if (tab === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -66,14 +67,54 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        if (!data.session) {
+          setConfirmationRequired(true);
+          toast.success("Письмо для подтверждения отправлено");
+          return;
+        }
         toast.success("Аккаунт создан");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("С возвращением!");
+        const { data: roleRow } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .limit(1)
+          .maybeSingle();
+        const metadataRole = data.user.user_metadata["role"];
+        const resolvedRole = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
+        await navigate({
+          to: resolvedRole === "tenant" ? "/cabinet" : "/dashboard",
+          replace: true,
+        });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось выполнить вход");
+      const message = err instanceof Error ? err.message : "Не удалось выполнить вход";
+      if (message.toLowerCase().includes("email not confirmed")) {
+        setConfirmationRequired(true);
+        toast.error("Сначала подтвердите email по ссылке из письма");
+      } else {
+        toast.error(message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendConfirmation = async () => {
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/auth?mode=signin` },
+      });
+      if (error) throw error;
+      toast.success("Новое письмо отправлено");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить письмо");
     } finally {
       setBusy(false);
     }
@@ -98,6 +139,24 @@ function AuthPage() {
           </Tabs>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
+            {confirmationRequired && (
+              <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
+                <p className="font-medium">Подтвердите email</p>
+                <p className="mt-1 text-muted-foreground">
+                  Откройте письмо от IRentHome и перейдите по ссылке. После этого вернитесь сюда и
+                  войдите в аккаунт.
+                </p>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="mt-2 h-auto p-0"
+                  onClick={() => void resendConfirmation()}
+                  disabled={busy || !email}
+                >
+                  Отправить письмо ещё раз
+                </Button>
+              </div>
+            )}
             {tab === "signup" && (
               <>
                 <div className="space-y-1.5">
