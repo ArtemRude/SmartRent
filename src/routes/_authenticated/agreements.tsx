@@ -38,7 +38,7 @@ import { downloadFile, LEASE_DOCUMENTS, removeFile, uploadFile } from "@/lib/sto
 export const Route = createFileRoute("/_authenticated/agreements")({
   head: () => ({
     meta: [
-      { title: "Договоры — IRentHome" },
+      { title: "Договоры — Умная Аренда" },
       { name: "description", content: "Договоры аренды, сроки, суммы и документы." },
     ],
   }),

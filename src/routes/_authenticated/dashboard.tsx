@@ -10,9 +10,9 @@ import { daysUntil, formatDate, formatMoney } from "@/lib/domain";
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Дашборд — IRentHome" },
+      { title: "Дашборд — Умная Аренда" },
       { name: "description", content: "Сводка по объектам, договорам и заявкам собственника." },
-      { property: "og:title", content: "Дашборд — IRentHome" },
+      { property: "og:title", content: "Дашборд — Умная Аренда" },
       { property: "og:description", content: "Сводка по объектам, договорам и заявкам." },
     ],
   }),

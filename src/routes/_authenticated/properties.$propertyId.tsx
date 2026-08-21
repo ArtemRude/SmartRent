@@ -37,7 +37,7 @@ import {
 import { PROPERTY_PHOTOS } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/properties/$propertyId")({
-  head: () => ({ meta: [{ title: "Объект — IRentHome" }] }),
+  head: () => ({ meta: [{ title: "Объект — Умная Аренда" }] }),
   component: PropertyDetailsPage,
 });
 

@@ -6,13 +6,13 @@ import { useAuth } from "@/hooks/use-auth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "IRentHome — кабинет собственника недвижимости" },
+      { title: "Умная Аренда — кабинет собственника недвижимости" },
       {
         name: "description",
         content:
-          "IRentHome: управляйте квартирами, складами и коммерцией, арендаторами, договорами и заявками в одном кабинете.",
+          "Умная Аренда: управляйте квартирами, складами и коммерцией, арендаторами, договорами и заявками в одном кабинете.",
       },
-      { property: "og:title", content: "IRentHome — кабинет собственника недвижимости" },
+      { property: "og:title", content: "Умная Аренда — кабинет собственника недвижимости" },
       {
         property: "og:description",
         content:
@@ -57,7 +57,7 @@ function Landing() {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Building2 className="h-4 w-4" />
           </span>
-          <span className="font-display text-lg font-semibold tracking-tight">IRentHome</span>
+          <span className="font-display text-lg font-semibold tracking-tight">Умная Аренда</span>
         </div>
         {session ? (
           <Button asChild size="sm">
@@ -88,7 +88,7 @@ function Landing() {
             Аренда без таблиц, чатов и потерянных договоров
           </h1>
           <p className="mt-5 max-w-2xl text-base text-muted-foreground md:text-lg">
-            IRentHome собирает недвижимость, арендаторов, договоры и заявки в одном спокойном
+            «Умная Аренда» собирает недвижимость, арендаторов, договоры и заявки в одном спокойном
             интерфейсе. Собственник видит картину целиком, арендатор — свой личный кабинет.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -143,7 +143,7 @@ function Landing() {
 
       <footer className="border-t border-border">
         <div className="mx-auto w-full max-w-6xl px-4 py-6 text-sm text-muted-foreground md:px-8">
-          © {new Date().getFullYear()} IRentHome
+          © {new Date().getFullYear()} Умная Аренда
         </div>
       </footer>
     </div>

@@ -34,9 +34,9 @@ import { fetchAgreements, fetchProperties, fetchTenants } from "@/lib/queries";
 export const Route = createFileRoute("/_authenticated/tenants")({
   head: () => ({
     meta: [
-      { title: "Арендаторы — IRentHome" },
+      { title: "Арендаторы — Умная Аренда" },
       { name: "description", content: "Карточки арендаторов и их контактные данные." },
-      { property: "og:title", content: "Арендаторы — IRentHome" },
+      { property: "og:title", content: "Арендаторы — Умная Аренда" },
       { property: "og:description", content: "Список арендаторов собственника." },
     ],
   }),

@@ -19,13 +19,13 @@ import {
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Вход и регистрация — IRentHome" },
+      { title: "Вход и регистрация — Умная Аренда" },
       {
         name: "description",
-        content: "Войдите в кабинет IRentHome или создайте аккаунт собственника либо арендатора.",
+        content: "Войдите в «Умную Аренду» или создайте аккаунт собственника либо арендатора.",
       },
-      { property: "og:title", content: "Вход и регистрация — IRentHome" },
-      { property: "og:description", content: "Кабинет собственника и арендатора IRentHome." },
+      { property: "og:title", content: "Вход и регистрация — Умная Аренда" },
+      { property: "og:description", content: "Кабинет собственника и арендатора «Умная Аренда»." },
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({
@@ -127,7 +127,7 @@ function AuthPage() {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Building2 className="h-4 w-4" />
           </span>
-          <span className="font-display text-lg font-semibold tracking-tight">IRentHome</span>
+          <span className="font-display text-lg font-semibold tracking-tight">Умная Аренда</span>
         </Link>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -143,7 +143,7 @@ function AuthPage() {
               <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
                 <p className="font-medium">Подтвердите email</p>
                 <p className="mt-1 text-muted-foreground">
-                  Откройте письмо от IRentHome и перейдите по ссылке. После этого вернитесь сюда и
+                  Откройте письмо от «Умной Аренды» и перейдите по ссылке. После этого вернитесь сюда и
                   войдите в аккаунт.
                 </p>
                 <Button

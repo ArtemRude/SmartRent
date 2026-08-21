@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { fetchMyTenantRecords } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/cabinet")({
-  head: () => ({ meta: [{ title: "Мой кабинет — IRentHome" }] }),
+  head: () => ({ meta: [{ title: "Мой кабинет — Умная Аренда" }] }),
   component: CabinetPage,
 });
 

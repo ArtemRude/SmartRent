@@ -24,7 +24,7 @@ function Brand() {
       <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
         <Building2 className="h-4 w-4" />
       </span>
-      <span className="font-display text-lg font-semibold tracking-tight">IRentHome</span>
+      <span className="font-display text-lg font-semibold tracking-tight">Умная Аренда</span>
     </div>
   );
 }
