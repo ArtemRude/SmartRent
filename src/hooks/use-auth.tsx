@@ -34,8 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
 
-    const load = async (uid: string | undefined) => {
-      if (!uid) {
+    const load = async (nextUser: User | undefined) => {
+      if (!nextUser) {
         if (active) {
           setProfile(null);
           setRole(null);
@@ -43,19 +43,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const [{ data: p }, { data: r }] = await Promise.all([
-        supabase.from("profiles").select("id,name,email,phone").eq("id", uid).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", uid).limit(1).maybeSingle(),
+        supabase.from("profiles").select("id,name,email,phone").eq("id", nextUser.id).maybeSingle(),
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", nextUser.id)
+          .limit(1)
+          .maybeSingle(),
       ]);
       if (!active) return;
+      const metadataRole = nextUser.user_metadata["role"];
+      const fallbackRole: AppRole = metadataRole === "tenant" ? "tenant" : "owner";
       setProfile((p as Profile) ?? null);
-      setRole(((r?.role as AppRole) ?? null) as AppRole | null);
+      setRole((r?.role as AppRole | undefined) ?? fallbackRole);
     };
 
     const syncSession = async (next: Session | null) => {
       if (!active) return;
       setLoading(true);
       setSession(next);
-      await load(next?.user?.id);
+      await load(next?.user);
       if (active) setLoading(false);
     };
 

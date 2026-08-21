@@ -5,18 +5,20 @@ import { AppShell } from "@/components/AppShell";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
+    const { data, error } = await supabase.auth.getSession();
+    const session = data.session;
+    if (error || !session) {
       throw redirect({ to: "/auth", search: { mode: "signin" } });
     }
 
     const { data: roleRow } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", data.user.id)
+      .eq("user_id", session.user.id)
       .limit(1)
       .maybeSingle();
-    const role = roleRow?.role ?? "owner";
+    const metadataRole = session.user.user_metadata["role"];
+    const role = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
     const tenantOnly = location.pathname === "/cabinet";
     const ownerOnly = ["/dashboard", "/properties", "/tenants", "/agreements"].some(
       (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
@@ -24,7 +26,7 @@ export const Route = createFileRoute("/_authenticated")({
 
     if (role === "tenant" && ownerOnly) throw redirect({ to: "/cabinet" });
     if (role !== "tenant" && tenantOnly) throw redirect({ to: "/dashboard" });
-    return { user: data.user, role };
+    return { user: session.user, role };
   },
   component: () => (
     <AppShell>
