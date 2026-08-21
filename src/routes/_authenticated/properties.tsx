@@ -11,6 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -55,6 +65,7 @@ function PropertiesPage() {
   const [type, setType] = useState<PropertyType>("apartment");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -90,6 +101,7 @@ function PropertiesPage() {
     },
     onSuccess: () => {
       toast.success("Объект удалён");
+      setDeleteId(null);
       void qc.invalidateQueries({ queryKey: ["properties"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -182,10 +194,7 @@ function PropertiesPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button
-                  onClick={() => create.mutate()}
-                  disabled={create.isPending || !name.trim()}
-                >
+                <Button onClick={() => create.mutate()} disabled={create.isPending || !name.trim()}>
                   Сохранить
                 </Button>
               </DialogFooter>
@@ -193,6 +202,11 @@ function PropertiesPage() {
           </Dialog>
         }
       />
+
+      {properties.isPending && <p className="text-sm text-muted-foreground">Загружаем объекты…</p>}
+      {properties.isError && (
+        <p className="text-sm text-destructive">Не удалось загрузить объекты.</p>
+      )}
 
       {properties.data?.length === 0 && (
         <Card>
@@ -223,7 +237,7 @@ function PropertiesPage() {
                     variant="ghost"
                     size="icon"
                     aria-label="Удалить"
-                    onClick={() => remove.mutate(p.id)}
+                    onClick={() => setDeleteId(p.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -287,6 +301,27 @@ function PropertiesPage() {
           );
         })}
       </div>
+
+      <AlertDialog open={Boolean(deleteId)} onOpenChange={(value) => !value && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить объект?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вместе с объектом будут удалены его помещения и договоры. Это действие нельзя
+              отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId && remove.mutate(deleteId)}
+              disabled={remove.isPending}
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

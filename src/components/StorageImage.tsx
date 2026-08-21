@@ -10,7 +10,7 @@ export function StorageImage({
   className,
 }: {
   bucket: string;
-  path?: string | null;
+  path?: string | null | undefined;
   alt: string;
   className?: string;
 }) {
@@ -33,10 +33,7 @@ export function StorageImage({
   if (!url) {
     return (
       <div
-        className={cn(
-          "flex items-center justify-center bg-muted text-muted-foreground",
-          className,
-        )}
+        className={cn("flex items-center justify-center bg-muted text-muted-foreground", className)}
         aria-label={alt}
       >
         <ImageIcon className="h-6 w-6 opacity-50" />

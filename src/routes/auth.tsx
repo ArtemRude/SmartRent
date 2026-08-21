@@ -29,7 +29,7 @@ export const Route = createFileRoute("/auth")({
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({
-    mode: search['mode'] === "signup" ? ("signup" as const) : ("signin" as const),
+    mode: search["mode"] === "signup" ? ("signup" as const) : ("signin" as const),
   }),
   component: AuthPage,
 });
@@ -47,7 +47,7 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && session) {
+    if (!loading && session && role) {
       navigate({ to: role === "tenant" ? "/cabinet" : "/dashboard", replace: true });
     }
   }, [loading, session, role, navigate]);

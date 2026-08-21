@@ -9,7 +9,20 @@ function randomName(file: File) {
   return `${crypto.randomUUID()}.${ext}`;
 }
 
+function validateFile(bucket: string, file: File) {
+  const imageBuckets = new Set([PROPERTY_PHOTOS, REQUEST_PHOTOS]);
+  if (imageBuckets.has(bucket)) {
+    if (!file.type.startsWith("image/")) throw new Error("Можно загружать только изображения");
+    if (file.size > 8 * 1024 * 1024) throw new Error("Размер изображения не должен превышать 8 МБ");
+  }
+  if (bucket === LEASE_DOCUMENTS) {
+    if (file.type !== "application/pdf") throw new Error("Договор должен быть в формате PDF");
+    if (file.size > 20 * 1024 * 1024) throw new Error("Размер договора не должен превышать 20 МБ");
+  }
+}
+
 export async function uploadFile(bucket: string, folder: string, file: File) {
+  validateFile(bucket, file);
   const path = `${folder}/${randomName(file)}`;
   const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
   if (error) throw error;

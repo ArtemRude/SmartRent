@@ -66,7 +66,9 @@ function Landing() {
         ) : (
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
-              <Link to="/auth">Войти</Link>
+              <Link to="/auth" search={{ mode: "signin" }}>
+                Войти
+              </Link>
             </Button>
             <Button asChild size="sm">
               <Link to="/auth" search={{ mode: "signup" }}>
@@ -91,12 +93,18 @@ function Landing() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button asChild size="lg">
-              <Link to={session ? target : "/auth"}>
-                {session ? "Открыть кабинет" : "Создать кабинет"}
-              </Link>
+              {session ? (
+                <Link to={target}>Открыть кабинет</Link>
+              ) : (
+                <Link to="/auth" search={{ mode: "signup" }}>
+                  Создать кабинет
+                </Link>
+              )}
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link to="/auth">У меня уже есть аккаунт</Link>
+              <Link to="/auth" search={{ mode: "signin" }}>
+                У меня уже есть аккаунт
+              </Link>
             </Button>
           </div>
 

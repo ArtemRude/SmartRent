@@ -9,6 +9,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -41,6 +51,7 @@ function TenantsPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -68,6 +79,7 @@ function TenantsPage() {
     },
     onSuccess: () => {
       toast.success("Арендатор удалён");
+      setDeleteId(null);
       void qc.invalidateQueries({ queryKey: ["tenants"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -118,6 +130,11 @@ function TenantsPage() {
         }
       />
 
+      {tenants.isPending && <p className="text-sm text-muted-foreground">Загружаем арендаторов…</p>}
+      {tenants.isError && (
+        <p className="text-sm text-destructive">Не удалось загрузить арендаторов.</p>
+      )}
+
       {tenants.data?.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center text-sm text-muted-foreground">
@@ -136,7 +153,7 @@ function TenantsPage() {
                   variant="ghost"
                   size="icon"
                   aria-label="Удалить"
-                  onClick={() => remove.mutate(t.id)}
+                  onClick={() => setDeleteId(t.id)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -156,6 +173,26 @@ function TenantsPage() {
           </Card>
         ))}
       </div>
+
+      <AlertDialog open={Boolean(deleteId)} onOpenChange={(value) => !value && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить арендатора?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Связанные договоры и заявки также будут удалены. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId && remove.mutate(deleteId)}
+              disabled={remove.isPending}
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

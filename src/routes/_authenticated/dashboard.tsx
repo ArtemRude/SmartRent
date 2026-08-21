@@ -4,12 +4,7 @@ import { Building2, CalendarClock, FileText, Inbox, Users } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  fetchAgreements,
-  fetchProperties,
-  fetchRequests,
-  fetchTenants,
-} from "@/lib/queries";
+import { fetchAgreements, fetchProperties, fetchRequests, fetchTenants } from "@/lib/queries";
 import { daysUntil, formatDate, formatMoney } from "@/lib/domain";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -33,23 +28,22 @@ function Stat({
   icon: typeof Building2;
   label: string;
   value: string | number;
-  to: string;
+  to?: string;
 }) {
-  return (
-    <Link to={to} className="block">
-      <Card className="transition-shadow hover:shadow-md">
-        <CardContent className="flex items-center gap-4 p-5">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-accent-foreground">
-            <Icon className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-sm text-muted-foreground">{label}</p>
-            <p className="text-2xl font-semibold">{value}</p>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+  const card = (
+    <Card className={to ? "transition-shadow hover:shadow-md" : undefined}>
+      <CardContent className="flex items-center gap-4 p-5">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-accent-foreground">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="text-2xl font-semibold">{value}</p>
+        </div>
+      </CardContent>
+    </Card>
   );
+  return to ? <Link to={to}>{card}</Link> : card;
 }
 
 function Dashboard() {
@@ -57,6 +51,7 @@ function Dashboard() {
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const requests = useQuery({ queryKey: ["requests"], queryFn: fetchRequests });
+  const queries = [properties, tenants, agreements, requests];
 
   const openRequests = (requests.data ?? []).filter((r) => r.status !== "closed");
   const expiring = (agreements.data ?? []).filter((a) => {
@@ -71,11 +66,25 @@ function Dashboard() {
     <>
       <PageHeader title="Дашборд" description="Общая картина по вашей недвижимости" />
 
+      {queries.some((query) => query.isPending) && (
+        <p className="mb-4 text-sm text-muted-foreground">Загружаем сводку…</p>
+      )}
+      {queries.some((query) => query.isError) && (
+        <p className="mb-4 text-sm text-destructive">
+          Часть данных не загрузилась. Обновите страницу или попробуйте позже.
+        </p>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat icon={Building2} label="Объекты" value={properties.data?.length ?? 0} to="/properties" />
+        <Stat
+          icon={Building2}
+          label="Объекты"
+          value={properties.data?.length ?? 0}
+          to="/properties"
+        />
         <Stat icon={Users} label="Арендаторы" value={tenants.data?.length ?? 0} to="/tenants" />
-        <Stat icon={FileText} label="Договоры" value={agreements.data?.length ?? 0} to="/agreements" />
-        <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} to="/requests" />
+        <Stat icon={FileText} label="Договоры" value={agreements.data?.length ?? 0} />
+        <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">

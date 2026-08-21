@@ -64,10 +64,11 @@ async function unwrap<T>(p: PromiseLike<{ data: T | null; error: { message: stri
 }
 
 export const fetchProperties = () =>
-  unwrap<Property[]>(supabase.from("properties").select("*").order("created_at", { ascending: false }));
+  unwrap<Property[]>(
+    supabase.from("properties").select("*").order("created_at", { ascending: false }),
+  );
 
-export const fetchUnits = () =>
-  unwrap<Unit[]>(supabase.from("units").select("*").order("name"));
+export const fetchUnits = () => unwrap<Unit[]>(supabase.from("units").select("*").order("name"));
 
 export const fetchTenants = () =>
   unwrap<Tenant[]>(supabase.from("tenants").select("*").order("created_at", { ascending: false }));

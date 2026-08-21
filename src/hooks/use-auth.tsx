@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/lib/domain";
 
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthValue>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
@@ -49,26 +51,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(((r?.role as AppRole) ?? null) as AppRole | null);
     };
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const syncSession = async (next: Session | null) => {
+      if (!active) return;
+      setLoading(true);
       setSession(next);
-      void load(next?.user?.id);
+      await load(next?.user?.id);
+      if (active) setLoading(false);
+    };
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === "SIGNED_OUT") queryClient.clear();
+      queueMicrotask(() => void syncSession(next));
     });
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      await load(data.session?.user?.id);
-      if (active) setLoading(false);
-    });
+    supabase.auth.getSession().then(({ data }) => void syncSession(data.session));
 
     return () => {
       active = false;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    queryClient.clear();
     setProfile(null);
     setRole(null);
   };
