@@ -66,12 +66,12 @@ function Landing() {
         ) : (
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
-              <Link to="/auth" search={{ mode: "signin" }}>
+              <Link to="/auth" search={{ mode: "signin", role: undefined, email: "", name: "" }}>
                 Войти
               </Link>
             </Button>
             <Button asChild size="sm">
-              <Link to="/auth" search={{ mode: "signup" }}>
+              <Link to="/auth" search={{ mode: "signup", role: undefined, email: "", name: "" }}>
                 Начать бесплатно
               </Link>
             </Button>
@@ -96,13 +96,13 @@ function Landing() {
               {session ? (
                 <Link to={target}>Открыть кабинет</Link>
               ) : (
-                <Link to="/auth" search={{ mode: "signup" }}>
+                <Link to="/auth" search={{ mode: "signup", role: undefined, email: "", name: "" }}>
                   Создать кабинет
                 </Link>
               )}
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link to="/auth" search={{ mode: "signin" }}>
+              <Link to="/auth" search={{ mode: "signin", role: undefined, email: "", name: "" }}>
                 У меня уже есть аккаунт
               </Link>
             </Button>

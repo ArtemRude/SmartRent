@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Mail, Phone, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Copy, Mail, Phone, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,32 @@ function TenantsPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const getInvitationUrl = (tenant: { email: string; name: string }) => {
+    const url = new URL("/auth", window.location.origin);
+    url.searchParams.set("mode", "signup");
+    url.searchParams.set("role", "tenant");
+    url.searchParams.set("email", tenant.email);
+    url.searchParams.set("name", tenant.name);
+    return url.toString();
+  };
+
+  const copyInvitation = async (tenant: { email: string; name: string }) => {
+    try {
+      await navigator.clipboard.writeText(getInvitationUrl(tenant));
+      toast.success("Ссылка-приглашение скопирована");
+    } catch {
+      toast.error("Не удалось скопировать ссылку");
+    }
+  };
+
+  const emailInvitation = (tenant: { email: string; name: string }) => {
+    const subject = encodeURIComponent("Приглашение в «Умную Аренду»");
+    const body = encodeURIComponent(
+      `Здравствуйте, ${tenant.name}!\n\nСобственник пригласил вас в сервис «Умная Аренда». Зарегистрируйтесь по ссылке, чтобы увидеть договор и данные аренды:\n\n${getInvitationUrl(tenant)}`,
+    );
+    window.location.href = `mailto:${encodeURIComponent(tenant.email)}?subject=${subject}&body=${body}`;
+  };
 
   const create = useMutation({
     mutationFn: async () => {
@@ -126,6 +152,7 @@ function TenantsPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -134,7 +161,10 @@ function TenantsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={() => create.mutate()} disabled={create.isPending || !name.trim()}>
+                <Button
+                  onClick={() => create.mutate()}
+                  disabled={create.isPending || !name.trim() || !email.trim()}
+                >
                   Сохранить
                 </Button>
               </DialogFooter>
@@ -190,6 +220,16 @@ function TenantsPage() {
                   <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-success/12 px-2.5 py-0.5 text-xs text-success">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Кабинет подключён
                   </p>
+                )}
+                {!t.user_id && t.email && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => void copyInvitation(t)}>
+                      <Copy className="mr-2 h-4 w-4" /> Скопировать приглашение
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => emailInvitation(t)}>
+                      <Send className="mr-2 h-4 w-4" /> Отправить email
+                    </Button>
+                  </div>
                 )}
                 {activeAgreement && (
                   <div className="mt-4 border-t pt-3 text-sm">

@@ -30,22 +30,35 @@ export const Route = createFileRoute("/auth")({
   }),
   validateSearch: (search: Record<string, unknown>) => ({
     mode: search["mode"] === "signup" ? ("signup" as const) : ("signin" as const),
+    role: search["role"] === "tenant" ? ("tenant" as const) : undefined,
+    email: typeof search["email"] === "string" ? search["email"].slice(0, 254) : "",
+    name: typeof search["name"] === "string" ? search["name"].slice(0, 120) : "",
   }),
   component: AuthPage,
 });
 
 function AuthPage() {
-  const { mode } = Route.useSearch();
+  const { mode, role: invitedRole, email: invitedEmail, name: invitedName } = Route.useSearch();
   const navigate = useNavigate();
   const { session, role, loading } = useAuth();
+  const isTenantInvite = invitedRole === "tenant";
   const [tab, setTab] = useState<"signin" | "signup">(mode);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(invitedName);
   const [phone, setPhone] = useState("");
   const [accountRole, setAccountRole] = useState<"owner" | "tenant">("owner");
   const [busy, setBusy] = useState(false);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
+
+  useEffect(() => {
+    setTab(mode);
+    if (isTenantInvite) {
+      setEmail(invitedEmail);
+      setName(invitedName);
+      setAccountRole("tenant");
+    }
+  }, [mode, isTenantInvite, invitedEmail, invitedName]);
 
   useEffect(() => {
     if (!loading && session && role) {
@@ -73,6 +86,10 @@ function AuthPage() {
           return;
         }
         toast.success("Аккаунт создан");
+        await navigate({
+          to: accountRole === "tenant" ? "/cabinet" : "/dashboard",
+          replace: true,
+        });
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -139,12 +156,21 @@ function AuthPage() {
           </Tabs>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
+            {isTenantInvite && tab === "signup" && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
+                <p className="font-medium">Вас пригласили как арендатора</p>
+                <p className="mt-1 text-muted-foreground">
+                  Зарегистрируйтесь с указанным email — договор автоматически появится в вашем
+                  кабинете.
+                </p>
+              </div>
+            )}
             {confirmationRequired && (
               <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
                 <p className="font-medium">Подтвердите email</p>
                 <p className="mt-1 text-muted-foreground">
-                  Откройте письмо от «Умной Аренды» и перейдите по ссылке. После этого вернитесь сюда и
-                  войдите в аккаунт.
+                  Откройте письмо от «Умной Аренды» и перейдите по ссылке. После этого вернитесь
+                  сюда и войдите в аккаунт.
                 </p>
                 <Button
                   type="button"
@@ -183,6 +209,7 @@ function AuthPage() {
                   <Select
                     value={accountRole}
                     onValueChange={(v) => setAccountRole(v as "owner" | "tenant")}
+                    disabled={isTenantInvite}
                   >
                     <SelectTrigger id="role">
                       <SelectValue />
@@ -203,6 +230,7 @@ function AuthPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                readOnly={isTenantInvite && tab === "signup"}
               />
             </div>
             <div className="space-y-1.5">

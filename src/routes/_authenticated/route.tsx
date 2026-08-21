@@ -8,7 +8,10 @@ export const Route = createFileRoute("/_authenticated")({
     const { data, error } = await supabase.auth.getSession();
     const session = data.session;
     if (error || !session) {
-      throw redirect({ to: "/auth", search: { mode: "signin" } });
+      throw redirect({
+        to: "/auth",
+        search: { mode: "signin", role: undefined, email: "", name: "" },
+      });
     }
 
     const { data: roleRow } = await supabase
