@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { PROPERTY_PHOTOS, uploadFile } from "@/lib/storage";
+import { PROPERTY_PHOTOS, removeFile, uploadFile } from "@/lib/storage";
 import { propertyTypeLabels, type PropertyType } from "@/lib/domain";
 import { fetchProperties, fetchUnits } from "@/lib/queries";
 
@@ -71,16 +71,21 @@ function PropertiesPage() {
     mutationFn: async () => {
       if (!user) throw new Error("Нет сессии");
       let photos: string[] = [];
-      if (file) photos = [await uploadFile(PROPERTY_PHOTOS, user.id, file)];
-      const { error } = await supabase.from("properties").insert({
-        owner_id: user.id,
-        name,
-        address,
-        type,
-        description: description || null,
-        photos,
-      });
-      if (error) throw new Error(error.message);
+      try {
+        if (file) photos = [await uploadFile(PROPERTY_PHOTOS, user.id, file)];
+        const { error } = await supabase.from("properties").insert({
+          owner_id: user.id,
+          name,
+          address,
+          type,
+          description: description || null,
+          photos,
+        });
+        if (error) throw new Error(error.message);
+      } catch (error) {
+        if (photos[0]) await removeFile(PROPERTY_PHOTOS, photos[0]).catch(() => undefined);
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("Объект добавлен");
@@ -296,6 +301,11 @@ function PropertiesPage() {
                     </Button>
                   )}
                 </div>
+                <Button asChild variant="outline" size="sm" className="mt-4 w-full">
+                  <Link to="/properties/$propertyId" params={{ propertyId: p.id }}>
+                    Открыть объект
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           );

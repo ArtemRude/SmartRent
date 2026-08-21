@@ -35,6 +35,11 @@ export async function getSignedUrl(bucket: string, path: string, expiresIn = 360
   return data.signedUrl;
 }
 
+export async function removeFile(bucket: string, path: string) {
+  const { error } = await supabase.storage.from(bucket).remove([path]);
+  if (error) throw error;
+}
+
 export async function downloadFile(bucket: string, path: string, fileName: string) {
   const url = await getSignedUrl(bucket, path, 120);
   const a = document.createElement("a");

@@ -56,7 +56,7 @@ function Dashboard() {
   const openRequests = (requests.data ?? []).filter((r) => r.status !== "closed");
   const expiring = (agreements.data ?? []).filter((a) => {
     const d = daysUntil(a.end_date);
-    return d >= 0 && d <= 45;
+    return a.status === "active" && d >= 0 && d <= 45;
   });
   const income = (agreements.data ?? [])
     .filter((a) => a.status === "active")
@@ -83,7 +83,12 @@ function Dashboard() {
           to="/properties"
         />
         <Stat icon={Users} label="Арендаторы" value={tenants.data?.length ?? 0} to="/tenants" />
-        <Stat icon={FileText} label="Договоры" value={agreements.data?.length ?? 0} />
+        <Stat
+          icon={FileText}
+          label="Договоры"
+          value={agreements.data?.length ?? 0}
+          to="/agreements"
+        />
         <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} />
       </div>
 

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Building2, Home, LogOut, Menu, Users, UserRound } from "lucide-react";
+import { Building2, FileText, Home, LogOut, Menu, Users, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,7 @@ const ownerNav: NavItem[] = [
   { to: "/dashboard", label: "Дашборд", icon: Home },
   { to: "/properties", label: "Объекты", icon: Building2 },
   { to: "/tenants", label: "Арендаторы", icon: Users },
+  { to: "/agreements", label: "Договоры", icon: FileText },
 ];
 
 const tenantNav: NavItem[] = [{ to: "/cabinet", label: "Мой кабинет", icon: Home }];

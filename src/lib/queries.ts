@@ -68,6 +68,12 @@ export const fetchProperties = () =>
     supabase.from("properties").select("*").order("created_at", { ascending: false }),
   );
 
+export const fetchProperty = async (id: string) => {
+  const { data, error } = await supabase.from("properties").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as Property | null;
+};
+
 export const fetchUnits = () => unwrap<Unit[]>(supabase.from("units").select("*").order("name"));
 
 export const fetchTenants = () =>

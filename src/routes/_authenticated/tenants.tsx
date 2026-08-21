@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchTenants } from "@/lib/queries";
+import { formatDate } from "@/lib/domain";
+import { fetchAgreements, fetchProperties, fetchTenants } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/tenants")({
   head: () => ({
@@ -46,6 +47,8 @@ function TenantsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
+  const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
+  const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -56,9 +59,19 @@ function TenantsPage() {
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Нет сессии");
+      const normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail) {
+        const { data: existing, error: checkError } = await supabase
+          .from("tenants")
+          .select("id")
+          .ilike("email", normalizedEmail)
+          .limit(1);
+        if (checkError) throw new Error(checkError.message);
+        if (existing.length) throw new Error("Арендатор с таким email уже добавлен");
+      }
       const { error } = await supabase
         .from("tenants")
-        .insert({ owner_id: user.id, name, email, phone: phone || null });
+        .insert({ owner_id: user.id, name, email: normalizedEmail, phone: phone || null });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -130,8 +143,10 @@ function TenantsPage() {
         }
       />
 
-      {tenants.isPending && <p className="text-sm text-muted-foreground">Загружаем арендаторов…</p>}
-      {tenants.isError && (
+      {[tenants, agreements, properties].some((query) => query.isPending) && (
+        <p className="text-sm text-muted-foreground">Загружаем арендаторов…</p>
+      )}
+      {[tenants, agreements, properties].some((query) => query.isError) && (
         <p className="text-sm text-destructive">Не удалось загрузить арендаторов.</p>
       )}
 
@@ -144,34 +159,50 @@ function TenantsPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {(tenants.data ?? []).map((t) => (
-          <Card key={t.id}>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold">{t.name}</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Удалить"
-                  onClick={() => setDeleteId(t.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4" /> {t.email || "—"}
-              </p>
-              <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone className="h-4 w-4" /> {t.phone || "—"}
-              </p>
-              {t.user_id && (
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-success/12 px-2.5 py-0.5 text-xs text-success">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Кабинет подключён
+        {(tenants.data ?? []).map((t) => {
+          const activeAgreement = agreements.data?.find(
+            (agreement) => agreement.tenant_id === t.id && agreement.status === "active",
+          );
+          const property = properties.data?.find(
+            (item) => item.id === activeAgreement?.property_id,
+          );
+          return (
+            <Card key={t.id}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="font-semibold">{t.name}</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Удалить"
+                    onClick={() => setDeleteId(t.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4" /> {t.email || "—"}
                 </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Phone className="h-4 w-4" /> {t.phone || "—"}
+                </p>
+                {t.user_id && (
+                  <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-success/12 px-2.5 py-0.5 text-xs text-success">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Кабинет подключён
+                  </p>
+                )}
+                {activeAgreement && (
+                  <div className="mt-4 border-t pt-3 text-sm">
+                    <p className="font-medium">{property?.name ?? "Объект"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Договор до {formatDate(activeAgreement.end_date)}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <AlertDialog open={Boolean(deleteId)} onOpenChange={(value) => !value && setDeleteId(null)}>

@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated")({
       .maybeSingle();
     const role = roleRow?.role ?? "owner";
     const tenantOnly = location.pathname === "/cabinet";
-    const ownerOnly = ["/dashboard", "/properties", "/tenants"].some(
+    const ownerOnly = ["/dashboard", "/properties", "/tenants", "/agreements"].some(
       (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
     );
 
