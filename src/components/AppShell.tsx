@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
+  Bell,
   Building2,
   CreditCard,
   FileText,
@@ -15,23 +17,26 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
 import { roleLabels } from "@/lib/domain";
+import { fetchNotifications } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 type NavItem = { to: string; label: string; icon: typeof Home };
 
 const ownerNav: NavItem[] = [
-  { to: "/dashboard", label: "Дашборд", icon: Home },
+  { to: "/dashboard", label: "Мой кабинет", icon: Home },
   { to: "/properties", label: "Объекты", icon: Building2 },
   { to: "/tenants", label: "Арендаторы", icon: Users },
   { to: "/agreements", label: "Договоры", icon: FileText },
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/requests", label: "Заявки", icon: Inbox },
+  { to: "/notifications", label: "Уведомления", icon: Bell },
 ];
 
 const tenantNav: NavItem[] = [
   { to: "/cabinet", label: "Мой кабинет", icon: Home },
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/requests", label: "Заявки", icon: Inbox },
+  { to: "/notifications", label: "Уведомления", icon: Bell },
 ];
 
 function Brand() {
@@ -45,7 +50,15 @@ function Brand() {
   );
 }
 
-function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+function NavList({
+  items,
+  unreadCount,
+  onNavigate,
+}: {
+  items: NavItem[];
+  unreadCount: number;
+  onNavigate?: () => void;
+}) {
   const { pathname } = useLocation();
   return (
     <nav className="flex flex-col gap-1">
@@ -65,6 +78,11 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
           >
             <item.icon className="h-4 w-4" />
             {item.label}
+            {item.to === "/notifications" && unreadCount > 0 && (
+              <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-[11px] leading-4 text-primary-foreground">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -73,10 +91,20 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { profile, role, signOut } = useAuth();
+  const { user, profile, role, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const items = role === "tenant" ? tenantNav : ownerNav;
+  const notifications = useQuery({
+    queryKey: ["notifications", user?.id],
+    queryFn: fetchNotifications,
+    enabled: Boolean(user),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+  const unreadCount = (notifications.data ?? []).filter(
+    (notification) => notification.read_at == null,
+  ).length;
 
   const handleSignOut = async () => {
     await signOut();
@@ -89,7 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link to="/" className="mb-6 block">
           <Brand />
         </Link>
-        <NavList items={items} />
+        <NavList items={items} unreadCount={unreadCount} />
         <div className="mt-auto rounded-xl border border-sidebar-border bg-card p-3">
           <div className="flex items-center gap-2">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-accent text-accent-foreground">
@@ -126,7 +154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="mb-6">
                 <Brand />
               </div>
-              <NavList items={items} onNavigate={() => setOpen(false)} />
+              <NavList items={items} unreadCount={unreadCount} onNavigate={() => setOpen(false)} />
               <Button
                 variant="ghost"
                 size="sm"

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, CalendarClock, CreditCard, FileText, Inbox, Users } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
+import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,9 +17,9 @@ import { daysUntil, formatDate, formatMoney, getPaymentStatus } from "@/lib/doma
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Дашборд — Умная Аренда" },
+      { title: "Мой кабинет — Умная Аренда" },
       { name: "description", content: "Сводка по объектам, договорам и заявкам собственника." },
-      { property: "og:title", content: "Дашборд — Умная Аренда" },
+      { property: "og:title", content: "Мой кабинет — Умная Аренда" },
       { property: "og:description", content: "Сводка по объектам, договорам и заявкам." },
     ],
   }),
@@ -74,7 +75,7 @@ function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Дашборд" description="Общая картина по вашей недвижимости" />
+      <PageHeader title="Мой кабинет" description="Общая картина по вашей недвижимости" />
 
       {queries.some((query) => query.isPending) && (
         <p className="mb-4 text-sm text-muted-foreground">Загружаем сводку…</p>
@@ -161,6 +162,8 @@ function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      <NotificationsPreview className="mt-6" />
     </>
   );
 }

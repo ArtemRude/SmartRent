@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, CalendarDays, CreditCard, FileText, Inbox, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
+import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -184,6 +185,7 @@ function CabinetPage() {
           </Card>
         </div>
       )}
+      <NotificationsPreview className="mt-6" />
     </>
   );
 }

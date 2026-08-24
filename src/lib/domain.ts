@@ -3,6 +3,9 @@ export type RequestCategory = "repair" | "question" | "payment" | "other";
 export type RequestStatus = "new" | "in_progress" | "closed";
 export type PaymentStatus = "pending" | "paid" | "overdue";
 export type AppRole = "admin" | "owner" | "tenant";
+export type NotificationKind =
+  "request_created" | "request_comment" | "request_status" | "agreement_created" | "payment_status";
+export type NotificationHref = "/requests" | "/payments" | "/cabinet";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   apartment: "Квартира / апартаменты",
@@ -34,6 +37,14 @@ export const roleLabels: Record<AppRole, string> = {
   admin: "Администратор",
   owner: "Собственник",
   tenant: "Арендатор",
+};
+
+export const notificationKindLabels: Record<NotificationKind, string> = {
+  request_created: "Новая заявка",
+  request_comment: "Комментарий",
+  request_status: "Статус заявки",
+  agreement_created: "Договор",
+  payment_status: "Оплата",
 };
 
 export function formatMoney(value: number | null | undefined) {

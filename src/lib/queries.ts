@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { NotificationHref, NotificationKind } from "@/lib/domain";
 
 export type Property = {
   id: string;
@@ -87,6 +88,19 @@ export type RentCharge = {
   created_at: string;
 };
 
+export type NotificationRow = {
+  id: string;
+  user_id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  href: NotificationHref;
+  entity_type: "request" | "agreement" | "rent_charge";
+  entity_id: string;
+  read_at: string | null;
+  created_at: string;
+};
+
 async function unwrap<T>(p: PromiseLike<{ data: T | null; error: { message: string } | null }>) {
   const { data, error } = await p;
   if (error) throw new Error(error.message);
@@ -141,6 +155,27 @@ export const fetchRentCharges = () =>
   unwrap<RentCharge[]>(
     supabase.from("rent_charges").select("*").order("due_date", { ascending: false }),
   );
+
+export const fetchNotifications = async () =>
+  (await unwrap(
+    supabase.from("notifications").select("*").order("created_at", { ascending: false }).limit(100),
+  )) as NotificationRow[];
+
+export const markNotificationRead = async (id: string) => {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+};
+
+export const markAllNotificationsRead = async () => {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .is("read_at", null);
+  if (error) throw new Error(error.message);
+};
 
 export const fetchMyTenantRecords = async (userId: string) =>
   unwrap<Tenant[]>(supabase.from("tenants").select("*").eq("user_id", userId));
