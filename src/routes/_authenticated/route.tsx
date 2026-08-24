@@ -23,11 +23,15 @@ export const Route = createFileRoute("/_authenticated")({
     const metadataRole = session.user.user_metadata["role"];
     const role = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
     const tenantOnly = location.pathname === "/cabinet";
+    const adminOnly = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
     const ownerOnly = ["/dashboard", "/properties", "/tenants", "/agreements"].some(
       (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
     );
 
     if (role === "tenant" && ownerOnly) throw redirect({ to: "/cabinet" });
+    if (adminOnly && role !== "admin") {
+      throw redirect({ to: role === "tenant" ? "/cabinet" : "/dashboard" });
+    }
     if (role !== "tenant" && tenantOnly) throw redirect({ to: "/dashboard" });
     return { user: session.user, role };
   },

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2, FileText, Inbox, ShieldCheck, Users, Warehouse } from "lucide-react";
+import { Building2, FileText, Inbox, Users, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -48,7 +48,7 @@ const features = [
 
 function Landing() {
   const { session, role } = useAuth();
-  const target = role === "tenant" ? "/cabinet" : "/dashboard";
+  const target = role === "tenant" ? "/cabinet" : role === "admin" ? "/admin" : "/dashboard";
 
   return (
     <div className="min-h-screen bg-background">
@@ -81,10 +81,7 @@ function Landing() {
 
       <main>
         <section className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10 md:px-8 md:pt-20">
-          <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5" /> MVP для собственников и арендаторов
-          </p>
-          <h1 className="mt-5 max-w-3xl font-display text-4xl font-bold leading-tight tracking-tight md:text-6xl">
+          <h1 className="max-w-3xl font-display text-4xl font-bold leading-tight tracking-tight md:text-6xl">
             Аренда без таблиц, чатов и потерянных договоров
           </h1>
           <p className="mt-5 max-w-2xl text-base text-muted-foreground md:text-lg">

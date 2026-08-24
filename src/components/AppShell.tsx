@@ -10,6 +10,7 @@ import {
   Inbox,
   LogOut,
   Menu,
+  ShieldCheck,
   Users,
   UserRound,
 } from "lucide-react";
@@ -37,6 +38,11 @@ const tenantNav: NavItem[] = [
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
+];
+
+const adminNav: NavItem[] = [
+  { to: "/admin", label: "Администрирование", icon: ShieldCheck },
+  ...ownerNav,
 ];
 
 function Brand() {
@@ -94,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user, profile, role, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const items = role === "tenant" ? tenantNav : ownerNav;
+  const items = role === "tenant" ? tenantNav : role === "admin" ? adminNav : ownerNav;
   const notifications = useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: fetchNotifications,

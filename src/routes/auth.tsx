@@ -62,7 +62,10 @@ function AuthPage() {
 
   useEffect(() => {
     if (!loading && session && role) {
-      navigate({ to: role === "tenant" ? "/cabinet" : "/dashboard", replace: true });
+      navigate({
+        to: role === "tenant" ? "/cabinet" : role === "admin" ? "/admin" : "/dashboard",
+        replace: true,
+      });
     }
   }, [loading, session, role, navigate]);
 
@@ -103,7 +106,12 @@ function AuthPage() {
         const metadataRole = data.user.user_metadata["role"];
         const resolvedRole = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
         await navigate({
-          to: resolvedRole === "tenant" ? "/cabinet" : "/dashboard",
+          to:
+            resolvedRole === "tenant"
+              ? "/cabinet"
+              : resolvedRole === "admin"
+                ? "/admin"
+                : "/dashboard",
           replace: true,
         });
       }
