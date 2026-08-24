@@ -89,7 +89,7 @@ function Dashboard() {
           value={agreements.data?.length ?? 0}
           to="/agreements"
         />
-        <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} />
+        <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} to="/requests" />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -133,13 +133,17 @@ function Dashboard() {
         </CardHeader>
         <CardContent className="space-y-3">
           {(requests.data ?? []).slice(0, 5).map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-3">
+            <Link
+              key={r.id}
+              to="/requests"
+              className="flex items-center justify-between gap-3 rounded-lg p-1 transition-colors hover:bg-muted/60"
+            >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{r.title}</p>
                 <p className="text-xs text-muted-foreground">{formatDate(r.created_at)}</p>
               </div>
               <StatusBadge status={r.status} />
-            </div>
+            </Link>
           ))}
           {(requests.data ?? []).length === 0 && (
             <p className="text-sm text-muted-foreground">Заявок пока нет.</p>

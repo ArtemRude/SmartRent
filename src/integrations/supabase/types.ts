@@ -234,6 +234,41 @@ export type Database = {
           },
         ]
       }
+      request_status_events: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_status: Database["public"]["Enums"]["request_status"] | null
+          id: string
+          request_id: string
+          to_status: Database["public"]["Enums"]["request_status"]
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: Database["public"]["Enums"]["request_status"] | null
+          id?: string
+          request_id: string
+          to_status: Database["public"]["Enums"]["request_status"]
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: Database["public"]["Enums"]["request_status"] | null
+          id?: string
+          request_id?: string
+          to_status?: Database["public"]["Enums"]["request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_status_events_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string

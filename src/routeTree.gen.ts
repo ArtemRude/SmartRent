@@ -16,6 +16,7 @@ import { Route as AuthenticatedAgreementsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedCabinetRouteImport } from './routes/_authenticated/cabinet'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPropertiesRouteImport } from './routes/_authenticated/properties'
+import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
 import { Route as AuthenticatedTenantsRouteImport } from './routes/_authenticated/tenants'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties.$propertyId'
 
@@ -53,6 +54,11 @@ const AuthenticatedPropertiesRoute = AuthenticatedPropertiesRouteImport.update({
   path: '/properties',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRequestsRoute = AuthenticatedRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTenantsRoute = AuthenticatedTenantsRouteImport.update({
   id: '/tenants',
   path: '/tenants',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/cabinet': typeof AuthenticatedCabinetRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
+  '/requests': typeof AuthenticatedRequestsRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/cabinet': typeof AuthenticatedCabinetRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
+  '/requests': typeof AuthenticatedRequestsRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/_authenticated/cabinet': typeof AuthenticatedCabinetRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/properties': typeof AuthenticatedPropertiesRouteWithChildren
+  '/_authenticated/requests': typeof AuthenticatedRequestsRoute
   '/_authenticated/tenants': typeof AuthenticatedTenantsRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/cabinet'
     | '/dashboard'
     | '/properties'
+    | '/requests'
     | '/tenants'
     | '/properties/$propertyId'
   fileRoutesByTo: FileRoutesByTo
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/cabinet'
     | '/dashboard'
     | '/properties'
+    | '/requests'
     | '/tenants'
     | '/properties/$propertyId'
   id:
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cabinet'
     | '/_authenticated/dashboard'
     | '/_authenticated/properties'
+    | '/_authenticated/requests'
     | '/_authenticated/tenants'
     | '/_authenticated/properties/$propertyId'
   fileRoutesById: FileRoutesById
@@ -188,6 +200,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/requests': {
+      id: '/_authenticated/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof AuthenticatedRequestsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tenants': {
       id: '/_authenticated/tenants'
       path: '/tenants'
@@ -225,6 +244,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCabinetRoute: typeof AuthenticatedCabinetRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedPropertiesRoute: typeof AuthenticatedPropertiesRouteWithChildren
+  AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
   AuthenticatedTenantsRoute: typeof AuthenticatedTenantsRoute
 }
 
@@ -233,6 +253,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCabinetRoute: AuthenticatedCabinetRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedPropertiesRoute: AuthenticatedPropertiesRouteWithChildren,
+  AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
   AuthenticatedTenantsRoute: AuthenticatedTenantsRoute,
 }
 

@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, CalendarDays, FileText, Inbox, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDate, formatMoney } from "@/lib/domain";
 import { fetchAgreements, fetchMyTenantRecords, fetchProperties, fetchUnits } from "@/lib/queries";
@@ -106,8 +107,13 @@ function CabinetPage() {
                 <Inbox className="h-4 w-4" /> Заявки
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Раздел появится на следующем этапе.
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Сообщите собственнику о ремонте, оплате или задайте вопрос по аренде.
+              </p>
+              <Button asChild className="mt-4">
+                <Link to="/requests">Открыть заявки</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>

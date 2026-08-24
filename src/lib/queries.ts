@@ -57,6 +57,23 @@ export type RequestRow = {
   created_at: string;
 };
 
+export type CommentRow = {
+  id: string;
+  request_id: string;
+  user_id: string;
+  text: string;
+  created_at: string;
+};
+
+export type RequestStatusEvent = {
+  id: string;
+  request_id: string;
+  from_status: RequestRow["status"] | null;
+  to_status: RequestRow["status"];
+  changed_by: string | null;
+  created_at: string;
+};
+
 async function unwrap<T>(p: PromiseLike<{ data: T | null; error: { message: string } | null }>) {
   const { data, error } = await p;
   if (error) throw new Error(error.message);
@@ -87,6 +104,24 @@ export const fetchAgreements = () =>
 export const fetchRequests = () =>
   unwrap<RequestRow[]>(
     supabase.from("requests").select("*").order("created_at", { ascending: false }),
+  );
+
+export const fetchComments = (requestId: string) =>
+  unwrap<CommentRow[]>(
+    supabase
+      .from("comments")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true }),
+  );
+
+export const fetchRequestStatusEvents = (requestId: string) =>
+  unwrap<RequestStatusEvent[]>(
+    supabase
+      .from("request_status_events")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true }),
   );
 
 export const fetchMyTenantRecords = async (userId: string) =>
