@@ -1,3 +1,4 @@
+-- Trigger deployment after correcting the Supabase GitHub working directory.
 CREATE SCHEMA IF NOT EXISTS private;
 REVOKE ALL ON SCHEMA private FROM PUBLIC;
 
