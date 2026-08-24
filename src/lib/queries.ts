@@ -91,6 +91,7 @@ export type RentCharge = {
 export type NotificationRow = {
   id: string;
   user_id: string;
+  dedupe_key: string | null;
   kind: NotificationKind;
   title: string;
   body: string;

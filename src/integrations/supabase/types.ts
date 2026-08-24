@@ -114,6 +114,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          dedupe_key: string | null
           entity_id: string
           entity_type: string
           href: string
@@ -126,6 +127,7 @@ export type Database = {
         Insert: {
           body?: string
           created_at?: string
+          dedupe_key?: string | null
           entity_id: string
           entity_type: string
           href: string
@@ -138,6 +140,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          dedupe_key?: string | null
           entity_id?: string
           entity_type?: string
           href?: string

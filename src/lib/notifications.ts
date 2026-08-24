@@ -1,4 +1,12 @@
-import { CreditCard, FileText, Inbox, MessageCircle, type LucideIcon } from "lucide-react";
+import {
+  CalendarClock,
+  CircleAlert,
+  CreditCard,
+  FileText,
+  Inbox,
+  MessageCircle,
+  type LucideIcon,
+} from "lucide-react";
 import type { NotificationKind } from "@/lib/domain";
 
 export const notificationIcons: Record<NotificationKind, LucideIcon> = {
@@ -6,5 +14,8 @@ export const notificationIcons: Record<NotificationKind, LucideIcon> = {
   request_comment: MessageCircle,
   request_status: Inbox,
   agreement_created: FileText,
+  agreement_expiring: CalendarClock,
   payment_status: CreditCard,
+  payment_due: CalendarClock,
+  payment_overdue: CircleAlert,
 };

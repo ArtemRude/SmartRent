@@ -4,8 +4,15 @@ export type RequestStatus = "new" | "in_progress" | "closed";
 export type PaymentStatus = "pending" | "paid" | "overdue";
 export type AppRole = "admin" | "owner" | "tenant";
 export type NotificationKind =
-  "request_created" | "request_comment" | "request_status" | "agreement_created" | "payment_status";
-export type NotificationHref = "/requests" | "/payments" | "/cabinet";
+  | "request_created"
+  | "request_comment"
+  | "request_status"
+  | "agreement_created"
+  | "agreement_expiring"
+  | "payment_status"
+  | "payment_due"
+  | "payment_overdue";
+export type NotificationHref = "/requests" | "/payments" | "/agreements" | "/cabinet";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   apartment: "Квартира / апартаменты",
@@ -44,7 +51,10 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   request_comment: "Комментарий",
   request_status: "Статус заявки",
   agreement_created: "Договор",
+  agreement_expiring: "Срок договора",
   payment_status: "Оплата",
+  payment_due: "Срок оплаты",
+  payment_overdue: "Просрочка",
 };
 
 export function formatMoney(value: number | null | undefined) {
