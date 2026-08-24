@@ -1,13 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CalendarDays, CreditCard, FileText, Inbox, MapPin } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  CreditCard,
+  Download,
+  FileText,
+  Inbox,
+  MapPin,
+  Ruler,
+} from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
+import { StorageImage } from "@/components/StorageImage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { formatDate, formatMoney, getPaymentStatus } from "@/lib/domain";
+import { formatDate, formatMoney, getPaymentStatus, propertyTypeLabels } from "@/lib/domain";
 import {
   fetchAgreements,
   fetchMyTenantRecords,
@@ -15,6 +26,7 @@ import {
   fetchRentCharges,
   fetchUnits,
 } from "@/lib/queries";
+import { downloadFile, LEASE_DOCUMENTS, PROPERTY_PHOTOS } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/cabinet")({
   head: () => ({ meta: [{ title: "Мой кабинет — Умная Аренда" }] }),
@@ -76,6 +88,59 @@ function CabinetPage() {
       )}
       {!loading && !failed && (tenants.data?.length ?? 0) > 0 && (
         <div className="space-y-4">
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Building2 className="h-4 w-4" /> Мой объект
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(agreements.data ?? []).map((agreement) => {
+                const property = properties.data?.find((item) => item.id === agreement.property_id);
+                const unit = units.data?.find((item) => item.id === agreement.unit_id);
+                return (
+                  <div
+                    key={agreement.id}
+                    className="grid overflow-hidden rounded-xl border sm:grid-cols-[180px_1fr]"
+                  >
+                    <StorageImage
+                      bucket={PROPERTY_PHOTOS}
+                      path={property?.photos[0]}
+                      alt={property?.name ?? "Объект аренды"}
+                      className="h-40 w-full sm:h-full"
+                    />
+                    <div className="p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold">{property?.name ?? "Объект аренды"}</p>
+                        <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs text-accent-foreground">
+                          {property ? propertyTypeLabels[property.type] : "Недвижимость"}
+                        </span>
+                      </div>
+                      <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                        {property?.address || "Адрес не указан"}
+                      </p>
+                      {unit && (
+                        <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                          <Ruler className="h-4 w-4" />
+                          {unit.name}
+                          {unit.area != null ? ` · ${unit.area} м²` : ""}
+                        </p>
+                      )}
+                      {property?.description && (
+                        <p className="mt-3 text-sm">{property.description}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {(agreements.data?.length ?? 0) === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Объект появится после добавления договора собственником.
+                </p>
+              )}
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -109,6 +174,27 @@ function CabinetPage() {
                       <p className="font-medium sm:text-right">
                         {formatMoney(agreement.monthly_payment)}/мес.
                       </p>
+                    </div>
+                    <div className="mt-4 border-t pt-4">
+                      {agreement.document_file ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            void downloadFile(
+                              LEASE_DOCUMENTS,
+                              agreement.document_file!,
+                              `Договор-${property?.name ?? agreement.id}.pdf`,
+                            ).catch((error: Error) => toast.error(error.message))
+                          }
+                        >
+                          <Download className="mr-2 h-4 w-4" /> Скачать договор PDF
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Собственник ещё не загрузил файл договора.
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
