@@ -1,6 +1,7 @@
 export type PropertyType = "apartment" | "warehouse" | "commercial" | "other";
 export type RequestCategory = "repair" | "question" | "payment" | "other";
 export type RequestStatus = "new" | "in_progress" | "closed";
+export type PaymentStatus = "pending" | "paid" | "overdue";
 export type AppRole = "admin" | "owner" | "tenant";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
@@ -21,6 +22,12 @@ export const requestStatusLabels: Record<RequestStatus, string> = {
   new: "Новая",
   in_progress: "В работе",
   closed: "Закрыта",
+};
+
+export const paymentStatusLabels: Record<PaymentStatus, string> = {
+  pending: "Ожидается",
+  paid: "Оплачено",
+  overdue: "Просрочено",
 };
 
 export const roleLabels: Record<AppRole, string> = {
@@ -48,6 +55,27 @@ export function formatDateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(
     new Date(value),
   );
+}
+
+export function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatMonth(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(
+    new Date(`${value}T12:00:00`),
+  );
+}
+
+export function getPaymentStatus(charge: {
+  paid_at: string | null;
+  due_date: string;
+}): PaymentStatus {
+  if (charge.paid_at) return "paid";
+  return charge.due_date < localDateKey() ? "overdue" : "pending";
 }
 
 export function daysUntil(date: string) {

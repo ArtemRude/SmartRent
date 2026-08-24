@@ -269,6 +269,60 @@ export type Database = {
           },
         ]
       }
+      rent_charges: {
+        Row: {
+          agreement_id: string
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          owner_id: string
+          paid_at: string | null
+          payment_note: string | null
+          period_start: string
+          tenant_id: string
+        }
+        Insert: {
+          agreement_id: string
+          amount: number
+          created_at?: string
+          due_date: string
+          id?: string
+          owner_id: string
+          paid_at?: string | null
+          payment_note?: string | null
+          period_start: string
+          tenant_id: string
+        }
+        Update: {
+          agreement_id?: string
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          owner_id?: string
+          paid_at?: string | null
+          payment_note?: string | null
+          period_start?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_charges_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "lease_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_charges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string

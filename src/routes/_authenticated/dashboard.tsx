@@ -1,11 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CalendarClock, FileText, Inbox, Users } from "lucide-react";
+import { Building2, CalendarClock, CreditCard, FileText, Inbox, Users } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchAgreements, fetchProperties, fetchRequests, fetchTenants } from "@/lib/queries";
-import { daysUntil, formatDate, formatMoney } from "@/lib/domain";
+import {
+  fetchAgreements,
+  fetchProperties,
+  fetchRentCharges,
+  fetchRequests,
+  fetchTenants,
+} from "@/lib/queries";
+import { daysUntil, formatDate, formatMoney, getPaymentStatus } from "@/lib/domain";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -51,7 +57,8 @@ function Dashboard() {
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const requests = useQuery({ queryKey: ["requests"], queryFn: fetchRequests });
-  const queries = [properties, tenants, agreements, requests];
+  const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
+  const queries = [properties, tenants, agreements, requests, charges];
 
   const openRequests = (requests.data ?? []).filter((r) => r.status !== "closed");
   const expiring = (agreements.data ?? []).filter((a) => {
@@ -61,6 +68,9 @@ function Dashboard() {
   const income = (agreements.data ?? [])
     .filter((a) => a.status === "active")
     .reduce((s, a) => s + Number(a.monthly_payment ?? 0), 0);
+  const debt = (charges.data ?? [])
+    .filter((charge) => getPaymentStatus(charge) === "overdue")
+    .reduce((sum, charge) => sum + Number(charge.amount), 0);
 
   return (
     <>
@@ -75,7 +85,7 @@ function Dashboard() {
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Stat
           icon={Building2}
           label="Объекты"
@@ -90,6 +100,7 @@ function Dashboard() {
           to="/agreements"
         />
         <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} to="/requests" />
+        <Stat icon={CreditCard} label="Задолженность" value={formatMoney(debt)} to="/payments" />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">

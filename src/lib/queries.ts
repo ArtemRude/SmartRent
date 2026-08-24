@@ -74,6 +74,19 @@ export type RequestStatusEvent = {
   created_at: string;
 };
 
+export type RentCharge = {
+  id: string;
+  agreement_id: string;
+  owner_id: string;
+  tenant_id: string;
+  period_start: string;
+  due_date: string;
+  amount: number;
+  paid_at: string | null;
+  payment_note: string | null;
+  created_at: string;
+};
+
 async function unwrap<T>(p: PromiseLike<{ data: T | null; error: { message: string } | null }>) {
   const { data, error } = await p;
   if (error) throw new Error(error.message);
@@ -122,6 +135,11 @@ export const fetchRequestStatusEvents = (requestId: string) =>
       .select("*")
       .eq("request_id", requestId)
       .order("created_at", { ascending: true }),
+  );
+
+export const fetchRentCharges = () =>
+  unwrap<RentCharge[]>(
+    supabase.from("rent_charges").select("*").order("due_date", { ascending: false }),
   );
 
 export const fetchMyTenantRecords = async (userId: string) =>
