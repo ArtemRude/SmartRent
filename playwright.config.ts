@@ -30,6 +30,7 @@ const webServerEnv =
         SUPABASE_PUBLISHABLE_KEY: localSupabaseKey,
       }
     : undefined;
+const browserChannel = process.env["CI"] ? {} : { channel: "chrome" as const };
 
 export default defineConfig({
   testDir: "./e2e",
@@ -41,8 +42,8 @@ export default defineConfig({
   reporter: process.env["CI"] ? [["line"], ["html", { open: "never" }]] : "list",
   use: {
     ...devices["Desktop Chrome"],
+    ...browserChannel,
     baseURL,
-    channel: "chrome",
     screenshot: "only-on-failure",
     trace: "retain-on-first-failure",
   },

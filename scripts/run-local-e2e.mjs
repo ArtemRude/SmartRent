@@ -45,17 +45,13 @@ if (
   fail("E2E-тесты авторизации разрешено запускать только с локальным Supabase.");
 }
 
-const result = spawnSync(
-  process.execPath,
-  ["node_modules/@playwright/test/cli.js", "test", "e2e/auth.local.spec.ts"],
-  {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      E2E_SUPABASE_URL: apiUrl,
-      E2E_SUPABASE_PUBLISHABLE_KEY: publishableKey,
-    },
+const result = spawnSync(process.execPath, ["node_modules/@playwright/test/cli.js", "test"], {
+  stdio: "inherit",
+  env: {
+    ...process.env,
+    E2E_SUPABASE_URL: apiUrl,
+    E2E_SUPABASE_PUBLISHABLE_KEY: publishableKey,
   },
-);
+});
 
 process.exit(result.status ?? 1);

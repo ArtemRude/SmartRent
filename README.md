@@ -583,6 +583,11 @@ npm run test:e2e:local
 
 Для браузерных тестов требуется установленный Google Chrome.
 
+GitHub Actions повторяет `verify`, database-тесты и полный E2E-сценарий при
+каждом push в `main` и для каждого pull request. Интеграционные тесты поднимают
+одноразовый локальный Supabase внутри GitHub Runner и не требуют production
+секретов.
+
 Prefer working locally? You need Node.js 22+ and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
