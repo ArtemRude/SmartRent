@@ -8,8 +8,9 @@ function uniqueEmail(role: "owner" | "tenant"): string {
 
 async function fillCredentials(page: Page, email: string) {
   await page.getByLabel("Пароль").fill("E2e-password-123!");
-  if (!(await page.getByLabel("Email").isReadOnly())) {
-    await page.getByLabel("Email").fill(email);
+  const emailInput = page.getByLabel("Email");
+  if (await emailInput.isEditable()) {
+    await emailInput.fill(email);
   }
 }
 
