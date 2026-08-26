@@ -540,7 +540,50 @@ Continue developing this project in the [Lovable editor](https://lovable.dev/pro
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+### Проверки
+
+Быстрые тесты бизнес-логики, TypeScript, ESLint и production-сборка:
+
+```sh
+npm run verify
+```
+
+Полный сценарий аренды и RLS проверяется pgTAP-тестом
+`supabase/tests/core_rental_workflow_test.sql`. Он создаёт собственника,
+объект, помещение, приглашённого арендатора, договор, заявку, комментарий и
+уведомления внутри транзакции, после чего полностью откатывает тестовые данные.
+
+Для запуска нужны Supabase CLI, локальный Supabase и Docker-совместимый
+container runtime:
+
+```sh
+supabase start
+npm run test:db
+```
+
+Не запускайте database-тесты с `--linked` против production-проекта. Для CI
+используйте локальный Supabase или отдельный тестовый проект.
+
+Быстрый браузерный smoke-тест проверяет лендинг, форму регистрации и защиту
+закрытых страниц. Он не создаёт пользователей и не изменяет данные:
+
+```sh
+npm run test:e2e
+```
+
+Полный E2E-сценарий создаёт уникальные локальные аккаунты собственника и
+арендатора, проверяет сохранение сессии, ролевые переходы и выход. Команда сама
+берёт адрес и публичный ключ из запущенного локального Supabase и блокирует
+подключение к удалённой базе:
+
+```sh
+supabase start
+npm run test:e2e:local
+```
+
+Для браузерных тестов требуется установленный Google Chrome.
+
+Prefer working locally? You need Node.js 22+ and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
 git clone <this-repository-url>
