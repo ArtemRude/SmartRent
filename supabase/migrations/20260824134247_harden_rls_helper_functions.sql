@@ -200,6 +200,12 @@ ALTER POLICY requests_tenant_insert ON public.requests
 ALTER POLICY requests_tenant_select ON public.requests
   USING (private.is_my_tenant_record(tenant_id));
 
+ALTER POLICY request_status_events_select_participants ON public.request_status_events
+  USING (
+    private.can_see_request(request_id)
+    OR (SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role))
+  );
+
 ALTER POLICY tenants_owner_all ON public.tenants
   USING ((owner_id = (SELECT auth.uid())) OR (SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)))
   WITH CHECK ((owner_id = (SELECT auth.uid())) OR (SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)));
