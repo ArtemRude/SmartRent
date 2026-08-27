@@ -18,6 +18,11 @@ dist-ssr
 playwright-report/
 test-results/
 
+# Local agent and Supabase CLI state
+.agents/
+skills-lock.json
+supabase/.temp/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

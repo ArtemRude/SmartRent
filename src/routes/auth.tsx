@@ -61,13 +61,13 @@ function AuthPage() {
   }, [mode, isTenantInvite, invitedEmail, invitedName]);
 
   useEffect(() => {
-    if (!loading && session && role) {
+    if (!busy && !loading && session && role) {
       navigate({
         to: role === "tenant" ? "/cabinet" : role === "admin" ? "/admin" : "/dashboard",
         replace: true,
       });
     }
-  }, [loading, session, role, navigate]);
+  }, [busy, loading, session, role, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,9 +88,16 @@ function AuthPage() {
           toast.success("Письмо для подтверждения отправлено");
           return;
         }
+
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        if (sessionError) throw sessionError;
+
         toast.success("Аккаунт создан");
-        // AuthProvider receives SIGNED_IN, loads the profile and role, and only
-        // then redirects. Navigating here races the protected route guard.
+        window.location.replace(accountRole === "tenant" ? "/cabinet" : "/dashboard");
+        return;
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -103,15 +110,14 @@ function AuthPage() {
           .maybeSingle();
         const metadataRole = data.user.user_metadata["role"];
         const resolvedRole = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
-        await navigate({
-          to:
-            resolvedRole === "tenant"
-              ? "/cabinet"
-              : resolvedRole === "admin"
-                ? "/admin"
-                : "/dashboard",
-          replace: true,
-        });
+        window.location.replace(
+          resolvedRole === "tenant"
+            ? "/cabinet"
+            : resolvedRole === "admin"
+              ? "/admin"
+              : "/dashboard",
+        );
+        return;
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось выполнить вход";
