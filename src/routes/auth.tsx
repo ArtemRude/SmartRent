@@ -89,10 +89,8 @@ function AuthPage() {
           return;
         }
         toast.success("Аккаунт создан");
-        await navigate({
-          to: accountRole === "tenant" ? "/cabinet" : "/dashboard",
-          replace: true,
-        });
+        // AuthProvider receives SIGNED_IN, loads the profile and role, and only
+        // then redirects. Navigating here races the protected route guard.
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
