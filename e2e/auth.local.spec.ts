@@ -27,10 +27,12 @@ test("owner registration persists the session and opens protected pages", async 
   const email = uniqueEmail("owner");
 
   await page.goto("/auth?mode=signup");
+  const submitButton = page.getByRole("button", { name: "Создать аккаунт" });
+  await expect(submitButton).toBeEnabled();
   await page.getByLabel("Имя").fill("E2E Собственник");
   await page.getByLabel("Телефон").fill("+7 900 000-00-01");
   await fillCredentials(page, email);
-  await page.getByRole("button", { name: "Создать аккаунт" }).click();
+  await submitButton.click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Мой кабинет" })).toBeVisible();
@@ -64,10 +66,12 @@ test("tenant registration opens the tenant cabinet and blocks owner pages", asyn
 
   await page.goto(`/auth?${search.toString()}`);
   await expect(page.getByText("Вас пригласили как арендатора")).toBeVisible();
+  const submitButton = page.getByRole("button", { name: "Создать аккаунт" });
+  await expect(submitButton).toBeEnabled();
   await expect(page.getByLabel("Email")).toHaveValue(email);
   await expect(page.getByLabel("Email")).not.toBeEditable();
   await fillCredentials(page, email);
-  await page.getByRole("button", { name: "Создать аккаунт" }).click();
+  await submitButton.click();
 
   await expect(page).toHaveURL(/\/cabinet$/);
   await expect(page.getByRole("heading", { name: "Мой кабинет" })).toBeVisible();

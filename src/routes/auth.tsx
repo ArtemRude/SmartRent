@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react-router";
 import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,7 @@ function AuthPage() {
   const { mode, role: invitedRole, email: invitedEmail, name: invitedName } = Route.useSearch();
   const navigate = useNavigate();
   const { session, role, loading } = useAuth();
+  const hydrated = useHydrated();
   const isTenantInvite = invitedRole === "tenant";
   const [tab, setTab] = useState<"signin" | "signup">(mode);
   const [email, setEmail] = useState(invitedEmail);
@@ -255,7 +256,7 @@ function AuthPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={busy || loading}>
+            <Button type="submit" className="w-full" disabled={!hydrated || busy || loading}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {tab === "signup" ? "Создать аккаунт" : "Войти"}
             </Button>
