@@ -89,14 +89,11 @@ function AuthPage() {
           return;
         }
 
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-        if (sessionError) throw sessionError;
-
         toast.success("Аккаунт создан");
-        window.location.replace(accountRole === "tenant" ? "/cabinet" : "/dashboard");
+        await navigate({
+          to: accountRole === "tenant" ? "/cabinet" : "/dashboard",
+          replace: true,
+        });
         return;
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -110,13 +107,15 @@ function AuthPage() {
           .maybeSingle();
         const metadataRole = data.user.user_metadata["role"];
         const resolvedRole = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
-        window.location.replace(
-          resolvedRole === "tenant"
-            ? "/cabinet"
-            : resolvedRole === "admin"
-              ? "/admin"
-              : "/dashboard",
-        );
+        await navigate({
+          to:
+            resolvedRole === "tenant"
+              ? "/cabinet"
+              : resolvedRole === "admin"
+                ? "/admin"
+                : "/dashboard",
+          replace: true,
+        });
         return;
       }
     } catch (err) {
