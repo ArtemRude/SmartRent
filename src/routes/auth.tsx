@@ -255,7 +255,7 @@ function AuthPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={busy}>
+            <Button type="submit" className="w-full" disabled={busy || loading}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {tab === "signup" ? "Создать аккаунт" : "Войти"}
             </Button>

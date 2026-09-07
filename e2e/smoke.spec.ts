@@ -13,7 +13,9 @@ test("landing page opens registration", async ({ page }) => {
   await page.getByRole("link", { name: "Начать бесплатно" }).click();
 
   await expect(page).toHaveURL(/\/auth(?:\?|$)/);
-  await expect(page.getByRole("button", { name: "Создать аккаунт" })).toBeVisible();
+  const submitButton = page.getByRole("button", { name: "Создать аккаунт" });
+  await expect(submitButton).toBeVisible();
+  await expect(submitButton).toBeEnabled();
 });
 
 test("protected pages redirect an anonymous user to sign in", async ({ page }) => {
