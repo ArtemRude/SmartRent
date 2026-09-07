@@ -41,7 +41,7 @@ test("owner registration persists the session and opens protected pages", async 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Мой кабинет" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Объекты" }).click();
+  await page.getByRole("link", { name: "Объекты", exact: true }).click();
   await expect(page).toHaveURL(/\/properties$/);
   await expect(page.getByRole("heading", { name: "Объекты" })).toBeVisible();
 
