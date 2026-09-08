@@ -85,6 +85,18 @@ export function localDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+export function getDefaultLeaseDates(referenceDate = new Date()) {
+  const start = new Date(referenceDate);
+  const end = new Date(referenceDate);
+  end.setFullYear(end.getFullYear() + 1);
+  end.setDate(end.getDate() - 1);
+
+  return {
+    startDate: localDateKey(start),
+    endDate: localDateKey(end),
+  };
+}
+
 export function formatMonth(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(
     new Date(`${value}T12:00:00`),

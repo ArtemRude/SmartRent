@@ -25,7 +25,7 @@ import {
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { formatDate, formatMoney } from "@/lib/domain";
+import { formatDate, formatMoney, getDefaultLeaseDates } from "@/lib/domain";
 import {
   type Agreement,
   fetchAgreements,
@@ -65,6 +65,13 @@ const emptyForm: AgreementForm = {
   file: null,
 };
 
+function createForm(): AgreementForm {
+  return {
+    ...emptyForm,
+    ...getDefaultLeaseDates(),
+  };
+}
+
 function AgreementsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -74,11 +81,11 @@ function AgreementsPage() {
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Agreement | null>(null);
-  const [form, setForm] = useState<AgreementForm>(emptyForm);
+  const [form, setForm] = useState<AgreementForm>(createForm);
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm);
+    setForm(createForm());
     setOpen(true);
   };
 
@@ -139,7 +146,7 @@ function AgreementsPage() {
       toast.success(editing ? "Договор обновлён" : "Договор создан");
       setOpen(false);
       setEditing(null);
-      setForm(emptyForm);
+      setForm(createForm());
       void qc.invalidateQueries({ queryKey: ["agreements"] });
     },
     onError: (error: Error) => toast.error(error.message),

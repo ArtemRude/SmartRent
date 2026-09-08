@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   daysUntil,
   formatMoney,
+  getDefaultLeaseDates,
   getPaymentStatus,
   localDateKey,
   paymentStatusLabels,
@@ -23,6 +24,20 @@ test("payment status distinguishes overdue and upcoming charges", () => {
 
 test("localDateKey uses the local calendar date", () => {
   assert.equal(localDateKey(new Date(2026, 7, 26, 23, 59)), "2026-08-26");
+});
+
+test("new leases default to a full year starting today", () => {
+  assert.deepEqual(getDefaultLeaseDates(new Date(2026, 8, 8, 12)), {
+    startDate: "2026-09-08",
+    endDate: "2027-09-07",
+  });
+});
+
+test("new lease defaults handle leap day without overflowing", () => {
+  assert.deepEqual(getDefaultLeaseDates(new Date(2028, 1, 29, 12)), {
+    startDate: "2028-02-29",
+    endDate: "2029-02-28",
+  });
 });
 
 test("daysUntil reports future and past dates with the expected sign", () => {
