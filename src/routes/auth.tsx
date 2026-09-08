@@ -48,7 +48,9 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState(invitedName);
   const [phone, setPhone] = useState("");
-  const [accountRole, setAccountRole] = useState<"owner" | "tenant">("owner");
+  const [accountRole, setAccountRole] = useState<"owner" | "tenant">(
+    isTenantInvite ? "tenant" : "owner",
+  );
   const [busy, setBusy] = useState(false);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
 
@@ -75,12 +77,13 @@ function AuthPage() {
     setBusy(true);
     try {
       if (tab === "signup") {
+        const signupRole = isTenantInvite ? "tenant" : accountRole;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/`,
-            data: { name, phone, role: accountRole },
+            data: { name, phone, role: signupRole },
           },
         });
         if (error) throw error;
@@ -92,7 +95,7 @@ function AuthPage() {
 
         toast.success("Аккаунт создан");
         await navigate({
-          to: accountRole === "tenant" ? "/cabinet" : "/dashboard",
+          to: signupRole === "tenant" ? "/cabinet" : "/dashboard",
           replace: true,
         });
         return;
