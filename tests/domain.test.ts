@@ -9,6 +9,7 @@ import {
   paymentStatusLabels,
   requestStatusLabels,
 } from "../src/lib/domain.ts";
+import { normalizeTenantEmail, validateTenantDetails } from "../src/lib/tenant.ts";
 
 test("payment status is paid when a payment date exists", () => {
   assert.equal(
@@ -53,4 +54,14 @@ test("Russian labels and money formatting stay user-facing", () => {
   assert.equal(paymentStatusLabels.overdue, "Просрочено");
   assert.match(formatMoney(50000), /50[\s\u00a0]?000/);
   assert.match(formatMoney(50000), /₽/);
+});
+
+test("tenant email is normalized before duplicate checks and saving", () => {
+  assert.equal(normalizeTenantEmail("  Tenant@Example.COM "), "tenant@example.com");
+});
+
+test("tenant details require a name and a valid email", () => {
+  assert.equal(validateTenantDetails("", "tenant@example.com"), "Укажите имя арендатора");
+  assert.equal(validateTenantDetails("Анна", "invalid"), "Укажите корректный email");
+  assert.equal(validateTenantDetails("Анна", "tenant@example.com"), null);
 });

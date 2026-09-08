@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Copy, Mail, Phone, Plus, Send, Trash2 } from "lucide-react";
+import { CheckCircle2, Copy, Mail, Pencil, Phone, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -24,12 +24,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/auth-context";
 import { formatDate } from "@/lib/domain";
-import { fetchAgreements, fetchProperties, fetchTenants } from "@/lib/queries";
+import { fetchAgreements, fetchProperties, fetchTenants, type Tenant } from "@/lib/queries";
+import { normalizeTenantEmail, validateTenantDetails } from "@/lib/tenant";
 
 export const Route = createFileRoute("/_authenticated/tenants")({
   head: () => ({
@@ -54,7 +54,34 @@ function TenantsPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const editingTenant = tenants.data?.find((tenant) => tenant.id === editingId) ?? null;
+
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setEditingId(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const openEdit = (tenant: Tenant) => {
+    setEditingId(tenant.id);
+    setName(tenant.name);
+    setEmail(tenant.email);
+    setPhone(tenant.phone ?? "");
+    setOpen(true);
+  };
+
+  const closeForm = () => {
+    setOpen(false);
+    resetForm();
+  };
 
   const getInvitationUrl = (tenant: { email: string; name: string }) => {
     const url = new URL("/auth", window.location.origin);
@@ -82,30 +109,45 @@ function TenantsPage() {
     window.location.href = `mailto:${encodeURIComponent(tenant.email)}?subject=${subject}&body=${body}`;
   };
 
-  const create = useMutation({
+  const saveTenant = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Нет сессии");
-      const normalizedEmail = email.trim().toLowerCase();
-      if (normalizedEmail) {
-        const { data: existing, error: checkError } = await supabase
-          .from("tenants")
-          .select("id")
-          .ilike("email", normalizedEmail)
-          .limit(1);
-        if (checkError) throw new Error(checkError.message);
-        if (existing.length) throw new Error("Арендатор с таким email уже добавлен");
+      const validationError = validateTenantDetails(name, email);
+      if (validationError) throw new Error(validationError);
+      const normalizedEmail = normalizeTenantEmail(email);
+      if (editingTenant?.user_id && normalizedEmail !== normalizeTenantEmail(editingTenant.email)) {
+        throw new Error("Email подключённого кабинета изменить нельзя");
       }
-      const { error } = await supabase
-        .from("tenants")
-        .insert({ owner_id: user.id, name, email: normalizedEmail, phone: phone || null });
+
+      let duplicateQuery = supabase.from("tenants").select("id").ilike("email", normalizedEmail);
+      if (editingId) duplicateQuery = duplicateQuery.neq("id", editingId);
+      const { data: existing, error: checkError } = await duplicateQuery.limit(1);
+      if (checkError) throw new Error(checkError.message);
+      if (existing.length) throw new Error("Арендатор с таким email уже добавлен");
+
+      const values = {
+        name: name.trim(),
+        email: normalizedEmail,
+        phone: phone.trim() || null,
+      };
+      const { data, error } = editingId
+        ? await supabase
+            .from("tenants")
+            .update(values)
+            .eq("id", editingId)
+            .select("id")
+            .maybeSingle()
+        : await supabase
+            .from("tenants")
+            .insert({ owner_id: user.id, ...values })
+            .select("id")
+            .maybeSingle();
       if (error) throw new Error(error.message);
+      if (!data) throw new Error("Арендатор не найден или недоступен для изменения");
     },
     onSuccess: () => {
-      toast.success("Арендатор добавлен");
-      setOpen(false);
-      setName("");
-      setEmail("");
-      setPhone("");
+      toast.success(editingId ? "Данные арендатора обновлены" : "Арендатор добавлен");
+      closeForm();
       void qc.invalidateQueries({ queryKey: ["tenants"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -130,48 +172,57 @@ function TenantsPage() {
         title="Арендаторы"
         description="Добавьте арендатора с его email — он получит доступ к личному кабинету"
         action={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" /> Добавить
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Новый арендатор</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="t-name">Имя</Label>
-                  <Input id="t-name" value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="t-email">Email</Label>
-                  <Input
-                    id="t-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="t-phone">Телефон</Label>
-                  <Input id="t-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  onClick={() => create.mutate()}
-                  disabled={create.isPending || !name.trim() || !email.trim()}
-                >
-                  Сохранить
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" /> Добавить
+          </Button>
         }
       />
+
+      <Dialog open={open} onOpenChange={(value) => (value ? setOpen(true) : closeForm())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Изменить арендатора" : "Новый арендатор"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="t-name">Имя</Label>
+              <Input id="t-name" value={name} onChange={(event) => setName(event.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="t-email">Email</Label>
+              <Input
+                id="t-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={Boolean(editingTenant?.user_id)}
+                required
+              />
+              {editingTenant?.user_id && (
+                <p className="text-xs text-muted-foreground">
+                  Email используется для входа в подключённый кабинет.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="t-phone">Телефон</Label>
+              <Input
+                id="t-phone"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => saveTenant.mutate()}
+              disabled={saveTenant.isPending || Boolean(validateTenantDetails(name, email))}
+            >
+              {saveTenant.isPending ? "Сохраняем…" : editingId ? "Сохранить изменения" : "Добавить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {[tenants, agreements, properties].some((query) => query.isPending) && (
         <p className="text-sm text-muted-foreground">Загружаем арендаторов…</p>
@@ -201,14 +252,24 @@ function TenantsPage() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="font-semibold">{t.name}</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Удалить"
-                    onClick={() => setDeleteId(t.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Изменить"
+                      onClick={() => openEdit(t)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Удалить"
+                      onClick={() => setDeleteId(t.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <Mail className="h-4 w-4" /> {t.email || "—"}
