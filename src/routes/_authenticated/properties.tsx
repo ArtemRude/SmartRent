@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { PROPERTY_PHOTOS, removeFile, uploadFile } from "@/lib/storage";
 import { propertyTypeLabels, type PropertyType } from "@/lib/domain";
 import { fetchProperties, fetchUnits } from "@/lib/queries";

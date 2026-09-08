@@ -4,7 +4,7 @@ import { Bell, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { formatDateTime } from "@/lib/domain";
 import { notificationIcons } from "@/lib/notifications";
 import { fetchNotifications, markNotificationRead, type NotificationRow } from "@/lib/queries";

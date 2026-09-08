@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { formatDateTime, notificationKindLabels } from "@/lib/domain";
 import {
   fetchNotifications,

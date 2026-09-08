@@ -1,28 +1,9 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/lib/domain";
-
-type Profile = { id: string; name: string; email: string; phone: string | null };
-
-type AuthValue = {
-  session: Session | null;
-  user: User | null;
-  profile: Profile | null;
-  role: AppRole | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthValue>({
-  session: null,
-  user: null,
-  profile: null,
-  role: null,
-  loading: true,
-  signOut: async () => {},
-});
+import { AuthContext, type Profile } from "@/hooks/auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -93,8 +74,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

@@ -3,7 +3,7 @@ import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react
 import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

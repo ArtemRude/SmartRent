@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { roleLabels } from "@/lib/domain";
 import { fetchNotifications } from "@/lib/queries";
 import { cn } from "@/lib/utils";

@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { formatDate } from "@/lib/domain";
 import { fetchAgreements, fetchProperties, fetchTenants } from "@/lib/queries";
 

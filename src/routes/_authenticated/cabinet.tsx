@@ -17,7 +17,7 @@ import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { StorageImage } from "@/components/StorageImage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 import { formatDate, formatMoney, getPaymentStatus, propertyTypeLabels } from "@/lib/domain";
 import {
   fetchAgreements,

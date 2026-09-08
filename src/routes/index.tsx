@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, FileText, Inbox, Users, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/auth-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
