@@ -1,10 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CalendarClock, CreditCard, FileText, Inbox, Users } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  CalendarClock,
+  CheckCircle2,
+  Circle,
+  CreditCard,
+  FileText,
+  Inbox,
+  Users,
+} from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   fetchAgreements,
   fetchProperties,
@@ -72,6 +84,35 @@ function Dashboard() {
   const debt = (charges.data ?? [])
     .filter((charge) => getPaymentStatus(charge) === "overdue")
     .reduce((sum, charge) => sum + Number(charge.amount), 0);
+  const onboardingSteps = [
+    {
+      title: "Добавьте объект",
+      description: "Создайте карточку квартиры, склада или коммерческого помещения.",
+      completed: (properties.data?.length ?? 0) > 0,
+      to: "/properties" as const,
+    },
+    {
+      title: "Добавьте арендатора",
+      description: "Укажите контакты арендатора и подключите его кабинет.",
+      completed: (tenants.data?.length ?? 0) > 0,
+      to: "/tenants" as const,
+    },
+    {
+      title: "Создайте договор",
+      description: "Свяжите объект с арендатором и задайте ежемесячную плату.",
+      completed: (agreements.data?.length ?? 0) > 0,
+      to: "/agreements" as const,
+    },
+    {
+      title: "Проверьте начисление",
+      description: "Убедитесь, что первый арендный платёж появился в календаре.",
+      completed: (charges.data?.length ?? 0) > 0,
+      to: "/payments" as const,
+    },
+  ];
+  const completedOnboardingSteps = onboardingSteps.filter((step) => step.completed).length;
+  const nextOnboardingStep = onboardingSteps.find((step) => !step.completed);
+  const onboardingLoaded = !queries.some((query) => query.isPending);
 
   return (
     <>
@@ -84,6 +125,64 @@ function Dashboard() {
         <p className="mb-4 text-sm text-destructive">
           Часть данных не загрузилась. Обновите страницу или попробуйте позже.
         </p>
+      )}
+
+      {onboardingLoaded && nextOnboardingStep && (
+        <Card className="mb-6 overflow-hidden border-primary/20 bg-primary/[0.025]">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-lg">Быстрый старт</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Настройте управление арендой за четыре шага
+                </p>
+              </div>
+              <div className="min-w-40">
+                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Готово</span>
+                  <span>
+                    {completedOnboardingSteps} из {onboardingSteps.length}
+                  </span>
+                </div>
+                <Progress value={(completedOnboardingSteps / onboardingSteps.length) * 100} />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              {onboardingSteps.map((step) => (
+                <div key={step.title} className="flex gap-3 rounded-xl border bg-background/80 p-3">
+                  {step.completed ? (
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
+                  ) : (
+                    <Circle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground/60" />
+                  )}
+                  <div className="min-w-0">
+                    <p
+                      className={
+                        step.completed
+                          ? "text-sm font-medium text-muted-foreground"
+                          : "text-sm font-medium"
+                      }
+                    >
+                      {step.title}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {step.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button asChild>
+                <Link to={nextOnboardingStep.to}>
+                  {nextOnboardingStep.title} <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
