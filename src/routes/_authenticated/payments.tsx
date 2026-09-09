@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarDays, CheckCircle2, CreditCard, WalletCards } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  CreditCard,
+  Download,
+  WalletCards,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
@@ -27,12 +34,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
+import { createCsv, downloadCsv } from "@/lib/csv";
 import {
   formatDate,
   formatMoney,
   formatMonth,
   getPaymentStatus,
   localDateKey,
+  paymentStatusLabels,
   type PaymentStatus,
 } from "@/lib/domain";
 import {
@@ -213,6 +222,35 @@ function PaymentsPage() {
   const tenantFor = (charge: RentCharge) =>
     tenants.data?.find((tenant) => tenant.id === charge.tenant_id);
 
+  const exportPayments = () => {
+    const csv = createCsv(
+      [
+        "Статус",
+        "Период",
+        "Срок оплаты",
+        "Дата оплаты",
+        "Сумма, ₽",
+        "Объект",
+        "Помещение",
+        "Арендатор",
+        "Комментарий",
+      ],
+      visibleCharges.map((charge) => [
+        paymentStatusLabels[getPaymentStatus(charge)],
+        formatMonth(charge.period_start),
+        formatDate(charge.due_date),
+        charge.paid_at ? formatDate(charge.paid_at) : "",
+        Number(charge.amount),
+        propertyFor(charge)?.name ?? "",
+        unitFor(charge)?.name ?? "",
+        tenantFor(charge)?.name ?? "",
+        charge.payment_note ?? "",
+      ]),
+    );
+    downloadCsv(`rent-payments-${localDateKey()}.csv`, csv);
+    toast.success("Отчёт CSV скачан");
+  };
+
   return (
     <>
       <PageHeader
@@ -221,6 +259,16 @@ function PaymentsPage() {
           role === "tenant"
             ? "Календарь аренды, задолженность и история оплат"
             : "Начисления аренды, поступления и задолженность"
+        }
+        action={
+          <Button
+            variant="outline"
+            onClick={exportPayments}
+            disabled={loading || failed || visibleCharges.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Скачать CSV
+          </Button>
         }
       />
 
