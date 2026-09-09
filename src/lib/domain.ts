@@ -97,6 +97,12 @@ export function getDefaultLeaseDates(referenceDate = new Date()) {
   };
 }
 
+export function calendarDaysBetween(from: string, to: string) {
+  const fromTimestamp = Date.parse(`${from}T00:00:00Z`);
+  const toTimestamp = Date.parse(`${to}T00:00:00Z`);
+  return Math.round((toTimestamp - fromTimestamp) / 86_400_000);
+}
+
 export function formatMonth(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(
     new Date(`${value}T12:00:00`),

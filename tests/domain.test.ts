@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  calendarDaysBetween,
   daysUntil,
   formatMoney,
   getDefaultLeaseDates,
@@ -39,6 +40,12 @@ test("new lease defaults handle leap day without overflowing", () => {
     startDate: "2028-02-29",
     endDate: "2029-02-28",
   });
+});
+
+test("calendar date distance is stable across months and leap years", () => {
+  assert.equal(calendarDaysBetween("2026-09-09", "2026-09-16"), 7);
+  assert.equal(calendarDaysBetween("2028-02-28", "2028-03-01"), 2);
+  assert.equal(calendarDaysBetween("2026-09-09", "2026-09-08"), -1);
 });
 
 test("daysUntil reports future and past dates with the expected sign", () => {
