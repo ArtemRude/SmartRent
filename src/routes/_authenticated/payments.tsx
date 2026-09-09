@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   CreditCard,
   Download,
   WalletCards,
@@ -13,6 +14,7 @@ import {
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { PaymentAnalyticsCharts } from "@/components/PaymentAnalyticsCharts";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -49,6 +51,7 @@ import {
   paymentStatusLabels,
   type PaymentStatus,
 } from "@/lib/domain";
+import { buildPaymentAnalytics } from "@/lib/payment-analytics";
 import {
   fetchAgreements,
   fetchProperties,
@@ -114,7 +117,7 @@ function PaymentsPage() {
   const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>("all");
-  const [propertyFilter, setPropertyFilter] = useState("all");
+  const [propertyFilters, setPropertyFilters] = useState<string[]>([]);
   const [tenantFilter, setTenantFilter] = useState("all");
   const [periodRange, setPeriodRange] = useState<DateRange>();
   const [periodCalendarOpen, setPeriodCalendarOpen] = useState(false);
@@ -159,7 +162,8 @@ function PaymentsPage() {
         const chargePeriod = charge.period_start.slice(0, 7);
         return (
           (statusFilter === "all" || status === statusFilter) &&
-          (propertyFilter === "all" || agreement?.property_id === propertyFilter) &&
+          (propertyFilters.length === 0 ||
+            (agreement?.property_id != null && propertyFilters.includes(agreement.property_id))) &&
           (tenantFilter === "all" || charge.tenant_id === tenantFilter) &&
           (!periodFrom || chargePeriod >= periodFrom) &&
           (!periodTo || chargePeriod <= periodTo)
@@ -178,43 +182,32 @@ function PaymentsPage() {
     allCharges,
     periodFrom,
     periodTo,
-    propertyFilter,
+    propertyFilters,
     statusFilter,
     tenantFilter,
   ]);
 
   const filteredSummary = useMemo(() => {
-    let accrued = 0;
-    let paid = 0;
-    const months = new Map<string, { accrued: number; paid: number }>();
+    const agreementById = new Map((agreements.data ?? []).map((item) => [item.id, item]));
+    const propertyById = new Map((properties.data ?? []).map((item) => [item.id, item]));
 
-    for (const charge of visibleCharges) {
-      const amount = Number(charge.amount);
-      const period = charge.period_start.slice(0, 7);
-      const month = months.get(period) ?? { accrued: 0, paid: 0 };
-      accrued += amount;
-      month.accrued += amount;
-      if (charge.paid_at) {
-        paid += amount;
-        month.paid += amount;
-      }
-      months.set(period, month);
-    }
-
-    return {
-      accrued,
-      paid,
-      unpaid: accrued - paid,
-      collectionRate: accrued > 0 ? Math.round((paid / accrued) * 100) : 0,
-      months: Array.from(months, ([period, totals]) => ({ period, ...totals })).sort((a, b) =>
-        a.period.localeCompare(b.period),
-      ),
-    };
-  }, [visibleCharges]);
+    return buildPaymentAnalytics(
+      visibleCharges.map((charge) => {
+        const propertyId = agreementById.get(charge.agreement_id)?.property_id ?? "unknown";
+        return {
+          amount: Number(charge.amount),
+          paid: charge.paid_at != null,
+          period: charge.period_start.slice(0, 7),
+          propertyId,
+          propertyName: propertyById.get(propertyId)?.name ?? "Без объекта",
+        };
+      }),
+    );
+  }, [agreements.data, properties.data, visibleCharges]);
 
   useEffect(() => {
     setSelectedChargeIds(new Set());
-  }, [periodRange, propertyFilter, statusFilter, tenantFilter]);
+  }, [periodRange, propertyFilters, statusFilter, tenantFilter]);
 
   const selectableCharges = visibleCharges.filter((charge) => charge.paid_at == null);
   const allSelectableChecked =
@@ -467,19 +460,57 @@ function PaymentsPage() {
           </PopoverContent>
         </Popover>
 
-        <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Все объекты" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все объекты</SelectItem>
-            {(properties.data ?? []).map((property) => (
-              <SelectItem key={property.id} value={property.id}>
-                {property.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="h-10 justify-between px-3 font-normal">
+              <span className="truncate">
+                {propertyFilters.length === 0
+                  ? "Все объекты"
+                  : propertyFilters.length === 1
+                    ? ((properties.data ?? []).find(
+                        (property) => property.id === propertyFilters[0],
+                      )?.name ?? "1 объект")
+                    : `Выбрано объектов: ${propertyFilters.length}`}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 p-2">
+            <p className="px-2 pb-2 text-xs text-muted-foreground">
+              Выберите один или несколько объектов
+            </p>
+            <label className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted">
+              <Checkbox
+                checked={propertyFilters.length === 0}
+                onCheckedChange={() => setPropertyFilters([])}
+              />
+              Все объекты
+            </label>
+            <div className="max-h-64 overflow-y-auto">
+              {(properties.data ?? []).map((property) => {
+                const checked = propertyFilters.includes(property.id);
+                return (
+                  <label
+                    key={property.id}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() =>
+                        setPropertyFilters((current) =>
+                          checked
+                            ? current.filter((id) => id !== property.id)
+                            : [...current, property.id],
+                        )
+                      }
+                    />
+                    <span className="truncate">{property.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         {role !== "tenant" && (
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
@@ -534,29 +565,10 @@ function PaymentsPage() {
               </div>
             </div>
 
-            <div className="mt-6 space-y-3 border-t pt-5">
-              <p className="text-sm font-medium">Помесячная динамика</p>
-              {filteredSummary.months.map((month) => {
-                const rate = month.accrued > 0 ? Math.round((month.paid / month.accrued) * 100) : 0;
-                return (
-                  <div
-                    key={month.period}
-                    className="grid gap-2 sm:grid-cols-[10rem_1fr_auto] sm:items-center"
-                  >
-                    <p className="text-sm capitalize">{formatMonth(`${month.period}-01`)}</p>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-success transition-[width]"
-                        style={{ width: `${rate}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:min-w-36 sm:text-right">
-                      {formatMoney(month.paid)} из {formatMoney(month.accrued)}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+            <PaymentAnalyticsCharts
+              months={filteredSummary.months}
+              properties={filteredSummary.properties}
+            />
           </CardContent>
         </Card>
       )}
