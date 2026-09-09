@@ -4,14 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { ReminderSettingsCard } from "@/components/ReminderSettingsCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/auth-context";
 import { formatDateTime, notificationKindLabels } from "@/lib/domain";
 import {
   fetchNotifications,
+  fetchReminderSettings,
   markAllNotificationsRead,
   markNotificationRead,
+  saveReminderSettings,
   type NotificationRow,
 } from "@/lib/queries";
 import { notificationIcons } from "@/lib/notifications";
@@ -30,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/notifications")({
   component: NotificationsPage,
 });
 
-type NotificationFilter = "all" | "unread";
+type NotificationFilter = "all" | "unread" | "reminders";
 
 function NotificationCard({
   notification,
@@ -93,7 +96,7 @@ function NotificationCard({
 }
 
 function NotificationsPage() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const notifications = useQuery({
@@ -102,14 +105,24 @@ function NotificationsPage() {
     enabled: Boolean(user),
     refetchInterval: 30_000,
   });
+  const reminderSettings = useQuery({
+    queryKey: ["reminder-settings", user?.id],
+    queryFn: () => fetchReminderSettings(user!.id),
+    enabled: Boolean(user && role === "owner"),
+  });
   const allNotifications = useMemo(() => notifications.data ?? [], [notifications.data]);
   const unreadCount = allNotifications.filter(
     (notification) => notification.read_at == null,
   ).length;
+  const reminderNotifications = allNotifications.filter((notification) =>
+    ["agreement_expiring", "payment_due", "payment_overdue"].includes(notification.kind),
+  );
   const visibleNotifications =
     filter === "unread"
       ? allNotifications.filter((notification) => notification.read_at == null)
-      : allNotifications;
+      : filter === "reminders"
+        ? reminderNotifications
+        : allNotifications;
 
   const markRead = useMutation({
     mutationFn: markNotificationRead,
@@ -122,6 +135,15 @@ function NotificationsPage() {
     onSuccess: () => {
       toast.success("Все уведомления прочитаны");
       void qc.invalidateQueries({ queryKey: ["notifications", user?.id] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: saveReminderSettings,
+    onSuccess: (saved) => {
+      qc.setQueryData(["reminder-settings", user?.id], saved);
+      toast.success("Настройки напоминаний сохранены");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -142,6 +164,24 @@ function NotificationsPage() {
         }
       />
 
+      {role === "owner" && reminderSettings.data && (
+        <ReminderSettingsCard
+          settings={reminderSettings.data}
+          saving={saveSettings.isPending}
+          onChange={(key, value) =>
+            saveSettings.mutate({ ...reminderSettings.data!, [key]: value })
+          }
+        />
+      )}
+
+      {role === "owner" && reminderSettings.isError && (
+        <Card className="mb-4 border-destructive/20">
+          <CardContent className="p-5 text-sm text-destructive">
+            Не удалось загрузить настройки напоминаний. Проверьте применение миграции Supabase.
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
           <Button
@@ -157,6 +197,13 @@ function NotificationsPage() {
             onClick={() => setFilter("unread")}
           >
             Непрочитанные · {unreadCount}
+          </Button>
+          <Button
+            size="sm"
+            variant={filter === "reminders" ? "default" : "outline"}
+            onClick={() => setFilter("reminders")}
+          >
+            Напоминания · {reminderNotifications.length}
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">Обновляются автоматически</p>

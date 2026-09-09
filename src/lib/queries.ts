@@ -102,6 +102,30 @@ export type NotificationRow = {
   created_at: string;
 };
 
+export type ReminderSettings = {
+  owner_id: string;
+  enabled: boolean;
+  notify_owner: boolean;
+  notify_tenant: boolean;
+  payment_due_enabled: boolean;
+  payment_overdue_enabled: boolean;
+  agreement_expiring_enabled: boolean;
+  updated_at: string;
+};
+
+export function defaultReminderSettings(ownerId: string): ReminderSettings {
+  return {
+    owner_id: ownerId,
+    enabled: true,
+    notify_owner: true,
+    notify_tenant: true,
+    payment_due_enabled: true,
+    payment_overdue_enabled: true,
+    agreement_expiring_enabled: true,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 async function unwrap<T>(p: PromiseLike<{ data: T | null; error: { message: string } | null }>) {
   const { data, error } = await p;
   if (error) throw new Error(error.message);
@@ -161,6 +185,27 @@ export const fetchNotifications = async () =>
   (await unwrap(
     supabase.from("notifications").select("*").order("created_at", { ascending: false }).limit(100),
   )) as NotificationRow[];
+
+export const fetchReminderSettings = async (ownerId: string) => {
+  const { data, error } = await supabase
+    .from("reminder_settings")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as ReminderSettings | null) ?? defaultReminderSettings(ownerId);
+};
+
+export const saveReminderSettings = async (settings: ReminderSettings) => {
+  const next = { ...settings, updated_at: new Date().toISOString() };
+  const { data, error } = await supabase
+    .from("reminder_settings")
+    .upsert(next, { onConflict: "owner_id" })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as ReminderSettings;
+};
 
 export const markNotificationRead = async (id: string) => {
   const { error } = await supabase

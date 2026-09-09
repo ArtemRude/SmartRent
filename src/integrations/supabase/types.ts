@@ -152,6 +152,39 @@ export type Database = {
         }
         Relationships: []
       }
+      reminder_settings: {
+        Row: {
+          agreement_expiring_enabled: boolean
+          enabled: boolean
+          notify_owner: boolean
+          notify_tenant: boolean
+          owner_id: string
+          payment_due_enabled: boolean
+          payment_overdue_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          agreement_expiring_enabled?: boolean
+          enabled?: boolean
+          notify_owner?: boolean
+          notify_tenant?: boolean
+          owner_id: string
+          payment_due_enabled?: boolean
+          payment_overdue_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          agreement_expiring_enabled?: boolean
+          enabled?: boolean
+          notify_owner?: boolean
+          notify_tenant?: boolean
+          owner_id?: string
+          payment_due_enabled?: boolean
+          payment_overdue_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
