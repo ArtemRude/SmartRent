@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ru } from "date-fns/locale";
 import {
   AlertTriangle,
   CalendarDays,
@@ -9,10 +10,12 @@ import {
   Download,
   WalletCards,
 } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -25,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -112,7 +116,8 @@ function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>("all");
   const [propertyFilter, setPropertyFilter] = useState("all");
   const [tenantFilter, setTenantFilter] = useState("all");
-  const [periodFilter, setPeriodFilter] = useState("all");
+  const [periodRange, setPeriodRange] = useState<DateRange>();
+  const [periodCalendarOpen, setPeriodCalendarOpen] = useState(false);
   const [selectedCharge, setSelectedCharge] = useState<RentCharge | null>(null);
   const [paidDate, setPaidDate] = useState(localDateKey());
   const [paymentNote, setPaymentNote] = useState("");
@@ -133,13 +138,17 @@ function PaymentsPage() {
     .filter((charge) => charge.paid_at?.slice(0, 7) === currentMonth)
     .reduce((sum, charge) => sum + Number(charge.amount), 0);
 
-  const periods = useMemo(
-    () =>
-      Array.from(new Set(allCharges.map((charge) => charge.period_start.slice(0, 7)))).sort(
-        (a, b) => b.localeCompare(a),
-      ),
-    [allCharges],
-  );
+  const periodLimits = useMemo(() => {
+    if (allCharges.length === 0) return undefined;
+    const periods = allCharges.map((charge) => charge.period_start).sort();
+    return {
+      start: new Date(`${periods[0]}T12:00:00`),
+      end: new Date(`${periods.at(-1)}T12:00:00`),
+    };
+  }, [allCharges]);
+
+  const periodFrom = periodRange?.from ? localDateKey(periodRange.from).slice(0, 7) : null;
+  const periodTo = periodRange?.to ? localDateKey(periodRange.to).slice(0, 7) : null;
 
   const visibleCharges = useMemo(() => {
     const statusOrder: Record<PaymentStatus, number> = { overdue: 0, pending: 1, paid: 2 };
@@ -147,11 +156,13 @@ function PaymentsPage() {
       .filter((charge) => {
         const agreement = agreements.data?.find((item) => item.id === charge.agreement_id);
         const status = getPaymentStatus(charge);
+        const chargePeriod = charge.period_start.slice(0, 7);
         return (
           (statusFilter === "all" || status === statusFilter) &&
           (propertyFilter === "all" || agreement?.property_id === propertyFilter) &&
           (tenantFilter === "all" || charge.tenant_id === tenantFilter) &&
-          (periodFilter === "all" || charge.period_start.startsWith(periodFilter))
+          (!periodFrom || chargePeriod >= periodFrom) &&
+          (!periodTo || chargePeriod <= periodTo)
         );
       })
       .sort((a, b) => {
@@ -162,11 +173,19 @@ function PaymentsPage() {
           ? b.due_date.localeCompare(a.due_date)
           : a.due_date.localeCompare(b.due_date);
       });
-  }, [agreements.data, allCharges, periodFilter, propertyFilter, statusFilter, tenantFilter]);
+  }, [
+    agreements.data,
+    allCharges,
+    periodFrom,
+    periodTo,
+    propertyFilter,
+    statusFilter,
+    tenantFilter,
+  ]);
 
   useEffect(() => {
     setSelectedChargeIds(new Set());
-  }, [periodFilter, propertyFilter, statusFilter, tenantFilter]);
+  }, [periodRange, propertyFilter, statusFilter, tenantFilter]);
 
   const selectableCharges = visibleCharges.filter((charge) => charge.paid_at == null);
   const allSelectableChecked =
@@ -362,19 +381,55 @@ function PaymentsPage() {
           </SelectContent>
         </Select>
 
-        <Select value={periodFilter} onValueChange={setPeriodFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Все периоды" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все периоды</SelectItem>
-            {periods.map((period) => (
-              <SelectItem key={period} value={period}>
-                {formatMonth(`${period}-01`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={periodCalendarOpen} onOpenChange={setPeriodCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="h-10 justify-start px-3 font-normal">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <span className="truncate">
+                {!periodRange?.from
+                  ? "Все периоды"
+                  : periodRange.to
+                    ? `${formatMonth(localDateKey(periodRange.from))} — ${formatMonth(localDateKey(periodRange.to))}`
+                    : `С ${formatMonth(localDateKey(periodRange.from))}`}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto p-0">
+            <Calendar
+              mode="range"
+              selected={periodRange}
+              onSelect={setPeriodRange}
+              {...(periodLimits
+                ? {
+                    defaultMonth: periodRange?.from ?? periodLimits.end,
+                    startMonth: periodLimits.start,
+                    endMonth: periodLimits.end,
+                  }
+                : {})}
+              captionLayout="dropdown"
+              locale={ru}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t p-3">
+              <p className="text-xs text-muted-foreground">Выберите начало и конец периода</p>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!periodRange}
+                  onClick={() => {
+                    setPeriodRange(undefined);
+                    setPeriodCalendarOpen(false);
+                  }}
+                >
+                  Сбросить
+                </Button>
+                <Button size="sm" onClick={() => setPeriodCalendarOpen(false)}>
+                  Готово
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <Select value={propertyFilter} onValueChange={setPropertyFilter}>
           <SelectTrigger>
