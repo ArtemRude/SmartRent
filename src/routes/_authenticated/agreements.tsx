@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
-import { printAgreementDocument } from "@/lib/agreement-document";
+import { type AgreementContractDetails, printAgreementDocument } from "@/lib/agreement-document";
 import { formatDate, formatMoney, getDefaultLeaseDates } from "@/lib/domain";
 import {
   type Agreement,
@@ -55,6 +56,17 @@ type AgreementForm = {
   startDate: string;
   endDate: string;
   monthlyPayment: string;
+  agreementNumber: string;
+  contractCity: string;
+  signedDate: string;
+  paymentDueDay: string;
+  depositAmount: string;
+  utilitiesTerms: string;
+  noticeDays: string;
+  ownerPassport: string;
+  ownerRegistrationAddress: string;
+  tenantPassport: string;
+  tenantRegistrationAddress: string;
   file: File | null;
 };
 
@@ -65,6 +77,17 @@ const emptyForm: AgreementForm = {
   startDate: "",
   endDate: "",
   monthlyPayment: "",
+  agreementNumber: "",
+  contractCity: "",
+  signedDate: "",
+  paymentDueDay: "",
+  depositAmount: "",
+  utilitiesTerms: "",
+  noticeDays: "",
+  ownerPassport: "",
+  ownerRegistrationAddress: "",
+  tenantPassport: "",
+  tenantRegistrationAddress: "",
   file: null,
 };
 
@@ -73,6 +96,36 @@ function createForm(): AgreementForm {
     ...emptyForm,
     ...getDefaultLeaseDates(),
   };
+}
+
+function readContractDetails(value: Agreement["contract_details"]): AgreementContractDetails {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const stringValue = (key: string) => (typeof value[key] === "string" ? value[key] : undefined);
+  const numberValue = (key: string) => (typeof value[key] === "number" ? value[key] : undefined);
+
+  return {
+    agreementNumber: stringValue("agreementNumber"),
+    contractCity: stringValue("contractCity"),
+    signedDate: stringValue("signedDate"),
+    paymentDueDay: numberValue("paymentDueDay"),
+    depositAmount: numberValue("depositAmount"),
+    utilitiesTerms: stringValue("utilitiesTerms"),
+    noticeDays: numberValue("noticeDays"),
+    ownerPassport: stringValue("ownerPassport"),
+    ownerRegistrationAddress: stringValue("ownerRegistrationAddress"),
+    tenantPassport: stringValue("tenantPassport"),
+    tenantRegistrationAddress: stringValue("tenantRegistrationAddress"),
+  };
+}
+
+function optionalNumber(value: string, label: string, options: { min: number; max: number }) {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < options.min || parsed > options.max) {
+    throw new Error(`${label}: укажите целое число от ${options.min} до ${options.max}`);
+  }
+  return parsed;
 }
 
 function AgreementsPage() {
@@ -94,6 +147,7 @@ function AgreementsPage() {
   };
 
   const openEdit = (agreement: Agreement) => {
+    const details = readContractDetails(agreement.contract_details);
     setEditing(agreement);
     setForm({
       propertyId: agreement.property_id,
@@ -102,6 +156,17 @@ function AgreementsPage() {
       startDate: agreement.start_date,
       endDate: agreement.end_date,
       monthlyPayment: String(agreement.monthly_payment),
+      agreementNumber: details.agreementNumber ?? "",
+      contractCity: details.contractCity ?? "",
+      signedDate: details.signedDate ?? "",
+      paymentDueDay: details.paymentDueDay?.toString() ?? "",
+      depositAmount: details.depositAmount?.toString() ?? "",
+      utilitiesTerms: details.utilitiesTerms ?? "",
+      noticeDays: details.noticeDays?.toString() ?? "",
+      ownerPassport: details.ownerPassport ?? "",
+      ownerRegistrationAddress: details.ownerRegistrationAddress ?? "",
+      tenantPassport: details.tenantPassport ?? "",
+      tenantRegistrationAddress: details.tenantRegistrationAddress ?? "",
       file: null,
     });
     setOpen(true);
@@ -116,6 +181,32 @@ function AgreementsPage() {
       if (form.endDate < form.startDate) throw new Error("Дата окончания раньше даты начала");
       const payment = Number(form.monthlyPayment);
       if (!Number.isFinite(payment) || payment < 0) throw new Error("Укажите корректную сумму");
+      const depositAmount = form.depositAmount.trim() ? Number(form.depositAmount) : null;
+      if (depositAmount !== null && (!Number.isFinite(depositAmount) || depositAmount < 0)) {
+        throw new Error("Укажите корректный обеспечительный платёж");
+      }
+      const paymentDueDay = optionalNumber(form.paymentDueDay, "День оплаты", {
+        min: 1,
+        max: 31,
+      });
+      const noticeDays = optionalNumber(form.noticeDays, "Срок уведомления", {
+        min: 1,
+        max: 365,
+      });
+
+      const contractDetails = {
+        agreementNumber: form.agreementNumber.trim(),
+        contractCity: form.contractCity.trim(),
+        signedDate: form.signedDate,
+        paymentDueDay,
+        depositAmount,
+        utilitiesTerms: form.utilitiesTerms.trim(),
+        noticeDays,
+        ownerPassport: form.ownerPassport.trim(),
+        ownerRegistrationAddress: form.ownerRegistrationAddress.trim(),
+        tenantPassport: form.tenantPassport.trim(),
+        tenantRegistrationAddress: form.tenantRegistrationAddress.trim(),
+      };
 
       let uploadedPath: string | null = null;
       try {
@@ -128,6 +219,7 @@ function AgreementsPage() {
           start_date: form.startDate,
           end_date: form.endDate,
           monthly_payment: payment,
+          contract_details: contractDetails,
           document_file: uploadedPath ?? editing?.document_file ?? null,
         };
 
@@ -275,6 +367,7 @@ function AgreementsPage() {
                           startDate: agreement.start_date,
                           endDate: agreement.end_date,
                           monthlyPayment: agreement.monthly_payment,
+                          contractDetails: readContractDetails(agreement.contract_details),
                         });
                       } catch (error) {
                         toast.error(
@@ -283,7 +376,7 @@ function AgreementsPage() {
                       }
                     }}
                   >
-                    <FileDown className="mr-2 h-4 w-4" /> Сформировать PDF
+                    <FileDown className="mr-2 h-4 w-4" /> Предпросмотр и PDF
                   </Button>
                   {agreement.document_file && (
                     <Button
@@ -329,11 +422,11 @@ function AgreementsPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Изменить договор" : "Новый договор"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <div className="space-y-1.5">
               <Label>Объект</Label>
               <Select
@@ -353,6 +446,155 @@ function AgreementsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="order-2 border-t pt-4">
+              <h3 className="font-medium">Данные для печатного договора</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Необязательные поля можно заполнить позже. Они подставляются только в договор и акт.
+              </p>
+            </div>
+            <div className="order-2 grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="lease-number">Номер договора</Label>
+                <Input
+                  id="lease-number"
+                  value={form.agreementNumber}
+                  placeholder="Например, 12/2026"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, agreementNumber: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lease-city">Город подписания</Label>
+                <Input
+                  id="lease-city"
+                  value={form.contractCity}
+                  placeholder="Москва"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, contractCity: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lease-signed-date">Дата подписания</Label>
+                <Input
+                  id="lease-signed-date"
+                  type="date"
+                  value={form.signedDate}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, signedDate: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="order-2 grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="lease-due-day">День оплаты</Label>
+                <Input
+                  id="lease-due-day"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={form.paymentDueDay}
+                  placeholder="До 10-го числа"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, paymentDueDay: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lease-deposit">Обеспечительный платёж, ₽</Label>
+                <Input
+                  id="lease-deposit"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.depositAmount}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, depositAmount: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lease-notice-days">Уведомление, дней</Label>
+                <Input
+                  id="lease-notice-days"
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={form.noticeDays}
+                  placeholder="30"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, noticeDays: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="order-2 space-y-1.5">
+              <Label htmlFor="lease-utilities">Коммунальные и эксплуатационные платежи</Label>
+              <Textarea
+                id="lease-utilities"
+                value={form.utilitiesTerms}
+                placeholder="Например: оплачиваются арендатором по квитанциям"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, utilitiesTerms: event.target.value }))
+                }
+              />
+            </div>
+            <div className="order-2 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3 rounded-lg border p-3">
+                <p className="text-sm font-medium">Собственник</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lease-owner-passport">Паспортные данные</Label>
+                  <Input
+                    id="lease-owner-passport"
+                    value={form.ownerPassport}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, ownerPassport: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lease-owner-address">Адрес регистрации</Label>
+                  <Textarea
+                    id="lease-owner-address"
+                    value={form.ownerRegistrationAddress}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        ownerRegistrationAddress: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-3 rounded-lg border p-3">
+                <p className="text-sm font-medium">Арендатор</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lease-tenant-passport">Паспортные данные</Label>
+                  <Input
+                    id="lease-tenant-passport"
+                    value={form.tenantPassport}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, tenantPassport: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lease-tenant-address">Адрес регистрации</Label>
+                  <Textarea
+                    id="lease-tenant-address"
+                    value={form.tenantRegistrationAddress}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        tenantRegistrationAddress: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Помещение</Label>
@@ -431,7 +673,7 @@ function AgreementsPage() {
                 }
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="order-3 space-y-1.5">
               <Label htmlFor="lease-file">
                 Договор PDF {editing?.document_file ? "(необязательно заменять)" : ""}
               </Label>

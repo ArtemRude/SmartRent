@@ -53,3 +53,44 @@ test("non-residential property uses lease terminology", () => {
   assert.match(html, /Арендодатель/);
   assert.match(html, /Арендатор/);
 });
+
+test("agreement document inserts saved contract details", () => {
+  const html = buildAgreementDocumentHtml({
+    ...agreement,
+    contractDetails: {
+      agreementNumber: "12/2026",
+      contractCity: "Москва",
+      signedDate: "2026-08-28",
+      paymentDueDay: 10,
+      depositAmount: 65_000,
+      utilitiesTerms: "оплачиваются нанимателем по квитанциям",
+      noticeDays: 30,
+      ownerPassport: "00 00 № 000000",
+      ownerRegistrationAddress: "г. Москва, тестовый адрес 1",
+      tenantPassport: "11 11 № 111111",
+      tenantRegistrationAddress: "г. Москва, тестовый адрес 2",
+    },
+  });
+
+  assert.match(html, /№ 12\/2026/);
+  assert.match(html, /г\. Москва/);
+  assert.match(html, /28 августа 2026 г\./);
+  assert.match(html, /не позднее 10-го числа/);
+  assert.match(html, /за 30 календарных дней/);
+  assert.match(html, /оплачиваются нанимателем по квитанциям/);
+  assert.match(html, /00 00 № 000000/);
+});
+
+test("agreement document escapes contract detail text", () => {
+  const html = buildAgreementDocumentHtml({
+    ...agreement,
+    contractDetails: {
+      agreementNumber: "<12>",
+      utilitiesTerms: "собственник & наниматель",
+    },
+  });
+
+  assert.doesNotMatch(html, /№ <12>/);
+  assert.match(html, /№ &lt;12&gt;/);
+  assert.match(html, /собственник &amp; наниматель/);
+});

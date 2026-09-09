@@ -1,3 +1,17 @@
+export type AgreementContractDetails = {
+  agreementNumber?: string | undefined;
+  contractCity?: string | undefined;
+  signedDate?: string | undefined;
+  paymentDueDay?: number | null | undefined;
+  depositAmount?: number | null | undefined;
+  utilitiesTerms?: string | undefined;
+  noticeDays?: number | null | undefined;
+  ownerPassport?: string | undefined;
+  ownerRegistrationAddress?: string | undefined;
+  tenantPassport?: string | undefined;
+  tenantRegistrationAddress?: string | undefined;
+};
+
 export type AgreementDocumentData = {
   agreementId: string;
   propertyType: "apartment" | "warehouse" | "commercial" | "other";
@@ -14,6 +28,7 @@ export type AgreementDocumentData = {
   startDate: string;
   endDate: string;
   monthlyPayment: number;
+  contractDetails?: AgreementContractDetails;
 };
 
 function escapeHtml(value: string) {
@@ -43,8 +58,21 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function optionalDate(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "«___» __________ 20___ г.";
+  return text(formatDate(value));
+}
+
+function filled(value: string | undefined, fallback: string) {
+  return text(value, fallback);
+}
+
 export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
-  const agreementNumber = text(data.agreementId.slice(0, 8).toUpperCase());
+  const details = data.contractDetails ?? {};
+  const agreementNumber = filled(
+    details.agreementNumber,
+    data.agreementId.slice(0, 8).toUpperCase(),
+  );
   const residential = data.propertyType === "apartment";
   const documentTitle = residential ? "Договор найма жилого помещения" : "Договор аренды помещения";
   const ownerRole = residential ? "Наймодатель" : "Арендодатель";
@@ -56,6 +84,18 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
   const startDate = text(formatDate(data.startDate));
   const endDate = text(formatDate(data.endDate));
   const monthlyPayment = text(formatMoney(data.monthlyPayment));
+  const contractCity = filled(details.contractCity, "__________________");
+  const signedDate = optionalDate(details.signedDate);
+  const paymentDueDay = details.paymentDueDay ? String(details.paymentDueDay) : "___";
+  const depositAmount =
+    details.depositAmount === null || details.depositAmount === undefined
+      ? "__________ рублей"
+      : text(formatMoney(details.depositAmount));
+  const utilitiesTerms = filled(
+    details.utilitiesTerms,
+    "________________________________________________________________",
+  );
+  const noticeDays = details.noticeDays ? String(details.noticeDays) : "______";
   const premises = data.unitName
     ? `${text(data.unitName)}${data.unitArea ? `, площадь ${data.unitArea} м²` : ""}`
     : "объект полностью";
@@ -161,8 +201,8 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
   <section class="page legal">
     <h1>${documentTitle}</h1>
     <p class="document-number">№ ${agreementNumber}</p>
-    <div class="place-date"><span>г. __________________</span><span>«___» __________ 20___ г.</span></div>
-    <p>${ownerRole} ${text(data.ownerName)}, паспортные и регистрационные данные которого заполняются перед подписанием, с одной стороны, и ${tenantRole} ${text(data.tenantName)}, паспортные и регистрационные данные которого заполняются перед подписанием, с другой стороны, совместно именуемые «Стороны», заключили настоящий договор о нижеследующем.</p>
+    <div class="place-date"><span>г. ${contractCity}</span><span>${signedDate}</span></div>
+    <p>${ownerRole} ${text(data.ownerName)}, паспорт: ${filled(details.ownerPassport, "__________________________")}, зарегистрированный по адресу: ${filled(details.ownerRegistrationAddress, "__________________________")}, с одной стороны, и ${tenantRole} ${text(data.tenantName)}, паспорт: ${filled(details.tenantPassport, "__________________________")}, зарегистрированный по адресу: ${filled(details.tenantRegistrationAddress, "__________________________")}, с другой стороны, совместно именуемые «Стороны», заключили настоящий договор о нижеследующем.</p>
 
     <h2>1. Предмет договора</h2>
     <p>1.1. ${ownerRole} передаёт ${tenantRoleGenitive} за плату во временное владение и пользование объект «${propertyName}», расположенный по адресу: ${propertyAddress}, ${premises} (далее — «Помещение»).</p>
@@ -204,16 +244,16 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
   <section class="page legal">
     <h2>4. Платежи и расчёты</h2>
     <p>4.1. Ежемесячная плата за пользование Помещением составляет ${monthlyPayment}.</p>
-    <p>4.2. Плата вносится не позднее «___» числа каждого оплачиваемого месяца способом, согласованным Сторонами. Обязательство считается исполненным в день передачи денежных средств либо зачисления на указанный ${ownerRoleGenitive} счёт.</p>
-    <p>4.3. Обеспечительный платёж составляет __________ рублей. Условия его внесения, зачёта и возврата Стороны заполняют и подтверждают до подписания договора.</p>
-    <p>4.4. Коммунальные, эксплуатационные услуги, связь и интернет оплачиваются в порядке, отдельно согласованном Сторонами: ________________________________________________________________.</p>
+    <p>4.2. Плата вносится не позднее ${paymentDueDay}-го числа каждого оплачиваемого месяца способом, согласованным Сторонами. Обязательство считается исполненным в день передачи денежных средств либо зачисления на указанный ${ownerRoleGenitive} счёт.</p>
+    <p>4.3. Обеспечительный платёж составляет ${depositAmount}. Условия его внесения, зачёта и возврата Стороны подтверждают до подписания договора.</p>
+    <p>4.4. Коммунальные, эксплуатационные услуги, связь и интернет оплачиваются в следующем порядке: ${utilitiesTerms}.</p>
     <p>4.5. Изменение размера платы допускается по письменному соглашению Сторон, если иное прямо не предусмотрено законом.</p>
 
     <h2>5. Срок действия, изменение и расторжение</h2>
     <p>5.1. Помещение предоставляется на срок с ${startDate} по ${endDate} включительно.</p>
     <p>5.2. Договор вступает в силу с момента подписания обеими Сторонами. Обязательства по расчётам и возврату имущества действуют до их полного исполнения.</p>
     <p>5.3. Изменения и дополнения действительны, если совершены в письменной форме и подписаны обеими Сторонами.</p>
-    <p>5.4. Каждая Сторона вправе отказаться от договора, письменно уведомив другую Сторону не менее чем за ______ календарных дней, если иной срок не установлен соглашением Сторон или законом.</p>
+    <p>5.4. Каждая Сторона вправе отказаться от договора, письменно уведомив другую Сторону не менее чем за ${noticeDays} календарных дней, если иной срок не установлен соглашением Сторон или законом.</p>
     <p>5.5. Договор может быть расторгнут досрочно при существенном нарушении его условий, в том числе при систематической просрочке оплаты, использовании Помещения не по назначению, причинении ущерба или создании препятствий для пользования.</p>
 
     <h2>6. Ответственность и обстоятельства непреодолимой силы</h2>
@@ -240,16 +280,16 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
       <div>
         <p><strong>${ownerRole}</strong></p>
         <p>ФИО: ${text(data.ownerName)}</p>
-        <p>Паспорт: __________________________</p>
-        <p>Адрес регистрации: _________________</p>
+        <p>Паспорт: ${filled(details.ownerPassport, "__________________________")}</p>
+        <p>Адрес регистрации: ${filled(details.ownerRegistrationAddress, "_________________")}</p>
         <p>Email: ${text(data.ownerEmail)}</p>
         <p>Телефон: ${text(data.ownerPhone)}</p>
       </div>
       <div>
         <p><strong>${tenantRole}</strong></p>
         <p>ФИО: ${text(data.tenantName)}</p>
-        <p>Паспорт: __________________________</p>
-        <p>Адрес регистрации: _________________</p>
+        <p>Паспорт: ${filled(details.tenantPassport, "__________________________")}</p>
+        <p>Адрес регистрации: ${filled(details.tenantRegistrationAddress, "_________________")}</p>
         <p>Email: ${text(data.tenantEmail)}</p>
         <p>Телефон: ${text(data.tenantPhone)}</p>
       </div>
@@ -264,7 +304,7 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
   <section class="page legal">
     <p class="appendix-label">Приложение № 1 к договору № ${agreementNumber}</p>
     <h1>Акт приёма-передачи помещения и имущества</h1>
-    <div class="place-date"><span>г. __________________</span><span>«___» __________ 20___ г.</span></div>
+    <div class="place-date"><span>г. ${contractCity}</span><span>${signedDate}</span></div>
     <p>${ownerRole} ${text(data.ownerName)} передал, а ${tenantRole} ${text(data.tenantName)} принял Помещение: объект «${propertyName}», адрес ${propertyAddress}, ${premises}.</p>
     <p>Стороны осмотрели Помещение. Его состояние, замечания, показания приборов учёта и количество переданных ключей указываются ниже.</p>
     <p class="no-indent"><strong>Состояние и замечания:</strong> ________________________________________________________________<br>__________________________________________________________________________________________</p>

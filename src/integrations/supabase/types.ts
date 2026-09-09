@@ -48,6 +48,7 @@ export type Database = {
       }
       lease_agreements: {
         Row: {
+          contract_details: Json
           created_at: string
           document_file: string | null
           end_date: string
@@ -61,6 +62,7 @@ export type Database = {
           unit_id: string | null
         }
         Insert: {
+          contract_details?: Json
           created_at?: string
           document_file?: string | null
           end_date: string
@@ -74,6 +76,7 @@ export type Database = {
           unit_id?: string | null
         }
         Update: {
+          contract_details?: Json
           created_at?: string
           document_file?: string | null
           end_date?: string
