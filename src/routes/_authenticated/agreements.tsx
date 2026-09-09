@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Download, FileText, Pencil, Plus } from "lucide-react";
+import { Archive, Download, FileDown, FileText, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
+import { printAgreementDocument } from "@/lib/agreement-document";
 import { formatDate, formatMoney, getDefaultLeaseDates } from "@/lib/domain";
 import {
   type Agreement,
@@ -34,6 +34,7 @@ import {
   fetchUnits,
 } from "@/lib/queries";
 import { downloadFile, LEASE_DOCUMENTS, removeFile, uploadFile } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/agreements")({
   validateSearch: (search: Record<string, unknown>): { agreementId?: string } =>
@@ -76,7 +77,7 @@ function createForm(): AgreementForm {
 
 function AgreementsPage() {
   const { agreementId } = Route.useSearch();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const qc = useQueryClient();
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
@@ -253,6 +254,36 @@ function AgreementsPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      try {
+                        printAgreementDocument({
+                          agreementId: agreement.id,
+                          propertyName: property?.name ?? "Объект",
+                          propertyAddress: property?.address ?? "",
+                          unitName: unit?.name ?? null,
+                          unitArea: unit?.area ?? null,
+                          tenantName: tenant?.name ?? "Арендатор",
+                          tenantEmail: tenant?.email ?? "",
+                          tenantPhone: tenant?.phone ?? null,
+                          ownerName: profile?.name ?? "Собственник",
+                          ownerEmail: profile?.email ?? user?.email ?? "",
+                          ownerPhone: profile?.phone ?? null,
+                          startDate: agreement.start_date,
+                          endDate: agreement.end_date,
+                          monthlyPayment: agreement.monthly_payment,
+                        });
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error ? error.message : "Не удалось открыть PDF",
+                        );
+                      }
+                    }}
+                  >
+                    <FileDown className="mr-2 h-4 w-4" /> Сформировать PDF
+                  </Button>
                   {agreement.document_file && (
                     <Button
                       variant="outline"

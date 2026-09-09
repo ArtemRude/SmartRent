@@ -17,6 +17,8 @@ dist-ssr
 *.local
 playwright-report/
 test-results/
+tmp/
+output/
 
 # Local agent and Supabase CLI state
 .agents/
