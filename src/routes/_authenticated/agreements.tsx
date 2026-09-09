@@ -261,6 +261,7 @@ function AgreementsPage() {
                       try {
                         printAgreementDocument({
                           agreementId: agreement.id,
+                          propertyType: property?.type ?? "other",
                           propertyName: property?.name ?? "Объект",
                           propertyAddress: property?.address ?? "",
                           unitName: unit?.name ?? null,
