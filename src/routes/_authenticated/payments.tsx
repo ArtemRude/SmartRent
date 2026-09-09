@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { PaymentAnalyticsCharts } from "@/components/PaymentAnalyticsCharts";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
+import { RentForecastPanel } from "@/components/RentForecastPanel";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,6 +53,7 @@ import {
   type PaymentStatus,
 } from "@/lib/domain";
 import { buildPaymentAnalytics } from "@/lib/payment-analytics";
+import { buildRentForecast } from "@/lib/rent-forecast";
 import {
   fetchAgreements,
   fetchProperties,
@@ -128,6 +130,7 @@ function PaymentsPage() {
   const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
   const [bulkPaidDate, setBulkPaidDate] = useState(localDateKey());
   const [bulkPaymentNote, setBulkPaymentNote] = useState("");
+  const [forecastHorizon, setForecastHorizon] = useState(6);
 
   const currentMonth = localDateKey().slice(0, 7);
   const allCharges = useMemo(() => charges.data ?? [], [charges.data]);
@@ -204,6 +207,42 @@ function PaymentsPage() {
       }),
     );
   }, [agreements.data, properties.data, visibleCharges]);
+
+  const rentForecast = useMemo(() => {
+    const propertyById = new Map((properties.data ?? []).map((item) => [item.id, item]));
+    const tenantById = new Map((tenants.data ?? []).map((item) => [item.id, item]));
+    const forecastAgreements = (agreements.data ?? [])
+      .filter(
+        (agreement) =>
+          (propertyFilters.length === 0 || propertyFilters.includes(agreement.property_id)) &&
+          (tenantFilter === "all" || tenantFilter === agreement.tenant_id),
+      )
+      .map((agreement) => ({
+        id: agreement.id,
+        status: agreement.status,
+        startDate: agreement.start_date,
+        endDate: agreement.end_date,
+        monthlyPayment: Number(agreement.monthly_payment),
+        propertyId: agreement.property_id,
+        propertyName: propertyById.get(agreement.property_id)?.name ?? "Без объекта",
+        tenantId: agreement.tenant_id,
+        tenantName: tenantById.get(agreement.tenant_id)?.name ?? "Арендатор",
+      }));
+
+    return buildRentForecast({
+      agreements: forecastAgreements,
+      startPeriod: currentMonth,
+      horizonMonths: forecastHorizon,
+    });
+  }, [
+    agreements.data,
+    currentMonth,
+    forecastHorizon,
+    properties.data,
+    propertyFilters,
+    tenantFilter,
+    tenants.data,
+  ]);
 
   useEffect(() => {
     setSelectedChargeIds(new Set());
@@ -571,6 +610,14 @@ function PaymentsPage() {
             />
           </CardContent>
         </Card>
+      )}
+
+      {!loading && !failed && role !== "tenant" && (
+        <RentForecastPanel
+          {...rentForecast}
+          horizonMonths={forecastHorizon}
+          onHorizonChange={setForecastHorizon}
+        />
       )}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
