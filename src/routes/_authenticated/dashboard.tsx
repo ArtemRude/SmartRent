@@ -284,7 +284,7 @@ function Dashboard() {
         <Stat icon={CreditCard} label="Задолженность" value={formatMoney(debt)} to="/payments" />
       </div>
 
-      {onboardingLoaded && !nextOnboardingStep && <AttentionCenter groups={attentionGroups} />}
+      {onboardingLoaded && <AttentionCenter groups={attentionGroups} />}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
