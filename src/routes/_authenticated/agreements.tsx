@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Download, FileText, Pencil, Plus } from "lucide-react";
@@ -36,6 +36,8 @@ import {
 import { downloadFile, LEASE_DOCUMENTS, removeFile, uploadFile } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/agreements")({
+  validateSearch: (search: Record<string, unknown>): { agreementId?: string } =>
+    typeof search["agreementId"] === "string" ? { agreementId: search["agreementId"] } : {},
   head: () => ({
     meta: [
       { title: "Договоры — Умная Аренда" },
@@ -73,6 +75,7 @@ function createForm(): AgreementForm {
 }
 
 function AgreementsPage() {
+  const { agreementId } = Route.useSearch();
   const { user } = useAuth();
   const qc = useQueryClient();
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
@@ -171,6 +174,14 @@ function AgreementsPage() {
   const loading = [agreements, properties, units, tenants].some((query) => query.isPending);
   const failed = [agreements, properties, units, tenants].some((query) => query.isError);
 
+  useEffect(() => {
+    if (!agreementId || !agreements.data?.some((agreement) => agreement.id === agreementId)) return;
+    document.getElementById(`agreement-${agreementId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [agreementId, agreements.data]);
+
   return (
     <>
       <PageHeader
@@ -201,7 +212,12 @@ function AgreementsPage() {
           return (
             <Card
               key={agreement.id}
-              className={agreement.status === "archived" ? "opacity-65" : ""}
+              id={`agreement-${agreement.id}`}
+              className={cn(
+                "scroll-mt-6 transition-shadow",
+                agreement.status === "archived" && "opacity-65",
+                agreementId === agreement.id && "border-primary/50 ring-2 ring-primary/20",
+              )}
             >
               <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">

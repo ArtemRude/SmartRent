@@ -14,6 +14,7 @@ import {
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { DebtCenter } from "@/components/DebtCenter";
 import { PaymentAnalyticsCharts } from "@/components/PaymentAnalyticsCharts";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { RentForecastPanel } from "@/components/RentForecastPanel";
@@ -43,6 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { createCsv, downloadCsv } from "@/lib/csv";
+import { buildDebtGroups } from "@/lib/debt-center";
 import {
   formatDate,
   formatMoney,
@@ -208,6 +210,39 @@ function PaymentsPage() {
     );
   }, [agreements.data, properties.data, visibleCharges]);
 
+  const debtGroups = useMemo(() => {
+    const agreementById = new Map((agreements.data ?? []).map((item) => [item.id, item]));
+    const propertyById = new Map((properties.data ?? []).map((item) => [item.id, item]));
+    const tenantById = new Map((tenants.data ?? []).map((item) => [item.id, item]));
+    const today = localDateKey();
+
+    return buildDebtGroups(
+      allCharges
+        .filter((charge) => {
+          const agreement = agreementById.get(charge.agreement_id);
+          return (
+            getPaymentStatus(charge) === "overdue" &&
+            (propertyFilters.length === 0 ||
+              (agreement?.property_id != null &&
+                propertyFilters.includes(agreement.property_id))) &&
+            (tenantFilter === "all" || charge.tenant_id === tenantFilter)
+          );
+        })
+        .map((charge) => {
+          const agreement = agreementById.get(charge.agreement_id);
+          return {
+            chargeId: charge.id,
+            agreementId: charge.agreement_id,
+            propertyName: propertyById.get(agreement?.property_id ?? "")?.name ?? "Без объекта",
+            tenantName: tenantById.get(charge.tenant_id)?.name ?? "Арендатор",
+            amount: Number(charge.amount),
+            dueDate: charge.due_date,
+          };
+        }),
+      today,
+    );
+  }, [agreements.data, allCharges, properties.data, propertyFilters, tenantFilter, tenants.data]);
+
   const rentForecast = useMemo(() => {
     const propertyById = new Map((properties.data ?? []).map((item) => [item.id, item]));
     const tenantById = new Map((tenants.data ?? []).map((item) => [item.id, item]));
@@ -266,6 +301,13 @@ function PaymentsPage() {
     setSelectedChargeIds(
       checked ? new Set(selectableCharges.map((charge) => charge.id)) : new Set(),
     );
+  };
+
+  const openDebtPayment = (chargeIds: string[]) => {
+    setSelectedChargeIds(new Set(chargeIds));
+    setBulkPaidDate(localDateKey());
+    setBulkPaymentNote("");
+    setBulkPaymentOpen(true);
   };
 
   const openPaymentDialog = (charge: RentCharge) => {
@@ -567,6 +609,10 @@ function PaymentsPage() {
           </Select>
         )}
       </div>
+
+      {!loading && !failed && role !== "tenant" && (
+        <DebtCenter groups={debtGroups} onPay={openDebtPayment} />
+      )}
 
       {!loading && !failed && visibleCharges.length > 0 && (
         <Card className="mt-4">
