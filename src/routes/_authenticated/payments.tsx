@@ -183,6 +183,35 @@ function PaymentsPage() {
     tenantFilter,
   ]);
 
+  const filteredSummary = useMemo(() => {
+    let accrued = 0;
+    let paid = 0;
+    const months = new Map<string, { accrued: number; paid: number }>();
+
+    for (const charge of visibleCharges) {
+      const amount = Number(charge.amount);
+      const period = charge.period_start.slice(0, 7);
+      const month = months.get(period) ?? { accrued: 0, paid: 0 };
+      accrued += amount;
+      month.accrued += amount;
+      if (charge.paid_at) {
+        paid += amount;
+        month.paid += amount;
+      }
+      months.set(period, month);
+    }
+
+    return {
+      accrued,
+      paid,
+      unpaid: accrued - paid,
+      collectionRate: accrued > 0 ? Math.round((paid / accrued) * 100) : 0,
+      months: Array.from(months, ([period, totals]) => ({ period, ...totals })).sort((a, b) =>
+        a.period.localeCompare(b.period),
+      ),
+    };
+  }, [visibleCharges]);
+
   useEffect(() => {
     setSelectedChargeIds(new Set());
   }, [periodRange, propertyFilter, statusFilter, tenantFilter]);
@@ -308,17 +337,24 @@ function PaymentsPage() {
         "Арендатор",
         "Комментарий",
       ],
-      visibleCharges.map((charge) => [
-        paymentStatusLabels[getPaymentStatus(charge)],
-        formatMonth(charge.period_start),
-        formatDate(charge.due_date),
-        charge.paid_at ? formatDate(charge.paid_at) : "",
-        Number(charge.amount),
-        propertyFor(charge)?.name ?? "",
-        unitFor(charge)?.name ?? "",
-        tenantFor(charge)?.name ?? "",
-        charge.payment_note ?? "",
-      ]),
+      [
+        ...visibleCharges.map((charge) => [
+          paymentStatusLabels[getPaymentStatus(charge)],
+          formatMonth(charge.period_start),
+          formatDate(charge.due_date),
+          charge.paid_at ? formatDate(charge.paid_at) : "",
+          Number(charge.amount),
+          propertyFor(charge)?.name ?? "",
+          unitFor(charge)?.name ?? "",
+          tenantFor(charge)?.name ?? "",
+          charge.payment_note ?? "",
+        ]),
+        [],
+        ["Итого начислено", "", "", "", filteredSummary.accrued],
+        ["Итого оплачено", "", "", "", filteredSummary.paid],
+        ["Итого не оплачено", "", "", "", filteredSummary.unpaid],
+        [`Собираемость: ${filteredSummary.collectionRate}%`],
+      ],
     );
     downloadCsv(`rent-payments-${localDateKey()}.csv`, csv);
     toast.success("Отчёт CSV скачан");
@@ -461,6 +497,69 @@ function PaymentsPage() {
           </Select>
         )}
       </div>
+
+      {!loading && !failed && visibleCharges.length > 0 && (
+        <Card className="mt-4">
+          <CardContent className="p-5 md:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold">Итоги выбранного периода</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Показатели учитывают все активные фильтры
+                </p>
+              </div>
+              <span className="rounded-full bg-accent px-3 py-1 text-sm font-medium">
+                {visibleCharges.length} начислений
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Начислено</p>
+                <p className="mt-1 text-xl font-semibold">{formatMoney(filteredSummary.accrued)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Оплачено</p>
+                <p className="mt-1 text-xl font-semibold text-success">
+                  {formatMoney(filteredSummary.paid)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Не оплачено</p>
+                <p className="mt-1 text-xl font-semibold">{formatMoney(filteredSummary.unpaid)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Собираемость</p>
+                <p className="mt-1 text-xl font-semibold">{filteredSummary.collectionRate}%</p>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3 border-t pt-5">
+              <p className="text-sm font-medium">Помесячная динамика</p>
+              {filteredSummary.months.map((month) => {
+                const rate = month.accrued > 0 ? Math.round((month.paid / month.accrued) * 100) : 0;
+                return (
+                  <div
+                    key={month.period}
+                    className="grid gap-2 sm:grid-cols-[10rem_1fr_auto] sm:items-center"
+                  >
+                    <p className="text-sm capitalize">{formatMonth(`${month.period}-01`)}</p>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-success transition-[width]"
+                        style={{ width: `${rate}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:min-w-36 sm:text-right">
+                      {formatMoney(month.paid)} из {formatMoney(month.accrued)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">Найдено начислений: {visibleCharges.length}</p>
