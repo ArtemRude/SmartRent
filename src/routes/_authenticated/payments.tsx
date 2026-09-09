@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/AppShell";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -115,6 +116,10 @@ function PaymentsPage() {
   const [selectedCharge, setSelectedCharge] = useState<RentCharge | null>(null);
   const [paidDate, setPaidDate] = useState(localDateKey());
   const [paymentNote, setPaymentNote] = useState("");
+  const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(new Set());
+  const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
+  const [bulkPaidDate, setBulkPaidDate] = useState(localDateKey());
+  const [bulkPaymentNote, setBulkPaymentNote] = useState("");
 
   const currentMonth = localDateKey().slice(0, 7);
   const allCharges = useMemo(() => charges.data ?? [], [charges.data]);
@@ -159,6 +164,30 @@ function PaymentsPage() {
       });
   }, [agreements.data, allCharges, periodFilter, propertyFilter, statusFilter, tenantFilter]);
 
+  useEffect(() => {
+    setSelectedChargeIds(new Set());
+  }, [periodFilter, propertyFilter, statusFilter, tenantFilter]);
+
+  const selectableCharges = visibleCharges.filter((charge) => charge.paid_at == null);
+  const allSelectableChecked =
+    selectableCharges.length > 0 &&
+    selectableCharges.every((charge) => selectedChargeIds.has(charge.id));
+
+  const toggleCharge = (chargeId: string, checked: boolean) => {
+    setSelectedChargeIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(chargeId);
+      else next.delete(chargeId);
+      return next;
+    });
+  };
+
+  const toggleAllSelectable = (checked: boolean) => {
+    setSelectedChargeIds(
+      checked ? new Set(selectableCharges.map((charge) => charge.id)) : new Set(),
+    );
+  };
+
   const openPaymentDialog = (charge: RentCharge) => {
     setSelectedCharge(charge);
     setPaidDate(charge.paid_at ? localDateKey(new Date(charge.paid_at)) : localDateKey());
@@ -199,6 +228,31 @@ function PaymentsPage() {
     onSuccess: () => {
       toast.success("Отметка об оплате снята");
       setSelectedCharge(null);
+      void qc.invalidateQueries({ queryKey: ["rent-charges"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveBulkPayment = useMutation({
+    mutationFn: async () => {
+      const ids = Array.from(selectedChargeIds);
+      if (ids.length === 0) throw new Error("Выберите начисления");
+      if (!bulkPaidDate) throw new Error("Укажите дату оплаты");
+      if (bulkPaidDate > localDateKey()) throw new Error("Дата оплаты не может быть в будущем");
+      const { error } = await supabase
+        .from("rent_charges")
+        .update({
+          paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
+          payment_note: bulkPaymentNote.trim() || null,
+        })
+        .in("id", ids);
+      if (error) throw new Error(error.message);
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`Оплачено начислений: ${count}`);
+      setBulkPaymentOpen(false);
+      setSelectedChargeIds(new Set());
       void qc.invalidateQueries({ queryKey: ["rent-charges"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -353,8 +407,31 @@ function PaymentsPage() {
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">Найдено начислений: {visibleCharges.length}</p>
+        {role !== "tenant" && selectableCharges.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                checked={allSelectableChecked}
+                onCheckedChange={(checked) => toggleAllSelectable(checked === true)}
+                aria-label="Выбрать все неоплаченные начисления"
+              />
+              Выбрать неоплаченные
+            </label>
+            <Button
+              size="sm"
+              disabled={selectedChargeIds.size === 0}
+              onClick={() => {
+                setBulkPaidDate(localDateKey());
+                setBulkPaymentNote("");
+                setBulkPaymentOpen(true);
+              }}
+            >
+              Отметить оплату ({selectedChargeIds.size})
+            </Button>
+          </div>
+        )}
       </div>
 
       {loading && <p className="mt-4 text-sm text-muted-foreground">Загружаем платежи…</p>}
@@ -374,6 +451,13 @@ function PaymentsPage() {
             return (
               <Card key={charge.id}>
                 <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
+                  {role !== "tenant" && charge.paid_at == null && (
+                    <Checkbox
+                      checked={selectedChargeIds.has(charge.id)}
+                      onCheckedChange={(checked) => toggleCharge(charge.id, checked === true)}
+                      aria-label={`Выбрать начисление за ${formatMonth(charge.period_start)}`}
+                    />
+                  )}
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
                     <WalletCards className="h-5 w-5" />
                   </span>
@@ -484,6 +568,52 @@ function PaymentsPage() {
                 {savePayment.isPending ? "Сохраняем…" : "Сохранить"}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkPaymentOpen} onOpenChange={setBulkPaymentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Отметить несколько оплат</DialogTitle>
+            <DialogDescription>
+              Выбрано начислений: {selectedChargeIds.size}. Для всех будет сохранена одна дата и
+              общий комментарий.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-paid-date">Дата оплаты</Label>
+              <Input
+                id="bulk-paid-date"
+                type="date"
+                value={bulkPaidDate}
+                max={localDateKey()}
+                onChange={(event) => setBulkPaidDate(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-payment-note">Общий комментарий, необязательно</Label>
+              <Textarea
+                id="bulk-payment-note"
+                value={bulkPaymentNote}
+                onChange={(event) => setBulkPaymentNote(event.target.value)}
+                placeholder="Например, оплата по реестру"
+                maxLength={1000}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkPaymentOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={() => saveBulkPayment.mutate()}
+              disabled={saveBulkPayment.isPending || selectedChargeIds.size === 0 || !bulkPaidDate}
+            >
+              {saveBulkPayment.isPending ? "Сохраняем…" : "Подтвердить оплату"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
