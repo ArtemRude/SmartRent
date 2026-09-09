@@ -60,7 +60,7 @@ function Stat({
   to?: string;
 }) {
   const card = (
-    <Card className={to ? "transition-shadow hover:shadow-md" : undefined}>
+    <Card className={to ? "h-full transition-shadow hover:shadow-md" : "h-full"}>
       <CardContent className="flex items-center gap-4 p-5">
         <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-accent-foreground">
           <Icon className="h-5 w-5" />
@@ -72,7 +72,13 @@ function Stat({
       </CardContent>
     </Card>
   );
-  return to ? <Link to={to}>{card}</Link> : card;
+  return to ? (
+    <Link to={to} className="block h-full">
+      {card}
+    </Link>
+  ) : (
+    card
+  );
 }
 
 function Dashboard() {
@@ -208,6 +214,8 @@ function Dashboard() {
         </p>
       )}
 
+      {onboardingLoaded && <AttentionCenter groups={attentionGroups} />}
+
       {onboardingLoaded && nextOnboardingStep && (
         <Card className="mb-6 overflow-hidden border-primary/20 bg-primary/[0.025]">
           <CardHeader className="pb-3">
@@ -283,8 +291,6 @@ function Dashboard() {
         <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} to="/requests" />
         <Stat icon={CreditCard} label="Задолженность" value={formatMoney(debt)} to="/payments" />
       </div>
-
-      {onboardingLoaded && <AttentionCenter groups={attentionGroups} />}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
