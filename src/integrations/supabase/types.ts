@@ -1,3 +1,5 @@
+import type { AgreementStatus } from "@/lib/domain"
+
 export type Json =
   | string
   | number
@@ -56,8 +58,11 @@ export type Database = {
           monthly_payment: number
           owner_id: string
           property_id: string
+          signed_at: string | null
+          signed_document_file: string | null
           start_date: string
-          status: string
+          status: AgreementStatus
+          status_changed_at: string
           tenant_id: string
           unit_id: string | null
         }
@@ -70,8 +75,11 @@ export type Database = {
           monthly_payment?: number
           owner_id: string
           property_id: string
+          signed_at?: string | null
+          signed_document_file?: string | null
           start_date: string
-          status?: string
+          status?: AgreementStatus
+          status_changed_at?: string
           tenant_id: string
           unit_id?: string | null
         }
@@ -84,8 +92,11 @@ export type Database = {
           monthly_payment?: number
           owner_id?: string
           property_id?: string
+          signed_at?: string | null
+          signed_document_file?: string | null
           start_date?: string
-          status?: string
+          status?: AgreementStatus
+          status_changed_at?: string
           tenant_id?: string
           unit_id?: string | null
         }

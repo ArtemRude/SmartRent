@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Download, FileDown, FileText, Pencil, Plus } from "lucide-react";
+import {
+  BadgeCheck,
+  CircleStop,
+  Download,
+  FileDown,
+  FileText,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Send,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -26,7 +37,13 @@ import {
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { type AgreementContractDetails, printAgreementDocument } from "@/lib/agreement-document";
-import { formatDate, formatMoney, getDefaultLeaseDates } from "@/lib/domain";
+import {
+  agreementStatusLabels,
+  formatDate,
+  formatMoney,
+  getDefaultLeaseDates,
+  type AgreementStatus,
+} from "@/lib/domain";
 import {
   type Agreement,
   fetchAgreements,
@@ -68,6 +85,7 @@ type AgreementForm = {
   tenantPassport: string;
   tenantRegistrationAddress: string;
   file: File | null;
+  signedFile: File | null;
 };
 
 const emptyForm: AgreementForm = {
@@ -89,6 +107,7 @@ const emptyForm: AgreementForm = {
   tenantPassport: "",
   tenantRegistrationAddress: "",
   file: null,
+  signedFile: null,
 };
 
 function createForm(): AgreementForm {
@@ -139,6 +158,7 @@ function AgreementsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Agreement | null>(null);
   const [form, setForm] = useState<AgreementForm>(createForm);
+  const [statusFilter, setStatusFilter] = useState<"all" | AgreementStatus>("all");
 
   const openCreate = () => {
     setEditing(null);
@@ -168,6 +188,7 @@ function AgreementsPage() {
       tenantPassport: details.tenantPassport ?? "",
       tenantRegistrationAddress: details.tenantRegistrationAddress ?? "",
       file: null,
+      signedFile: null,
     });
     setOpen(true);
   };
@@ -209,8 +230,12 @@ function AgreementsPage() {
       };
 
       let uploadedPath: string | null = null;
+      let uploadedSignedPath: string | null = null;
       try {
         if (form.file) uploadedPath = await uploadFile(LEASE_DOCUMENTS, user.id, form.file);
+        if (form.signedFile) {
+          uploadedSignedPath = await uploadFile(LEASE_DOCUMENTS, user.id, form.signedFile);
+        }
         const values = {
           owner_id: user.id,
           property_id: form.propertyId,
@@ -221,6 +246,8 @@ function AgreementsPage() {
           monthly_payment: payment,
           contract_details: contractDetails,
           document_file: uploadedPath ?? editing?.document_file ?? null,
+          ...(uploadedSignedPath ? { signed_document_file: uploadedSignedPath } : {}),
+          ...(!editing ? { status: "draft" as AgreementStatus } : {}),
         };
 
         const { error } = editing
@@ -233,8 +260,16 @@ function AgreementsPage() {
             toast.warning("Старый PDF не удалось удалить из хранилища");
           });
         }
+        if (uploadedSignedPath && editing?.signed_document_file) {
+          await removeFile(LEASE_DOCUMENTS, editing.signed_document_file).catch(() => {
+            toast.warning("Старый подписанный PDF не удалось удалить из хранилища");
+          });
+        }
       } catch (error) {
         if (uploadedPath) await removeFile(LEASE_DOCUMENTS, uploadedPath).catch(() => undefined);
+        if (uploadedSignedPath) {
+          await removeFile(LEASE_DOCUMENTS, uploadedSignedPath).catch(() => undefined);
+        }
         throw error;
       }
     },
@@ -248,17 +283,16 @@ function AgreementsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const archive = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("lease_agreements")
-        .update({ status: "archived" })
-        .eq("id", id);
+  const changeStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: AgreementStatus }) => {
+      const { error } = await supabase.from("lease_agreements").update({ status }).eq("id", id);
       if (error) throw new Error(error.message);
+      return status;
     },
-    onSuccess: () => {
-      toast.success("Договор перемещён в архив");
+    onSuccess: (status) => {
+      toast.success(`Договор: ${agreementStatusLabels[status].toLocaleLowerCase("ru-RU")}`);
       void qc.invalidateQueries({ queryKey: ["agreements"] });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -266,6 +300,9 @@ function AgreementsPage() {
   const propertyUnits = (units.data ?? []).filter((unit) => unit.property_id === form.propertyId);
   const loading = [agreements, properties, units, tenants].some((query) => query.isPending);
   const failed = [agreements, properties, units, tenants].some((query) => query.isError);
+  const visibleAgreements = (agreements.data ?? []).filter(
+    (agreement) => statusFilter === "all" || agreement.status === statusFilter,
+  );
 
   useEffect(() => {
     if (!agreementId || !agreements.data?.some((agreement) => agreement.id === agreementId)) return;
@@ -297,8 +334,30 @@ function AgreementsPage() {
         </Card>
       )}
 
+      {!loading && (agreements.data?.length ?? 0) > 0 && (
+        <div className="mb-4 max-w-xs">
+          <Label className="sr-only">Фильтр по статусу</Label>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as "all" | AgreementStatus)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Все статусы" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все статусы</SelectItem>
+              {Object.entries(agreementStatusLabels).map(([status, label]) => (
+                <SelectItem key={status} value={status}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {(agreements.data ?? []).map((agreement) => {
+        {visibleAgreements.map((agreement) => {
           const property = properties.data?.find((item) => item.id === agreement.property_id);
           const unit = units.data?.find((item) => item.id === agreement.unit_id);
           const tenant = tenants.data?.find((item) => item.id === agreement.tenant_id);
@@ -308,7 +367,7 @@ function AgreementsPage() {
               id={`agreement-${agreement.id}`}
               className={cn(
                 "scroll-mt-6 transition-shadow",
-                agreement.status === "archived" && "opacity-65",
+                agreement.status === "completed" && "opacity-70",
                 agreementId === agreement.id && "border-primary/50 ring-2 ring-primary/20",
               )}
             >
@@ -325,16 +384,7 @@ function AgreementsPage() {
                     >
                       {property?.name ?? "Объект"}
                     </Link>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-xs",
-                        agreement.status === "active"
-                          ? "bg-success/12 text-success"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {agreement.status === "active" ? "Активен" : "Архив"}
-                    </span>
+                    <AgreementStatusBadge status={agreement.status} />
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {tenant?.name ?? "Арендатор"}
@@ -390,20 +440,70 @@ function AgreementsPage() {
                         ).catch((error: Error) => toast.error(error.message))
                       }
                     >
-                      <Download className="mr-2 h-4 w-4" /> PDF
+                      <Download className="mr-2 h-4 w-4" /> Исходный PDF
+                    </Button>
+                  )}
+                  {agreement.signed_document_file && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void downloadFile(
+                          LEASE_DOCUMENTS,
+                          agreement.signed_document_file!,
+                          `Подписанный-договор-${property?.name ?? agreement.id}.pdf`,
+                        ).catch((error: Error) => toast.error(error.message))
+                      }
+                    >
+                      <Download className="mr-2 h-4 w-4" /> Подписанный PDF
                     </Button>
                   )}
                   <Button variant="outline" size="sm" onClick={() => openEdit(agreement)}>
                     <Pencil className="mr-2 h-4 w-4" /> Изменить
                   </Button>
+                  {agreement.status === "draft" && (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        changeStatus.mutate({ id: agreement.id, status: "pending_signature" })
+                      }
+                      disabled={changeStatus.isPending}
+                    >
+                      <Send className="mr-2 h-4 w-4" /> На подписание
+                    </Button>
+                  )}
+                  {agreement.status === "pending_signature" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => changeStatus.mutate({ id: agreement.id, status: "draft" })}
+                        disabled={changeStatus.isPending}
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" /> В черновик
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => changeStatus.mutate({ id: agreement.id, status: "active" })}
+                        disabled={changeStatus.isPending || !agreement.signed_document_file}
+                        title={
+                          agreement.signed_document_file
+                            ? undefined
+                            : "Сначала загрузите подписанный PDF"
+                        }
+                      >
+                        <BadgeCheck className="mr-2 h-4 w-4" /> Активировать
+                      </Button>
+                    </>
+                  )}
                   {agreement.status === "active" && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => archive.mutate(agreement.id)}
-                      disabled={archive.isPending}
+                      onClick={() => changeStatus.mutate({ id: agreement.id, status: "completed" })}
+                      disabled={changeStatus.isPending}
                     >
-                      <Archive className="mr-2 h-4 w-4" /> В архив
+                      <CircleStop className="mr-2 h-4 w-4" /> Завершить
                     </Button>
                   )}
                 </div>
@@ -413,10 +513,10 @@ function AgreementsPage() {
         })}
       </div>
 
-      {!loading && (agreements.data?.length ?? 0) === 0 && (
+      {!loading && visibleAgreements.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            Договоров пока нет.
+            {statusFilter === "all" ? "Договоров пока нет." : "Договоров с таким статусом нет."}
           </CardContent>
         </Card>
       )}
@@ -675,7 +775,7 @@ function AgreementsPage() {
             </div>
             <div className="order-3 space-y-1.5">
               <Label htmlFor="lease-file">
-                Договор PDF {editing?.document_file ? "(необязательно заменять)" : ""}
+                Исходный договор PDF {editing?.document_file ? "(необязательно заменять)" : ""}
               </Label>
               <Input
                 id="lease-file"
@@ -685,6 +785,26 @@ function AgreementsPage() {
                   setForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))
                 }
               />
+            </div>
+            <div className="order-3 space-y-1.5">
+              <Label htmlFor="lease-signed-file">
+                Подписанный договор PDF{" "}
+                {editing?.signed_document_file ? "(необязательно заменять)" : ""}
+              </Label>
+              <Input
+                id="lease-signed-file"
+                type="file"
+                accept="application/pdf"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    signedFile: event.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Без подписанного файла договор нельзя перевести в статус «Активен».
+              </p>
             </div>
           </div>
           <DialogFooter>

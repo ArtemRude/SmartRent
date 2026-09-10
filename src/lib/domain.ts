@@ -2,12 +2,14 @@ export type PropertyType = "apartment" | "warehouse" | "commercial" | "other";
 export type RequestCategory = "repair" | "question" | "payment" | "other";
 export type RequestStatus = "new" | "in_progress" | "closed";
 export type PaymentStatus = "pending" | "paid" | "overdue";
+export type AgreementStatus = "draft" | "pending_signature" | "active" | "completed";
 export type AppRole = "admin" | "owner" | "tenant";
 export type NotificationKind =
   | "request_created"
   | "request_comment"
   | "request_status"
   | "agreement_created"
+  | "agreement_status"
   | "agreement_expiring"
   | "payment_status"
   | "payment_due"
@@ -40,6 +42,13 @@ export const paymentStatusLabels: Record<PaymentStatus, string> = {
   overdue: "Просрочено",
 };
 
+export const agreementStatusLabels: Record<AgreementStatus, string> = {
+  draft: "Черновик",
+  pending_signature: "На подписании",
+  active: "Активен",
+  completed: "Завершён",
+};
+
 export const roleLabels: Record<AppRole, string> = {
   admin: "Администратор",
   owner: "Собственник",
@@ -51,6 +60,7 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   request_comment: "Комментарий",
   request_status: "Статус заявки",
   agreement_created: "Договор",
+  agreement_status: "Статус договора",
   agreement_expiring: "Срок договора",
   payment_status: "Оплата",
   payment_due: "Срок оплаты",

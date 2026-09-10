@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(24);
+SELECT plan(35);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -112,7 +112,8 @@ SELECT lives_ok(
       start_date,
       end_date,
       monthly_payment,
-      status
+      status,
+      signed_document_file
     )
     VALUES (
       '50000000-0000-0000-0000-000000000001',
@@ -123,7 +124,8 @@ SELECT lives_ok(
       CURRENT_DATE - 1,
       CURRENT_DATE + 60,
       50000,
-      'active'
+      'active',
+      '10000000-0000-0000-0000-000000000001/test-signed.pdf'
     )
   $$,
   'owner can create a valid agreement'
@@ -390,6 +392,176 @@ SELECT throws_ok(
 );
 
 RESET ROLE;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.lease_agreements (
+      id,
+      owner_id,
+      property_id,
+      unit_id,
+      tenant_id,
+      start_date,
+      end_date,
+      monthly_payment
+    )
+    VALUES (
+      '50000000-0000-0000-0000-000000000002',
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      CURRENT_DATE + 90,
+      CURRENT_DATE + 180,
+      55000
+    )
+  $$,
+  'new agreements start as drafts'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[0::bigint],
+  'draft agreements do not create payment charges'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[0::bigint],
+  'tenant cannot see a draft agreement'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'pending_signature'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'owner can send a draft for signature'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[1::bigint],
+  'tenant sees an agreement sent for signature'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'active'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  '23514',
+  'Для активации договора загрузите подписанный PDF',
+  'unsigned agreement cannot be activated'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET signed_document_file = '10000000-0000-0000-0000-000000000001/lifecycle-signed.pdf'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'owner can attach the signed PDF'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'active'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'signed agreement can be activated'
+);
+
+SELECT ok(
+  (
+    SELECT signed_at IS NOT NULL
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  ),
+  'signed PDF records its upload time'
+);
+
+SELECT cmp_ok(
+  (
+    SELECT count(*)
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  ),
+  '>',
+  0::bigint,
+  'activation creates the payment schedule'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.notifications
+    WHERE entity_id = '50000000-0000-0000-0000-000000000002'
+      AND kind = 'agreement_status'
+      AND user_id IN (
+        '10000000-0000-0000-0000-000000000001',
+        '10000000-0000-0000-0000-000000000002'
+      )
+  $$,
+  ARRAY[4::bigint],
+  'owner and tenant receive agreement status notifications'
+);
 
 SELECT ok(
   NOT EXISTS (

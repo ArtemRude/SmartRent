@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { StorageImage } from "@/components/StorageImage";
@@ -162,9 +163,7 @@ function CabinetPage() {
                           {unit ? ` · ${unit.name}` : ""}
                         </p>
                       </div>
-                      <span className="rounded-full bg-success/12 px-2.5 py-0.5 text-xs text-success">
-                        {agreement.status === "active" ? "Активен" : "Архив"}
-                      </span>
+                      <AgreementStatusBadge status={agreement.status} />
                     </div>
                     <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                       <p className="flex items-center gap-2">
@@ -176,20 +175,39 @@ function CabinetPage() {
                       </p>
                     </div>
                     <div className="mt-4 border-t pt-4">
-                      {agreement.document_file ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            void downloadFile(
-                              LEASE_DOCUMENTS,
-                              agreement.document_file!,
-                              `Договор-${property?.name ?? agreement.id}.pdf`,
-                            ).catch((error: Error) => toast.error(error.message))
-                          }
-                        >
-                          <Download className="mr-2 h-4 w-4" /> Скачать договор PDF
-                        </Button>
+                      {agreement.signed_document_file || agreement.document_file ? (
+                        <div className="flex flex-wrap gap-2">
+                          {agreement.signed_document_file && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                void downloadFile(
+                                  LEASE_DOCUMENTS,
+                                  agreement.signed_document_file!,
+                                  `Подписанный-договор-${property?.name ?? agreement.id}.pdf`,
+                                ).catch((error: Error) => toast.error(error.message))
+                              }
+                            >
+                              <Download className="mr-2 h-4 w-4" /> Скачать подписанный договор
+                            </Button>
+                          )}
+                          {agreement.document_file && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                void downloadFile(
+                                  LEASE_DOCUMENTS,
+                                  agreement.document_file!,
+                                  `Договор-${property?.name ?? agreement.id}.pdf`,
+                                ).catch((error: Error) => toast.error(error.message))
+                              }
+                            >
+                              <Download className="mr-2 h-4 w-4" /> Исходный PDF
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">
                           Собственник ещё не загрузил файл договора.

@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import type { NotificationHref, NotificationKind } from "@/lib/domain";
+import type { AgreementStatus, NotificationHref, NotificationKind } from "@/lib/domain";
 
 export type Property = {
   id: string;
@@ -41,8 +41,11 @@ export type Agreement = {
   start_date: string;
   end_date: string;
   monthly_payment: number;
-  status: string;
+  status: AgreementStatus;
   document_file: string | null;
+  signed_document_file: string | null;
+  signed_at: string | null;
+  status_changed_at: string;
   contract_details: Json;
 };
 
