@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
+  CalendarPlus,
   CircleStop,
   Download,
   FileDown,
@@ -42,6 +43,7 @@ import {
   formatDate,
   formatMoney,
   getDefaultLeaseDates,
+  getRenewalLeaseDates,
   type AgreementStatus,
 } from "@/lib/domain";
 import {
@@ -157,11 +159,13 @@ function AgreementsPage() {
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Agreement | null>(null);
+  const [renewingFrom, setRenewingFrom] = useState<Agreement | null>(null);
   const [form, setForm] = useState<AgreementForm>(createForm);
   const [statusFilter, setStatusFilter] = useState<"all" | AgreementStatus>("all");
 
   const openCreate = () => {
     setEditing(null);
+    setRenewingFrom(null);
     setForm(createForm());
     setOpen(true);
   };
@@ -169,6 +173,7 @@ function AgreementsPage() {
   const openEdit = (agreement: Agreement) => {
     const details = readContractDetails(agreement.contract_details);
     setEditing(agreement);
+    setRenewingFrom(null);
     setForm({
       propertyId: agreement.property_id,
       unitId: agreement.unit_id ?? "",
@@ -179,6 +184,33 @@ function AgreementsPage() {
       agreementNumber: details.agreementNumber ?? "",
       contractCity: details.contractCity ?? "",
       signedDate: details.signedDate ?? "",
+      paymentDueDay: details.paymentDueDay?.toString() ?? "",
+      depositAmount: details.depositAmount?.toString() ?? "",
+      utilitiesTerms: details.utilitiesTerms ?? "",
+      noticeDays: details.noticeDays?.toString() ?? "",
+      ownerPassport: details.ownerPassport ?? "",
+      ownerRegistrationAddress: details.ownerRegistrationAddress ?? "",
+      tenantPassport: details.tenantPassport ?? "",
+      tenantRegistrationAddress: details.tenantRegistrationAddress ?? "",
+      file: null,
+      signedFile: null,
+    });
+    setOpen(true);
+  };
+
+  const openRenewal = (agreement: Agreement) => {
+    const details = readContractDetails(agreement.contract_details);
+    setEditing(null);
+    setRenewingFrom(agreement);
+    setForm({
+      propertyId: agreement.property_id,
+      unitId: agreement.unit_id ?? "",
+      tenantId: agreement.tenant_id,
+      ...getRenewalLeaseDates(agreement.end_date),
+      monthlyPayment: String(agreement.monthly_payment),
+      agreementNumber: "",
+      contractCity: details.contractCity ?? "",
+      signedDate: "",
       paymentDueDay: details.paymentDueDay?.toString() ?? "",
       depositAmount: details.depositAmount?.toString() ?? "",
       utilitiesTerms: details.utilitiesTerms ?? "",
@@ -274,9 +306,16 @@ function AgreementsPage() {
       }
     },
     onSuccess: () => {
-      toast.success(editing ? "Договор обновлён" : "Договор создан");
+      toast.success(
+        editing
+          ? "Договор обновлён"
+          : renewingFrom
+            ? "Черновик продления создан"
+            : "Договор создан",
+      );
       setOpen(false);
       setEditing(null);
+      setRenewingFrom(null);
       setForm(createForm());
       void qc.invalidateQueries({ queryKey: ["agreements"] });
     },
@@ -461,6 +500,11 @@ function AgreementsPage() {
                   <Button variant="outline" size="sm" onClick={() => openEdit(agreement)}>
                     <Pencil className="mr-2 h-4 w-4" /> Изменить
                   </Button>
+                  {(agreement.status === "active" || agreement.status === "completed") && (
+                    <Button variant="outline" size="sm" onClick={() => openRenewal(agreement)}>
+                      <CalendarPlus className="mr-2 h-4 w-4" /> Продлить
+                    </Button>
+                  )}
                   {agreement.status === "draft" && (
                     <Button
                       size="sm"
@@ -521,11 +565,25 @@ function AgreementsPage() {
         </Card>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) setRenewingFrom(null);
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing ? "Изменить договор" : "Новый договор"}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Изменить договор" : renewingFrom ? "Продление договора" : "Новый договор"}
+            </DialogTitle>
           </DialogHeader>
+          {renewingFrom && (
+            <p className="rounded-lg bg-accent/60 p-3 text-sm text-muted-foreground">
+              Создаётся новый черновик. Период начинается на следующий день после текущего договора;
+              номер, дата подписания и PDF заполняются заново.
+            </p>
+          )}
           <div className="flex flex-col gap-4">
             <div className="space-y-1.5">
               <Label>Объект</Label>

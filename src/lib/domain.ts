@@ -107,6 +107,21 @@ export function getDefaultLeaseDates(referenceDate = new Date()) {
   };
 }
 
+export function getRenewalLeaseDates(currentEndDate: string) {
+  const start = new Date(`${currentEndDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime())) throw new Error("Некорректная дата окончания договора");
+
+  start.setUTCDate(start.getUTCDate() + 1);
+  const end = new Date(start);
+  end.setUTCFullYear(end.getUTCFullYear() + 1);
+  end.setUTCDate(end.getUTCDate() - 1);
+
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  };
+}
+
 export function calendarDaysBetween(from: string, to: string) {
   const fromTimestamp = Date.parse(`${from}T00:00:00Z`);
   const toTimestamp = Date.parse(`${to}T00:00:00Z`);

@@ -6,6 +6,7 @@ import {
   formatMoney,
   getDefaultLeaseDates,
   getPaymentStatus,
+  getRenewalLeaseDates,
   localDateKey,
   paymentStatusLabels,
   requestStatusLabels,
@@ -37,6 +38,20 @@ test("new leases default to a full year starting today", () => {
 
 test("new lease defaults handle leap day without overflowing", () => {
   assert.deepEqual(getDefaultLeaseDates(new Date(2028, 1, 29, 12)), {
+    startDate: "2028-02-29",
+    endDate: "2029-02-28",
+  });
+});
+
+test("renewal starts after the current agreement and lasts a full year", () => {
+  assert.deepEqual(getRenewalLeaseDates("2027-09-07"), {
+    startDate: "2027-09-08",
+    endDate: "2028-09-07",
+  });
+});
+
+test("renewal dates preserve a leap-day start", () => {
+  assert.deepEqual(getRenewalLeaseDates("2028-02-28"), {
     startDate: "2028-02-29",
     endDate: "2029-02-28",
   });
