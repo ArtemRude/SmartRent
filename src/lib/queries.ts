@@ -50,6 +50,15 @@ export type Agreement = {
   contract_details: Json;
 };
 
+export type AgreementStatusEvent = {
+  id: string;
+  agreement_id: string;
+  from_status: AgreementStatus | null;
+  to_status: AgreementStatus;
+  changed_by: string | null;
+  created_at: string;
+};
+
 export type RequestRow = {
   id: string;
   owner_id: string;
@@ -157,6 +166,11 @@ export const fetchTenants = () =>
 export const fetchAgreements = () =>
   unwrap<Agreement[]>(
     supabase.from("lease_agreements").select("*").order("end_date", { ascending: true }),
+  );
+
+export const fetchAgreementStatusEvents = () =>
+  unwrap<AgreementStatusEvent[]>(
+    supabase.from("agreement_status_events").select("*").order("created_at", { ascending: true }),
   );
 
 export const fetchRequests = () =>

@@ -16,6 +16,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      agreement_status_events: {
+        Row: {
+          agreement_id: string
+          changed_by: string | null
+          created_at: string
+          from_status: AgreementStatus | null
+          id: string
+          to_status: AgreementStatus
+        }
+        Insert: {
+          agreement_id: string
+          changed_by?: string | null
+          created_at?: string
+          from_status?: AgreementStatus | null
+          id?: string
+          to_status: AgreementStatus
+        }
+        Update: {
+          agreement_id?: string
+          changed_by?: string | null
+          created_at?: string
+          from_status?: AgreementStatus | null
+          id?: string
+          to_status?: AgreementStatus
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agreement_status_events_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "lease_agreements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           created_at: string

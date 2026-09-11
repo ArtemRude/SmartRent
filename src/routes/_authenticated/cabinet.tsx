@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
+import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { StorageImage } from "@/components/StorageImage";
@@ -22,6 +23,7 @@ import { useAuth } from "@/hooks/auth-context";
 import { formatDate, formatMoney, getPaymentStatus, propertyTypeLabels } from "@/lib/domain";
 import {
   fetchAgreements,
+  fetchAgreementStatusEvents,
   fetchMyTenantRecords,
   fetchProperties,
   fetchRentCharges,
@@ -46,6 +48,11 @@ function CabinetPage() {
     queryFn: fetchAgreements,
     enabled: Boolean(user),
   });
+  const statusEvents = useQuery({
+    queryKey: ["agreement-status-events", "tenant", user?.id],
+    queryFn: fetchAgreementStatusEvents,
+    enabled: Boolean(user),
+  });
   const properties = useQuery({
     queryKey: ["properties", "tenant", user?.id],
     queryFn: fetchProperties,
@@ -61,7 +68,7 @@ function CabinetPage() {
     queryFn: fetchRentCharges,
     enabled: Boolean(user),
   });
-  const queries = [tenants, agreements, properties, units, charges];
+  const queries = [tenants, agreements, statusEvents, properties, units, charges];
   const loading = queries.some((query) => query.isPending);
   const failed = queries.some((query) => query.isError);
   const unpaidCharges = (charges.data ?? [])
@@ -219,6 +226,14 @@ function CabinetPage() {
                         </p>
                       )}
                     </div>
+                    <AgreementStatusHistory
+                      agreementId={agreement.id}
+                      ownerId={agreement.owner_id}
+                      currentUserId={user?.id}
+                      events={statusEvents.data ?? []}
+                      isPending={statusEvents.isPending}
+                      isError={statusEvents.isError}
+                    />
                   </div>
                 );
               })}

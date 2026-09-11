@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(36);
+SELECT plan(40);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -379,6 +379,12 @@ SELECT results_eq(
   'unrelated tenant cannot see the request'
 );
 
+SELECT results_eq(
+  $$SELECT count(*) FROM public.agreement_status_events$$,
+  ARRAY[0::bigint],
+  'unrelated tenant cannot see agreement status history'
+);
+
 SELECT is_empty(
   $$
     UPDATE public.requests
@@ -556,6 +562,54 @@ SELECT cmp_ok(
   '>',
   0::bigint,
   'activation creates the payment schedule'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.agreement_status_events
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[3::bigint],
+  'owner sees every agreement lifecycle event'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.agreement_status_events (
+      agreement_id,
+      from_status,
+      to_status,
+      changed_by
+    )
+    VALUES (
+      '50000000-0000-0000-0000-000000000002',
+      'active',
+      'completed',
+      '10000000-0000-0000-0000-000000000001'
+    )
+  $$,
+  '42501',
+  NULL,
+  'clients cannot forge agreement lifecycle events'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.agreement_status_events
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[3::bigint],
+  'tenant sees lifecycle history after the agreement is shared'
 );
 
 RESET ROLE;

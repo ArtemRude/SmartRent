@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
+import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -48,6 +49,7 @@ import {
 } from "@/lib/domain";
 import {
   type Agreement,
+  fetchAgreementStatusEvents,
   fetchAgreements,
   fetchProperties,
   fetchTenants,
@@ -154,6 +156,10 @@ function AgreementsPage() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
+  const statusEvents = useQuery({
+    queryKey: ["agreement-status-events"],
+    queryFn: fetchAgreementStatusEvents,
+  });
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
   const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
@@ -321,6 +327,7 @@ function AgreementsPage() {
       setRenewingFrom(null);
       setForm(createForm());
       void qc.invalidateQueries({ queryKey: ["agreements"] });
+      void qc.invalidateQueries({ queryKey: ["agreement-status-events"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -334,6 +341,7 @@ function AgreementsPage() {
     onSuccess: (status) => {
       toast.success(`Договор: ${agreementStatusLabels[status].toLocaleLowerCase("ru-RU")}`);
       void qc.invalidateQueries({ queryKey: ["agreements"] });
+      void qc.invalidateQueries({ queryKey: ["agreement-status-events"] });
       void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -413,152 +421,166 @@ function AgreementsPage() {
                 agreementId === agreement.id && "border-primary/50 ring-2 ring-primary/20",
               )}
             >
-              <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-                  <FileText className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      to="/properties/$propertyId"
-                      params={{ propertyId: agreement.property_id }}
-                      className="font-semibold hover:text-primary"
-                    >
-                      {property?.name ?? "Объект"}
-                    </Link>
-                    <AgreementStatusBadge status={agreement.status} />
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        to="/properties/$propertyId"
+                        params={{ propertyId: agreement.property_id }}
+                        className="font-semibold hover:text-primary"
+                      >
+                        {property?.name ?? "Объект"}
+                      </Link>
+                      <AgreementStatusBadge status={agreement.status} />
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {tenant?.name ?? "Арендатор"}
+                      {unit ? ` · ${unit.name}` : ""}
+                    </p>
+                    <p className="mt-1 text-sm">
+                      {formatDate(agreement.start_date)} — {formatDate(agreement.end_date)} ·{" "}
+                      {formatMoney(agreement.monthly_payment)}/мес.
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {agreement.payment_due_day
+                        ? `Оплата до ${agreement.payment_due_day}-го числа`
+                        : "День оплаты совпадает с датой начала аренды"}
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {tenant?.name ?? "Арендатор"}
-                    {unit ? ` · ${unit.name}` : ""}
-                  </p>
-                  <p className="mt-1 text-sm">
-                    {formatDate(agreement.start_date)} — {formatDate(agreement.end_date)} ·{" "}
-                    {formatMoney(agreement.monthly_payment)}/мес.
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {agreement.payment_due_day
-                      ? `Оплата до ${agreement.payment_due_day}-го числа`
-                      : "День оплаты совпадает с датой начала аренды"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      try {
-                        printAgreementDocument({
-                          agreementId: agreement.id,
-                          propertyType: property?.type ?? "other",
-                          propertyName: property?.name ?? "Объект",
-                          propertyAddress: property?.address ?? "",
-                          unitName: unit?.name ?? null,
-                          unitArea: unit?.area ?? null,
-                          tenantName: tenant?.name ?? "Арендатор",
-                          tenantEmail: tenant?.email ?? "",
-                          tenantPhone: tenant?.phone ?? null,
-                          ownerName: profile?.name ?? "Собственник",
-                          ownerEmail: profile?.email ?? user?.email ?? "",
-                          ownerPhone: profile?.phone ?? null,
-                          startDate: agreement.start_date,
-                          endDate: agreement.end_date,
-                          monthlyPayment: agreement.monthly_payment,
-                          contractDetails: readContractDetails(agreement.contract_details),
-                        });
-                      } catch (error) {
-                        toast.error(
-                          error instanceof Error ? error.message : "Не удалось открыть PDF",
-                        );
-                      }
-                    }}
-                  >
-                    <FileDown className="mr-2 h-4 w-4" /> Предпросмотр и PDF
-                  </Button>
-                  {agreement.document_file && (
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        void downloadFile(
-                          LEASE_DOCUMENTS,
-                          agreement.document_file!,
-                          `Договор-${property?.name ?? agreement.id}.pdf`,
-                        ).catch((error: Error) => toast.error(error.message))
-                      }
+                      onClick={() => {
+                        try {
+                          printAgreementDocument({
+                            agreementId: agreement.id,
+                            propertyType: property?.type ?? "other",
+                            propertyName: property?.name ?? "Объект",
+                            propertyAddress: property?.address ?? "",
+                            unitName: unit?.name ?? null,
+                            unitArea: unit?.area ?? null,
+                            tenantName: tenant?.name ?? "Арендатор",
+                            tenantEmail: tenant?.email ?? "",
+                            tenantPhone: tenant?.phone ?? null,
+                            ownerName: profile?.name ?? "Собственник",
+                            ownerEmail: profile?.email ?? user?.email ?? "",
+                            ownerPhone: profile?.phone ?? null,
+                            startDate: agreement.start_date,
+                            endDate: agreement.end_date,
+                            monthlyPayment: agreement.monthly_payment,
+                            contractDetails: readContractDetails(agreement.contract_details),
+                          });
+                        } catch (error) {
+                          toast.error(
+                            error instanceof Error ? error.message : "Не удалось открыть PDF",
+                          );
+                        }
+                      }}
                     >
-                      <Download className="mr-2 h-4 w-4" /> Исходный PDF
+                      <FileDown className="mr-2 h-4 w-4" /> Предпросмотр и PDF
                     </Button>
-                  )}
-                  {agreement.signed_document_file && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        void downloadFile(
-                          LEASE_DOCUMENTS,
-                          agreement.signed_document_file!,
-                          `Подписанный-договор-${property?.name ?? agreement.id}.pdf`,
-                        ).catch((error: Error) => toast.error(error.message))
-                      }
-                    >
-                      <Download className="mr-2 h-4 w-4" /> Подписанный PDF
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => openEdit(agreement)}>
-                    <Pencil className="mr-2 h-4 w-4" /> Изменить
-                  </Button>
-                  {(agreement.status === "active" || agreement.status === "completed") && (
-                    <Button variant="outline" size="sm" onClick={() => openRenewal(agreement)}>
-                      <CalendarPlus className="mr-2 h-4 w-4" /> Продлить
-                    </Button>
-                  )}
-                  {agreement.status === "draft" && (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        changeStatus.mutate({ id: agreement.id, status: "pending_signature" })
-                      }
-                      disabled={changeStatus.isPending}
-                    >
-                      <Send className="mr-2 h-4 w-4" /> На подписание
-                    </Button>
-                  )}
-                  {agreement.status === "pending_signature" && (
-                    <>
+                    {agreement.document_file && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => changeStatus.mutate({ id: agreement.id, status: "draft" })}
-                        disabled={changeStatus.isPending}
-                      >
-                        <RotateCcw className="mr-2 h-4 w-4" /> В черновик
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => changeStatus.mutate({ id: agreement.id, status: "active" })}
-                        disabled={changeStatus.isPending || !agreement.signed_document_file}
-                        title={
-                          agreement.signed_document_file
-                            ? undefined
-                            : "Сначала загрузите подписанный PDF"
+                        onClick={() =>
+                          void downloadFile(
+                            LEASE_DOCUMENTS,
+                            agreement.document_file!,
+                            `Договор-${property?.name ?? agreement.id}.pdf`,
+                          ).catch((error: Error) => toast.error(error.message))
                         }
                       >
-                        <BadgeCheck className="mr-2 h-4 w-4" /> Активировать
+                        <Download className="mr-2 h-4 w-4" /> Исходный PDF
                       </Button>
-                    </>
-                  )}
-                  {agreement.status === "active" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => changeStatus.mutate({ id: agreement.id, status: "completed" })}
-                      disabled={changeStatus.isPending}
-                    >
-                      <CircleStop className="mr-2 h-4 w-4" /> Завершить
+                    )}
+                    {agreement.signed_document_file && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void downloadFile(
+                            LEASE_DOCUMENTS,
+                            agreement.signed_document_file!,
+                            `Подписанный-договор-${property?.name ?? agreement.id}.pdf`,
+                          ).catch((error: Error) => toast.error(error.message))
+                        }
+                      >
+                        <Download className="mr-2 h-4 w-4" /> Подписанный PDF
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => openEdit(agreement)}>
+                      <Pencil className="mr-2 h-4 w-4" /> Изменить
                     </Button>
-                  )}
+                    {(agreement.status === "active" || agreement.status === "completed") && (
+                      <Button variant="outline" size="sm" onClick={() => openRenewal(agreement)}>
+                        <CalendarPlus className="mr-2 h-4 w-4" /> Продлить
+                      </Button>
+                    )}
+                    {agreement.status === "draft" && (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          changeStatus.mutate({ id: agreement.id, status: "pending_signature" })
+                        }
+                        disabled={changeStatus.isPending}
+                      >
+                        <Send className="mr-2 h-4 w-4" /> На подписание
+                      </Button>
+                    )}
+                    {agreement.status === "pending_signature" && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => changeStatus.mutate({ id: agreement.id, status: "draft" })}
+                          disabled={changeStatus.isPending}
+                        >
+                          <RotateCcw className="mr-2 h-4 w-4" /> В черновик
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            changeStatus.mutate({ id: agreement.id, status: "active" })
+                          }
+                          disabled={changeStatus.isPending || !agreement.signed_document_file}
+                          title={
+                            agreement.signed_document_file
+                              ? undefined
+                              : "Сначала загрузите подписанный PDF"
+                          }
+                        >
+                          <BadgeCheck className="mr-2 h-4 w-4" /> Активировать
+                        </Button>
+                      </>
+                    )}
+                    {agreement.status === "active" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          changeStatus.mutate({ id: agreement.id, status: "completed" })
+                        }
+                        disabled={changeStatus.isPending}
+                      >
+                        <CircleStop className="mr-2 h-4 w-4" /> Завершить
+                      </Button>
+                    )}
+                  </div>
                 </div>
+                <AgreementStatusHistory
+                  agreementId={agreement.id}
+                  ownerId={agreement.owner_id}
+                  currentUserId={user?.id}
+                  events={statusEvents.data ?? []}
+                  isPending={statusEvents.isPending}
+                  isError={statusEvents.isError}
+                />
               </CardContent>
             </Card>
           );
