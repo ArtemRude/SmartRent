@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  ArrowUp,
   Building2,
   CreditCard,
   FileText,
@@ -96,6 +97,39 @@ function NavList({
   );
 }
 
+function ScrollToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const updateVisibility = () => setVisible(window.scrollY > 480);
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateVisibility);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <Button
+      type="button"
+      size="icon"
+      className="fixed bottom-5 right-5 z-30 h-11 w-11 rounded-full shadow-lg md:bottom-7 md:right-7"
+      aria-label="Наверх страницы"
+      title="Наверх"
+      onClick={() =>
+        window.scrollTo({
+          top: 0,
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+        })
+      }
+    >
+      <ArrowUp className="h-5 w-5" />
+    </Button>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, profile, role, signOut } = useAuth();
   const navigate = useNavigate();
@@ -177,6 +211,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-10">
           {children}
         </main>
+        <ScrollToTopButton />
       </div>
     </div>
   );

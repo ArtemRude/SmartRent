@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ru } from "date-fns/locale";
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -621,6 +622,69 @@ function PaymentsPage() {
     downloadCsv(`rent-payments-${localDateKey()}.csv`, csv);
     toast.success("Отчёт CSV скачан");
   };
+
+  const hasNoBillingData =
+    !loading && !failed && (agreements.data?.length ?? 0) === 0 && allCharges.length === 0;
+
+  if (hasNoBillingData) {
+    const isTenant = role === "tenant";
+    return (
+      <>
+        <PageHeader
+          title="Платежи"
+          description={
+            isTenant
+              ? "Начисления, оплаты и задолженность по вашей аренде"
+              : "Начисления аренды, поступления и задолженность"
+          }
+        />
+
+        <Card className="overflow-hidden">
+          <CardContent className="relative p-8 sm:p-12">
+            <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/70 blur-3xl" />
+            <div className="relative max-w-2xl">
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-accent text-accent-foreground">
+                <WalletCards className="h-7 w-7" />
+              </span>
+              <h2 className="mt-6 text-2xl font-semibold tracking-tight">
+                {isTenant ? "Платежей пока нет" : "Платежи появятся после создания договора"}
+              </h2>
+              <p className="mt-3 text-base leading-7 text-muted-foreground">
+                {isTenant
+                  ? "Когда собственник добавит и активирует договор, здесь появятся график начислений, история оплат и актуальный остаток."
+                  : "Создайте договор аренды и переведите его в статус «Активен». Мы автоматически сформируем график начислений, прогноз дохода и контроль задолженности."}
+              </p>
+
+              {!isTenant && (
+                <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+                  {["Создайте договор", "Активируйте его", "Следите за оплатами"].map(
+                    (step, index) => (
+                      <div
+                        key={step}
+                        className="flex items-center gap-2 rounded-xl border bg-card/80 p-3"
+                      >
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                          {index + 1}
+                        </span>
+                        <span>{step}</span>
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
+
+              <Button asChild className="mt-7">
+                <Link to={isTenant ? "/cabinet" : "/agreements"}>
+                  {isTenant ? "Перейти в мой кабинет" : "Создать договор"}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
