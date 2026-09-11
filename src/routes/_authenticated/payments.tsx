@@ -9,6 +9,8 @@ import {
   ChevronDown,
   CreditCard,
   Download,
+  History,
+  PencilLine,
   WalletCards,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -47,9 +49,11 @@ import { createCsv, downloadCsv } from "@/lib/csv";
 import { buildDebtGroups } from "@/lib/debt-center";
 import {
   formatDate,
+  formatDateTime,
   formatMoney,
   formatMonth,
   getPaymentStatus,
+  getRentChargeTotal,
   localDateKey,
   paymentStatusLabels,
   type PaymentStatus,
@@ -59,6 +63,7 @@ import { buildRentForecast } from "@/lib/rent-forecast";
 import {
   fetchAgreements,
   fetchProperties,
+  fetchRentChargeAdjustmentEvents,
   fetchRentCharges,
   fetchTenants,
   fetchUnits,
@@ -116,6 +121,10 @@ function PaymentsPage() {
   const { role } = useAuth();
   const qc = useQueryClient();
   const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
+  const adjustmentEvents = useQuery({
+    queryKey: ["rent-charge-adjustment-events"],
+    queryFn: fetchRentChargeAdjustmentEvents,
+  });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
   const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
@@ -126,6 +135,9 @@ function PaymentsPage() {
   const [periodRange, setPeriodRange] = useState<DateRange>();
   const [periodCalendarOpen, setPeriodCalendarOpen] = useState(false);
   const [selectedCharge, setSelectedCharge] = useState<RentCharge | null>(null);
+  const [adjustmentCharge, setAdjustmentCharge] = useState<RentCharge | null>(null);
+  const [adjustedTotal, setAdjustedTotal] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
   const [paidDate, setPaidDate] = useState(localDateKey());
   const [paymentNote, setPaymentNote] = useState("");
   const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(new Set());
@@ -136,15 +148,25 @@ function PaymentsPage() {
 
   const currentMonth = localDateKey().slice(0, 7);
   const allCharges = useMemo(() => charges.data ?? [], [charges.data]);
+  const { data: adjustmentEventRows } = adjustmentEvents;
+  const adjustmentEventsByCharge = useMemo(() => {
+    const eventsByCharge = new Map<string, NonNullable<typeof adjustmentEventRows>>();
+    for (const event of adjustmentEventRows ?? []) {
+      const events = eventsByCharge.get(event.charge_id) ?? [];
+      events.push(event);
+      eventsByCharge.set(event.charge_id, events);
+    }
+    return eventsByCharge;
+  }, [adjustmentEventRows]);
   const overdueTotal = allCharges
     .filter((charge) => getPaymentStatus(charge) === "overdue")
-    .reduce((sum, charge) => sum + Number(charge.amount), 0);
+    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
   const currentMonthDue = allCharges
     .filter((charge) => charge.period_start.startsWith(currentMonth) && charge.paid_at == null)
-    .reduce((sum, charge) => sum + Number(charge.amount), 0);
+    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
   const currentMonthPaid = allCharges
     .filter((charge) => charge.paid_at?.slice(0, 7) === currentMonth)
-    .reduce((sum, charge) => sum + Number(charge.amount), 0);
+    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
 
   const periodLimits = useMemo(() => {
     if (allCharges.length === 0) return undefined;
@@ -200,7 +222,7 @@ function PaymentsPage() {
       visibleCharges.map((charge) => {
         const propertyId = agreementById.get(charge.agreement_id)?.property_id ?? "unknown";
         return {
-          amount: Number(charge.amount),
+          amount: getRentChargeTotal(charge),
           paid: charge.paid_at != null,
           period: charge.period_start.slice(0, 7),
           propertyId,
@@ -235,7 +257,7 @@ function PaymentsPage() {
             agreementId: charge.agreement_id,
             propertyName: propertyById.get(agreement?.property_id ?? "")?.name ?? "Без объекта",
             tenantName: tenantById.get(charge.tenant_id)?.name ?? "Арендатор",
-            amount: Number(charge.amount),
+            amount: getRentChargeTotal(charge),
             dueDate: charge.due_date,
           };
         }),
@@ -316,6 +338,12 @@ function PaymentsPage() {
     setPaymentNote(charge.payment_note ?? "");
   };
 
+  const openAdjustmentDialog = (charge: RentCharge) => {
+    setAdjustmentCharge(charge);
+    setAdjustedTotal(String(getRentChargeTotal(charge)));
+    setAdjustmentReason("");
+  };
+
   const savePayment = useMutation({
     mutationFn: async () => {
       if (!selectedCharge) throw new Error("Начисление не выбрано");
@@ -380,10 +408,47 @@ function PaymentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const loading = [charges, agreements, properties, units, tenants].some(
+  const saveAdjustment = useMutation({
+    mutationFn: async () => {
+      if (!adjustmentCharge) throw new Error("Начисление не выбрано");
+      if (adjustmentCharge.paid_at) {
+        throw new Error("Сначала снимите отметку об оплате");
+      }
+
+      const total = Number(adjustedTotal.replace(",", "."));
+      if (!Number.isFinite(total) || total < 0) {
+        throw new Error("Укажите итоговую сумму не меньше нуля");
+      }
+      if (!adjustmentReason.trim()) throw new Error("Укажите причину корректировки");
+
+      const adjustmentAmount = Math.round((total - Number(adjustmentCharge.amount)) * 100) / 100;
+      const { data, error } = await supabase
+        .from("rent_charges")
+        .update({
+          adjustment_amount: adjustmentAmount,
+          adjustment_reason: adjustmentReason.trim(),
+        })
+        .eq("id", adjustmentCharge.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Нет доступа к изменению начисления");
+    },
+    onSuccess: () => {
+      toast.success("Начисление скорректировано");
+      setAdjustmentCharge(null);
+      void qc.invalidateQueries({ queryKey: ["rent-charges"] });
+      void qc.invalidateQueries({ queryKey: ["rent-charge-adjustment-events"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const loading = [charges, adjustmentEvents, agreements, properties, units, tenants].some(
     (query) => query.isPending,
   );
-  const failed = [charges, agreements, properties, units, tenants].some((query) => query.isError);
+  const failed = [charges, adjustmentEvents, agreements, properties, units, tenants].some(
+    (query) => query.isError,
+  );
 
   const agreementFor = (charge: RentCharge) =>
     agreements.data?.find((agreement) => agreement.id === charge.agreement_id);
@@ -397,6 +462,7 @@ function PaymentsPage() {
   };
   const tenantFor = (charge: RentCharge) =>
     tenants.data?.find((tenant) => tenant.id === charge.tenant_id);
+  const adjustmentEventsFor = (charge: RentCharge) => adjustmentEventsByCharge.get(charge.id) ?? [];
 
   const exportPayments = () => {
     const csv = createCsv(
@@ -405,7 +471,10 @@ function PaymentsPage() {
         "Период",
         "Срок оплаты",
         "Дата оплаты",
-        "Сумма, ₽",
+        "Базовая сумма, ₽",
+        "Корректировка, ₽",
+        "Итого, ₽",
+        "Причина корректировки",
         "Объект",
         "Помещение",
         "Арендатор",
@@ -418,15 +487,18 @@ function PaymentsPage() {
           formatDate(charge.due_date),
           charge.paid_at ? formatDate(charge.paid_at) : "",
           Number(charge.amount),
+          Number(charge.adjustment_amount ?? 0),
+          getRentChargeTotal(charge),
+          charge.adjustment_reason ?? "",
           propertyFor(charge)?.name ?? "",
           unitFor(charge)?.name ?? "",
           tenantFor(charge)?.name ?? "",
           charge.payment_note ?? "",
         ]),
         [],
-        ["Итого начислено", "", "", "", filteredSummary.accrued],
-        ["Итого оплачено", "", "", "", filteredSummary.paid],
-        ["Итого не оплачено", "", "", "", filteredSummary.unpaid],
+        ["Итого начислено", "", "", "", "", "", filteredSummary.accrued],
+        ["Итого оплачено", "", "", "", "", "", filteredSummary.paid],
+        ["Итого не оплачено", "", "", "", "", "", filteredSummary.unpaid],
         [`Собираемость: ${filteredSummary.collectionRate}%`],
       ],
     );
@@ -707,6 +779,8 @@ function PaymentsPage() {
             const property = propertyFor(charge);
             const unit = unitFor(charge);
             const tenant = tenantFor(charge);
+            const chargeAdjustmentEvents = adjustmentEventsFor(charge);
+            const hasAdjustment = Number(charge.adjustment_amount ?? 0) !== 0;
             return (
               <Card key={charge.id}>
                 <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
@@ -737,13 +811,64 @@ function PaymentsPage() {
                     {charge.payment_note && (
                       <p className="mt-1 text-xs text-muted-foreground">{charge.payment_note}</p>
                     )}
+                    {charge.adjustment_reason && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Корректировка: {charge.adjustment_reason}
+                      </p>
+                    )}
+                    {chargeAdjustmentEvents.length > 0 && (
+                      <details className="mt-2 text-xs text-muted-foreground">
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-foreground">
+                          <History className="h-3.5 w-3.5" /> История корректировок (
+                          {chargeAdjustmentEvents.length})
+                        </summary>
+                        <div className="mt-2 space-y-2 border-l pl-3">
+                          {chargeAdjustmentEvents.map((event) => (
+                            <div key={event.id}>
+                              <p>
+                                {formatMoney(event.previous_adjustment_amount)} →{" "}
+                                {formatMoney(event.adjustment_amount)}
+                              </p>
+                              <p>{event.reason}</p>
+                              <p>{formatDateTime(event.created_at)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-3 md:flex-col md:items-end">
-                    <p className="text-lg font-semibold">{formatMoney(charge.amount)}</p>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold">
+                        {formatMoney(getRentChargeTotal(charge))}
+                      </p>
+                      {hasAdjustment && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatMoney(charge.amount)}{" "}
+                          {Number(charge.adjustment_amount) > 0 ? "+" : "−"}{" "}
+                          {formatMoney(Math.abs(Number(charge.adjustment_amount)))}
+                        </p>
+                      )}
+                    </div>
                     {role !== "tenant" && (
-                      <Button variant="outline" size="sm" onClick={() => openPaymentDialog(charge)}>
-                        {charge.paid_at ? "Изменить оплату" : "Отметить оплату"}
-                      </Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {!charge.paid_at && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openAdjustmentDialog(charge)}
+                          >
+                            <PencilLine className="h-4 w-4" /> Корректировать
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openPaymentDialog(charge)}
+                        >
+                          {charge.paid_at ? "Изменить оплату" : "Отметить оплату"}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -776,7 +901,7 @@ function PaymentsPage() {
             </DialogTitle>
             <DialogDescription>
               {selectedCharge
-                ? `${formatMonth(selectedCharge.period_start)} · ${formatMoney(selectedCharge.amount)}`
+                ? `${formatMonth(selectedCharge.period_start)} · ${formatMoney(getRentChargeTotal(selectedCharge))}`
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -827,6 +952,63 @@ function PaymentsPage() {
                 {savePayment.isPending ? "Сохраняем…" : "Сохранить"}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(adjustmentCharge)}
+        onOpenChange={(open) => !open && setAdjustmentCharge(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Корректировать начисление</DialogTitle>
+            <DialogDescription>
+              {adjustmentCharge
+                ? `${formatMonth(adjustmentCharge.period_start)} · базовая сумма ${formatMoney(adjustmentCharge.amount)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="adjusted-total">Итоговая сумма, ₽</Label>
+              <Input
+                id="adjusted-total"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={adjustedTotal}
+                onChange={(event) => setAdjustedTotal(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Базовая сумма договора останется неизменной; в отчётах будет использован итог.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="adjustment-reason">Причина корректировки</Label>
+              <Textarea
+                id="adjustment-reason"
+                value={adjustmentReason}
+                onChange={(event) => setAdjustmentReason(event.target.value)}
+                placeholder="Например, перерасчёт за простой отопления"
+                maxLength={1000}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustmentCharge(null)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={() => saveAdjustment.mutate()}
+              disabled={
+                saveAdjustment.isPending || !adjustedTotal.trim() || !adjustmentReason.trim()
+              }
+            >
+              {saveAdjustment.isPending ? "Сохраняем…" : "Сохранить корректировку"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

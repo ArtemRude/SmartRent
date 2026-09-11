@@ -6,6 +6,7 @@ import {
   formatMoney,
   getDefaultLeaseDates,
   getPaymentStatus,
+  getRentChargeTotal,
   getRenewalLeaseDates,
   localDateKey,
   paymentStatusLabels,
@@ -23,6 +24,12 @@ test("payment status is paid when a payment date exists", () => {
 test("payment status distinguishes overdue and upcoming charges", () => {
   assert.equal(getPaymentStatus({ paid_at: null, due_date: "2000-01-01" }), "overdue");
   assert.equal(getPaymentStatus({ paid_at: null, due_date: "2999-01-01" }), "pending");
+});
+
+test("rent charge total includes positive, negative, and missing adjustments", () => {
+  assert.equal(getRentChargeTotal({ amount: 50000, adjustment_amount: 2500 }), 52500);
+  assert.equal(getRentChargeTotal({ amount: 50000, adjustment_amount: -3000 }), 47000);
+  assert.equal(getRentChargeTotal({ amount: 50000 }), 50000);
 });
 
 test("localDateKey uses the local calendar date", () => {

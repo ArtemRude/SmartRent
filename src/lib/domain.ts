@@ -144,6 +144,10 @@ export function getPaymentStatus(charge: {
   return charge.due_date < localDateKey() ? "overdue" : "pending";
 }
 
+export function getRentChargeTotal(charge: { amount: number; adjustment_amount?: number | null }) {
+  return Number(charge.amount) + Number(charge.adjustment_amount ?? 0);
+}
+
 export function daysUntil(date: string) {
   return Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
 }

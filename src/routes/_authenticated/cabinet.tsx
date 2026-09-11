@@ -38,6 +38,7 @@ import {
   formatDateTime,
   formatMoney,
   getPaymentStatus,
+  getRentChargeTotal,
   propertyTypeLabels,
 } from "@/lib/domain";
 import {
@@ -125,7 +126,7 @@ function CabinetPage() {
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
   const debt = unpaidCharges
     .filter((charge) => getPaymentStatus(charge) === "overdue")
-    .reduce((sum, charge) => sum + Number(charge.amount), 0);
+    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
 
   return (
     <>
@@ -391,7 +392,7 @@ function CabinetPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">{formatMoney(charge.amount)}</p>
+                        <p className="font-medium">{formatMoney(getRentChargeTotal(charge))}</p>
                         <PaymentStatusBadge status={getPaymentStatus(charge)} />
                       </div>
                     </div>

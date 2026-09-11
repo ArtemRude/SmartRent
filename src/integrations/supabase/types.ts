@@ -430,6 +430,10 @@ export type Database = {
       }
       rent_charges: {
         Row: {
+          adjusted_at: string | null
+          adjusted_by: string | null
+          adjustment_amount: number
+          adjustment_reason: string | null
           agreement_id: string
           amount: number
           created_at: string
@@ -442,6 +446,10 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          adjusted_at?: string | null
+          adjusted_by?: string | null
+          adjustment_amount?: number
+          adjustment_reason?: string | null
           agreement_id: string
           amount: number
           created_at?: string
@@ -454,6 +462,10 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          adjusted_at?: string | null
+          adjusted_by?: string | null
+          adjustment_amount?: number
+          adjustment_reason?: string | null
           agreement_id?: string
           amount?: number
           created_at?: string
@@ -478,6 +490,44 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_charge_adjustment_events: {
+        Row: {
+          adjustment_amount: number
+          changed_by: string | null
+          charge_id: string
+          created_at: string
+          id: string
+          previous_adjustment_amount: number
+          reason: string
+        }
+        Insert: {
+          adjustment_amount: number
+          changed_by?: string | null
+          charge_id: string
+          created_at?: string
+          id?: string
+          previous_adjustment_amount: number
+          reason: string
+        }
+        Update: {
+          adjustment_amount?: number
+          changed_by?: string | null
+          charge_id?: string
+          created_at?: string
+          id?: string
+          previous_adjustment_amount?: number
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_charge_adjustment_events_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "rent_charges"
             referencedColumns: ["id"]
           },
         ]

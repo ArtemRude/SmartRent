@@ -106,8 +106,22 @@ export type RentCharge = {
   period_start: string;
   due_date: string;
   amount: number;
+  adjustment_amount: number;
+  adjustment_reason: string | null;
+  adjusted_at: string | null;
+  adjusted_by: string | null;
   paid_at: string | null;
   payment_note: string | null;
+  created_at: string;
+};
+
+export type RentChargeAdjustmentEvent = {
+  id: string;
+  charge_id: string;
+  previous_adjustment_amount: number;
+  adjustment_amount: number;
+  reason: string;
+  changed_by: string | null;
   created_at: string;
 };
 
@@ -212,6 +226,14 @@ export const fetchRequestStatusEvents = (requestId: string) =>
 export const fetchRentCharges = () =>
   unwrap<RentCharge[]>(
     supabase.from("rent_charges").select("*").order("due_date", { ascending: false }),
+  );
+
+export const fetchRentChargeAdjustmentEvents = () =>
+  unwrap<RentChargeAdjustmentEvent[]>(
+    supabase
+      .from("rent_charge_adjustment_events")
+      .select("*")
+      .order("created_at", { ascending: false }),
   );
 
 export const fetchNotifications = async () =>

@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(52);
+SELECT plan(63);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -798,6 +798,157 @@ SELECT results_eq(
   $$,
   ARRAY[5::bigint],
   'tenant sees lifecycle history after the agreement is shared'
+);
+
+RESET ROLE;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    UPDATE public.rent_charges
+    SET
+      adjustment_amount = 2500,
+      adjustment_reason = 'Индексация коммунальных услуг'
+    WHERE id = (
+      SELECT id
+      FROM public.rent_charges
+      WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+      ORDER BY period_start
+      LIMIT 1
+    )
+  $$,
+  'owner can adjust an unpaid charge with a reason'
+);
+
+SELECT results_eq(
+  $$
+    SELECT amount + adjustment_amount
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  ARRAY[57500::numeric],
+  'adjustment changes the effective charge total'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.rent_charge_adjustment_events
+  $$,
+  ARRAY[1::bigint],
+  'adjustment is recorded in immutable history'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET payment_due_day = 20
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'billing schedule can be recalculated after an adjustment'
+);
+
+SELECT results_eq(
+  $$
+    SELECT adjustment_amount
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  ARRAY[2500::numeric],
+  'schedule recalculation preserves the manual adjustment'
+);
+
+SELECT throws_ok(
+  $$
+    UPDATE public.rent_charges
+    SET adjustment_amount = 3000
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+      AND adjustment_amount = 2500
+  $$,
+  '23514',
+  'adjustment reason is required',
+  'every amount change requires a new reason'
+);
+
+SELECT throws_ok(
+  $$
+    UPDATE public.rent_charges
+    SET
+      adjustment_amount = -60000,
+      adjustment_reason = 'Некорректное списание'
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+      AND adjustment_amount = 2500
+  $$,
+  '23514',
+  NULL,
+  'an adjustment cannot make the total negative'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.rent_charge_adjustment_events$$,
+  ARRAY[1::bigint],
+  'tenant sees adjustment history for their charge'
+);
+
+SELECT is_empty(
+  $$
+    UPDATE public.rent_charges
+    SET
+      adjustment_amount = 5000,
+      adjustment_reason = 'Несанкционированная корректировка'
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    RETURNING id
+  $$,
+  'tenant cannot adjust a charge'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.rent_charge_adjustment_events$$,
+  ARRAY[0::bigint],
+  'unrelated user cannot see adjustment history'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.rent_charge_adjustment_events (
+      charge_id,
+      previous_adjustment_amount,
+      adjustment_amount,
+      reason
+    )
+    SELECT id, 0, 1000, 'Поддельная запись'
+    FROM public.rent_charges
+    LIMIT 1
+  $$,
+  '42501',
+  NULL,
+  'clients cannot forge adjustment history'
 );
 
 RESET ROLE;

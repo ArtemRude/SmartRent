@@ -33,6 +33,7 @@ import {
   formatDate,
   formatMoney,
   getPaymentStatus,
+  getRentChargeTotal,
   localDateKey,
 } from "@/lib/domain";
 
@@ -100,10 +101,10 @@ function Dashboard() {
     .reduce((s, a) => s + Number(a.monthly_payment ?? 0), 0);
   const debt = (charges.data ?? [])
     .filter((charge) => getPaymentStatus(charge) === "overdue")
-    .reduce((sum, charge) => sum + Number(charge.amount), 0);
+    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
   const receivedThisMonth = (charges.data ?? [])
     .filter((charge) => charge.paid_at?.startsWith(today.slice(0, 7)))
-    .reduce((sum, charge) => sum + Number(charge.amount), 0);
+    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
   const overdueCharges = (charges.data ?? [])
     .filter((charge) => getPaymentStatus(charge) === "overdue")
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
@@ -157,7 +158,7 @@ function Dashboard() {
       items: overdueCharges.map((charge) => ({
         id: charge.id,
         title: tenantName(charge.tenant_id),
-        meta: `${formatMoney(Number(charge.amount))} · ${formatDate(charge.due_date)}`,
+        meta: `${formatMoney(getRentChargeTotal(charge))} · ${formatDate(charge.due_date)}`,
       })),
     },
     {
@@ -170,7 +171,7 @@ function Dashboard() {
       items: upcomingCharges.map((charge) => ({
         id: charge.id,
         title: tenantName(charge.tenant_id),
-        meta: `${formatMoney(Number(charge.amount))} · ${formatDate(charge.due_date)}`,
+        meta: `${formatMoney(getRentChargeTotal(charge))} · ${formatDate(charge.due_date)}`,
       })),
     },
     {
