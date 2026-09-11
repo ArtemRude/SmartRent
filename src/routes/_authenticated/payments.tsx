@@ -148,7 +148,8 @@ function PaymentsPage() {
 
   const currentMonth = localDateKey().slice(0, 7);
   const allCharges = useMemo(() => charges.data ?? [], [charges.data]);
-  const { data: adjustmentEventRows } = adjustmentEvents;
+  const adjustmentFeatureAvailable = adjustmentEvents.data?.available ?? false;
+  const adjustmentEventRows = adjustmentEvents.data?.events;
   const adjustmentEventsByCharge = useMemo(() => {
     const eventsByCharge = new Map<string, NonNullable<typeof adjustmentEventRows>>();
     for (const event of adjustmentEventRows ?? []) {
@@ -443,12 +444,10 @@ function PaymentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const loading = [charges, adjustmentEvents, agreements, properties, units, tenants].some(
+  const loading = [charges, agreements, properties, units, tenants].some(
     (query) => query.isPending,
   );
-  const failed = [charges, adjustmentEvents, agreements, properties, units, tenants].some(
-    (query) => query.isError,
-  );
+  const failed = [charges, agreements, properties, units, tenants].some((query) => query.isError);
 
   const agreementFor = (charge: RentCharge) =>
     agreements.data?.find((agreement) => agreement.id === charge.agreement_id);
@@ -686,6 +685,13 @@ function PaymentsPage() {
         <DebtCenter groups={debtGroups} onPay={openDebtPayment} />
       )}
 
+      {adjustmentEvents.data?.available === false && role !== "tenant" && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Корректировки начислений появятся после применения последней миграции Supabase. Остальные
+          операции с платежами доступны.
+        </p>
+      )}
+
       {!loading && !failed && visibleCharges.length > 0 && (
         <Card className="mt-4">
           <CardContent className="p-5 md:p-6">
@@ -852,7 +858,7 @@ function PaymentsPage() {
                     </div>
                     {role !== "tenant" && (
                       <div className="flex flex-wrap justify-end gap-2">
-                        {!charge.paid_at && (
+                        {!charge.paid_at && adjustmentFeatureAvailable && (
                           <Button
                             variant="ghost"
                             size="sm"

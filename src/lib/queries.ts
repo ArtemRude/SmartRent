@@ -125,6 +125,11 @@ export type RentChargeAdjustmentEvent = {
   created_at: string;
 };
 
+export type RentChargeAdjustmentState = {
+  events: RentChargeAdjustmentEvent[];
+  available: boolean;
+};
+
 export type NotificationRow = {
   id: string;
   user_id: string;
@@ -228,13 +233,18 @@ export const fetchRentCharges = () =>
     supabase.from("rent_charges").select("*").order("due_date", { ascending: false }),
   );
 
-export const fetchRentChargeAdjustmentEvents = () =>
-  unwrap<RentChargeAdjustmentEvent[]>(
-    supabase
-      .from("rent_charge_adjustment_events")
-      .select("*")
-      .order("created_at", { ascending: false }),
-  );
+export const fetchRentChargeAdjustmentEvents = async (): Promise<RentChargeAdjustmentState> => {
+  const { data, error } = await supabase
+    .from("rent_charge_adjustment_events")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  // Deploying the web app and its database migration is not atomic. Keep the
+  // existing payments page available while Supabase catches up with the commit.
+  if (error?.code === "PGRST205") return { events: [], available: false };
+  if (error) throw new Error(error.message);
+  return { events: (data ?? []) as RentChargeAdjustmentEvent[], available: true };
+};
 
 export const fetchNotifications = async () =>
   (await unwrap(
