@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(35);
+SELECT plan(36);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -112,6 +112,7 @@ SELECT lives_ok(
       start_date,
       end_date,
       monthly_payment,
+      payment_due_day,
       status,
       signed_document_file
     )
@@ -124,6 +125,7 @@ SELECT lives_ok(
       CURRENT_DATE - 1,
       CURRENT_DATE + 60,
       50000,
+      15,
       'active',
       '10000000-0000-0000-0000-000000000001/test-signed.pdf'
     )
@@ -142,6 +144,16 @@ SELECT cmp_ok(
   '>',
   0::bigint,
   'agreement creates the payment schedule'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000001'
+      AND EXTRACT(DAY FROM due_date) <> 15
+  ),
+  'payment schedule follows the agreement due day'
 );
 
 -- Registering with the invited email must attach the existing tenant record.

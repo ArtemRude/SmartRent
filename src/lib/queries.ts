@@ -41,6 +41,7 @@ export type Agreement = {
   start_date: string;
   end_date: string;
   monthly_payment: number;
+  payment_due_day: number | null;
   status: AgreementStatus;
   document_file: string | null;
   signed_document_file: string | null;

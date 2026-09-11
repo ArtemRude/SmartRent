@@ -57,6 +57,7 @@ export type Database = {
           id: string
           monthly_payment: number
           owner_id: string
+          payment_due_day: number | null
           property_id: string
           signed_at: string | null
           signed_document_file: string | null
@@ -74,6 +75,7 @@ export type Database = {
           id?: string
           monthly_payment?: number
           owner_id: string
+          payment_due_day?: number | null
           property_id: string
           signed_at?: string | null
           signed_document_file?: string | null
@@ -91,6 +93,7 @@ export type Database = {
           id?: string
           monthly_payment?: number
           owner_id?: string
+          payment_due_day?: number | null
           property_id?: string
           signed_at?: string | null
           signed_document_file?: string | null

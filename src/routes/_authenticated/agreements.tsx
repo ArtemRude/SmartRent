@@ -184,7 +184,8 @@ function AgreementsPage() {
       agreementNumber: details.agreementNumber ?? "",
       contractCity: details.contractCity ?? "",
       signedDate: details.signedDate ?? "",
-      paymentDueDay: details.paymentDueDay?.toString() ?? "",
+      paymentDueDay:
+        agreement.payment_due_day?.toString() ?? details.paymentDueDay?.toString() ?? "",
       depositAmount: details.depositAmount?.toString() ?? "",
       utilitiesTerms: details.utilitiesTerms ?? "",
       noticeDays: details.noticeDays?.toString() ?? "",
@@ -211,7 +212,8 @@ function AgreementsPage() {
       agreementNumber: "",
       contractCity: details.contractCity ?? "",
       signedDate: "",
-      paymentDueDay: details.paymentDueDay?.toString() ?? "",
+      paymentDueDay:
+        agreement.payment_due_day?.toString() ?? details.paymentDueDay?.toString() ?? "",
       depositAmount: details.depositAmount?.toString() ?? "",
       utilitiesTerms: details.utilitiesTerms ?? "",
       noticeDays: details.noticeDays?.toString() ?? "",
@@ -276,6 +278,7 @@ function AgreementsPage() {
           start_date: form.startDate,
           end_date: form.endDate,
           monthly_payment: payment,
+          payment_due_day: paymentDueDay,
           contract_details: contractDetails,
           document_file: uploadedPath ?? editing?.document_file ?? null,
           ...(uploadedSignedPath ? { signed_document_file: uploadedSignedPath } : {}),
@@ -432,6 +435,11 @@ function AgreementsPage() {
                   <p className="mt-1 text-sm">
                     {formatDate(agreement.start_date)} — {formatDate(agreement.end_date)} ·{" "}
                     {formatMoney(agreement.monthly_payment)}/мес.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {agreement.payment_due_day
+                      ? `Оплата до ${agreement.payment_due_day}-го числа`
+                      : "День оплаты совпадает с датой начала аренды"}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

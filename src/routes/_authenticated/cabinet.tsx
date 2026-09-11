@@ -173,6 +173,11 @@ function CabinetPage() {
                       <p className="font-medium sm:text-right">
                         {formatMoney(agreement.monthly_payment)}/мес.
                       </p>
+                      <p className="text-xs text-muted-foreground sm:col-span-2">
+                        {agreement.payment_due_day
+                          ? `Срок оплаты — до ${agreement.payment_due_day}-го числа каждого месяца`
+                          : "Срок оплаты определяется датой начала аренды"}
+                      </p>
                     </div>
                     <div className="mt-4 border-t pt-4">
                       {agreement.signed_document_file || agreement.document_file ? (
