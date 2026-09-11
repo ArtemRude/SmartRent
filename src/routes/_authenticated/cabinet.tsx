@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BadgeCheck,
   Building2,
   CalendarDays,
   CreditCard,
@@ -17,12 +18,31 @@ import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { StorageImage } from "@/components/StorageImage";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/auth-context";
-import { formatDate, formatMoney, getPaymentStatus, propertyTypeLabels } from "@/lib/domain";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  formatDate,
+  formatDateTime,
+  formatMoney,
+  getPaymentStatus,
+  propertyTypeLabels,
+} from "@/lib/domain";
 import {
   fetchAgreements,
+  fetchAgreementAcceptances,
   fetchAgreementStatusEvents,
   fetchMyTenantRecords,
   fetchProperties,
@@ -38,6 +58,7 @@ export const Route = createFileRoute("/_authenticated/cabinet")({
 
 function CabinetPage() {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const tenants = useQuery({
     queryKey: ["my-tenant-records", user?.id],
     queryFn: () => fetchMyTenantRecords(user!.id),
@@ -51,6 +72,11 @@ function CabinetPage() {
   const statusEvents = useQuery({
     queryKey: ["agreement-status-events", "tenant", user?.id],
     queryFn: fetchAgreementStatusEvents,
+    enabled: Boolean(user),
+  });
+  const acceptances = useQuery({
+    queryKey: ["agreement-acceptances", "tenant", user?.id],
+    queryFn: fetchAgreementAcceptances,
     enabled: Boolean(user),
   });
   const properties = useQuery({
@@ -68,7 +94,30 @@ function CabinetPage() {
     queryFn: fetchRentCharges,
     enabled: Boolean(user),
   });
-  const queries = [tenants, agreements, statusEvents, properties, units, charges];
+  const acceptAgreement = useMutation({
+    mutationFn: async ({
+      agreementId,
+      agreementVersion,
+    }: {
+      agreementId: string;
+      agreementVersion: string;
+    }) => {
+      if (!user) throw new Error("Нет активной сессии");
+      const { error } = await supabase.from("agreement_acceptances").insert({
+        agreement_id: agreementId,
+        agreement_version: agreementVersion,
+        accepted_by: user.id,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Ознакомление с договором подтверждено");
+      void qc.invalidateQueries({ queryKey: ["agreement-acceptances"] });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const queries = [tenants, agreements, statusEvents, acceptances, properties, units, charges];
   const loading = queries.some((query) => query.isPending);
   const failed = queries.some((query) => query.isError);
   const unpaidCharges = (charges.data ?? [])
@@ -159,6 +208,16 @@ function CabinetPage() {
               {(agreements.data ?? []).map((agreement) => {
                 const property = properties.data?.find((item) => item.id === agreement.property_id);
                 const unit = units.data?.find((item) => item.id === agreement.unit_id);
+                const latestAcceptance = acceptances.data?.find(
+                  (item) => item.agreement_id === agreement.id,
+                );
+                const currentAcceptance = acceptances.data?.find(
+                  (item) =>
+                    item.agreement_id === agreement.id &&
+                    item.agreement_version === agreement.status_changed_at,
+                );
+                const visibleAcceptance =
+                  agreement.status === "pending_signature" ? currentAcceptance : latestAcceptance;
                 return (
                   <div key={agreement.id} className="rounded-xl border p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -186,6 +245,58 @@ function CabinetPage() {
                           : "Срок оплаты определяется датой начала аренды"}
                       </p>
                     </div>
+                    {visibleAcceptance && (
+                      <div className="mt-4 flex items-start gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
+                        <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <p className="font-medium">Вы подтвердили ознакомление с договором</p>
+                          <p className="mt-0.5 text-xs text-emerald-700">
+                            {formatDateTime(visibleAcceptance.accepted_at)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {agreement.status === "pending_signature" && !currentAcceptance && (
+                      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-sm font-medium text-amber-900">
+                          Договор ожидает вашего подтверждения
+                        </p>
+                        <p className="mt-1 text-xs text-amber-800">
+                          Сначала проверьте срок, сумму и приложенный PDF. Это подтверждение
+                          ознакомления в сервисе и не заменяет юридическую подпись.
+                        </p>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" className="mt-3">
+                              <BadgeCheck className="mr-2 h-4 w-4" /> Подтвердить ознакомление
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Подтвердить ознакомление?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Вы подтверждаете, что ознакомились с условиями договора для объекта
+                                «{property?.name ?? "Объект аренды"}». Отменить это действие нельзя.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Отмена</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() =>
+                                  acceptAgreement.mutate({
+                                    agreementId: agreement.id,
+                                    agreementVersion: agreement.status_changed_at,
+                                  })
+                                }
+                                disabled={acceptAgreement.isPending}
+                              >
+                                Подтвердить
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
                     <div className="mt-4 border-t pt-4">
                       {agreement.signed_document_file || agreement.document_file ? (
                         <div className="flex flex-wrap gap-2">

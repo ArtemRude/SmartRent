@@ -42,6 +42,7 @@ import { type AgreementContractDetails, printAgreementDocument } from "@/lib/agr
 import {
   agreementStatusLabels,
   formatDate,
+  formatDateTime,
   formatMoney,
   getDefaultLeaseDates,
   getRenewalLeaseDates,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/domain";
 import {
   type Agreement,
+  fetchAgreementAcceptances,
   fetchAgreementStatusEvents,
   fetchAgreements,
   fetchProperties,
@@ -159,6 +161,10 @@ function AgreementsPage() {
   const statusEvents = useQuery({
     queryKey: ["agreement-status-events"],
     queryFn: fetchAgreementStatusEvents,
+  });
+  const acceptances = useQuery({
+    queryKey: ["agreement-acceptances"],
+    queryFn: fetchAgreementAcceptances,
   });
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
   const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
@@ -348,8 +354,12 @@ function AgreementsPage() {
   });
 
   const propertyUnits = (units.data ?? []).filter((unit) => unit.property_id === form.propertyId);
-  const loading = [agreements, properties, units, tenants].some((query) => query.isPending);
-  const failed = [agreements, properties, units, tenants].some((query) => query.isError);
+  const loading = [agreements, acceptances, properties, units, tenants].some(
+    (query) => query.isPending,
+  );
+  const failed = [agreements, acceptances, properties, units, tenants].some(
+    (query) => query.isError,
+  );
   const visibleAgreements = (agreements.data ?? []).filter(
     (agreement) => statusFilter === "all" || agreement.status === statusFilter,
   );
@@ -411,6 +421,16 @@ function AgreementsPage() {
           const property = properties.data?.find((item) => item.id === agreement.property_id);
           const unit = units.data?.find((item) => item.id === agreement.unit_id);
           const tenant = tenants.data?.find((item) => item.id === agreement.tenant_id);
+          const latestAcceptance = acceptances.data?.find(
+            (item) => item.agreement_id === agreement.id,
+          );
+          const currentAcceptance = acceptances.data?.find(
+            (item) =>
+              item.agreement_id === agreement.id &&
+              item.agreement_version === agreement.status_changed_at,
+          );
+          const visibleAcceptance =
+            agreement.status === "pending_signature" ? currentAcceptance : latestAcceptance;
           return (
             <Card
               key={agreement.id}
@@ -450,6 +470,18 @@ function AgreementsPage() {
                         ? `Оплата до ${agreement.payment_due_day}-го числа`
                         : "День оплаты совпадает с датой начала аренды"}
                     </p>
+                    {agreement.status !== "draft" && visibleAcceptance && (
+                      <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                        <BadgeCheck className="h-3.5 w-3.5" />
+                        Арендатор подтвердил условия ·{" "}
+                        {formatDateTime(visibleAcceptance.accepted_at)}
+                      </p>
+                    )}
+                    {agreement.status === "pending_signature" && !currentAcceptance && (
+                      <p className="mt-2 text-xs font-medium text-amber-700">
+                        Ожидается подтверждение арендатора
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -548,11 +580,17 @@ function AgreementsPage() {
                           onClick={() =>
                             changeStatus.mutate({ id: agreement.id, status: "active" })
                           }
-                          disabled={changeStatus.isPending || !agreement.signed_document_file}
+                          disabled={
+                            changeStatus.isPending ||
+                            !agreement.signed_document_file ||
+                            !currentAcceptance
+                          }
                           title={
-                            agreement.signed_document_file
-                              ? undefined
-                              : "Сначала загрузите подписанный PDF"
+                            !agreement.signed_document_file
+                              ? "Сначала загрузите подписанный PDF"
+                              : !currentAcceptance
+                                ? "Сначала дождитесь подтверждения арендатора"
+                                : undefined
                           }
                         >
                           <BadgeCheck className="mr-2 h-4 w-4" /> Активировать

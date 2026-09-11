@@ -59,6 +59,14 @@ export type AgreementStatusEvent = {
   created_at: string;
 };
 
+export type AgreementAcceptance = {
+  id: string;
+  agreement_id: string;
+  agreement_version: string;
+  accepted_by: string | null;
+  accepted_at: string;
+};
+
 export type RequestRow = {
   id: string;
   owner_id: string;
@@ -171,6 +179,11 @@ export const fetchAgreements = () =>
 export const fetchAgreementStatusEvents = () =>
   unwrap<AgreementStatusEvent[]>(
     supabase.from("agreement_status_events").select("*").order("created_at", { ascending: true }),
+  );
+
+export const fetchAgreementAcceptances = () =>
+  unwrap<AgreementAcceptance[]>(
+    supabase.from("agreement_acceptances").select("*").order("accepted_at", { ascending: false }),
   );
 
 export const fetchRequests = () =>

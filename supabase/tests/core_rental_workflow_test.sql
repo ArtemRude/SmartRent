@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(40);
+SELECT plan(52);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -101,6 +101,8 @@ SELECT lives_ok(
   'owner can create an invited tenant'
 );
 
+RESET ROLE;
+
 SELECT lives_ok(
   $$
     INSERT INTO public.lease_agreements (
@@ -130,7 +132,7 @@ SELECT lives_ok(
       '10000000-0000-0000-0000-000000000001/test-signed.pdf'
     )
   $$,
-  'owner can create a valid agreement'
+  'trusted seed can create an existing active agreement'
 );
 
 RESET ROLE;
@@ -385,6 +387,24 @@ SELECT results_eq(
   'unrelated tenant cannot see agreement status history'
 );
 
+SELECT throws_ok(
+  $$
+    INSERT INTO public.agreement_acceptances (
+      agreement_id,
+      agreement_version,
+      accepted_by
+    )
+    VALUES (
+      '50000000-0000-0000-0000-000000000001',
+      now(),
+      '10000000-0000-0000-0000-000000000003'
+    )
+  $$,
+  '42501',
+  NULL,
+  'unrelated tenant cannot accept an agreement'
+);
+
 SELECT is_empty(
   $$
     UPDATE public.requests
@@ -442,6 +462,38 @@ SELECT lives_ok(
     )
   $$,
   'new agreements start as drafts'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.lease_agreements (
+      id,
+      owner_id,
+      property_id,
+      unit_id,
+      tenant_id,
+      start_date,
+      end_date,
+      monthly_payment,
+      status,
+      signed_document_file
+    )
+    VALUES (
+      '50000000-0000-0000-0000-000000000003',
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      CURRENT_DATE + 200,
+      CURRENT_DATE + 260,
+      60000,
+      'active',
+      '10000000-0000-0000-0000-000000000001/direct-active.pdf'
+    )
+  $$,
+  '23514',
+  'Новый договор можно создать только как черновик',
+  'owner cannot bypass the draft and acceptance workflow'
 );
 
 SELECT results_eq(
@@ -535,6 +587,132 @@ SELECT lives_ok(
   'owner can attach the signed PDF'
 );
 
+SELECT throws_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'active'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  '23514',
+  'Арендатор ещё не подтвердил условия договора',
+  'agreement cannot be activated before tenant acceptance'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.agreement_acceptances (
+      agreement_id,
+      agreement_version,
+      accepted_by
+    )
+    SELECT
+      id,
+      status_changed_at,
+      '10000000-0000-0000-0000-000000000002'
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'tenant can confirm the current agreement version'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.agreement_acceptances
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[1::bigint],
+  'tenant sees their agreement acceptance'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'draft'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'owner can return the accepted agreement to draft'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'pending_signature'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'owner can send a revised agreement for confirmation'
+);
+
+SELECT throws_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'active'
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  '23514',
+  'Арендатор ещё не подтвердил условия договора',
+  'an earlier acceptance cannot activate a revised agreement'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.agreement_acceptances (
+      agreement_id,
+      agreement_version,
+      accepted_by
+    )
+    SELECT
+      id,
+      status_changed_at,
+      '10000000-0000-0000-0000-000000000002'
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  'tenant can confirm the revised agreement version'
+);
+
+SELECT throws_ok(
+  $$
+    DELETE FROM public.agreement_acceptances
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  '42501',
+  NULL,
+  'clients cannot delete agreement acceptances'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE public.lease_agreements
@@ -542,6 +720,16 @@ SELECT lives_ok(
     WHERE id = '50000000-0000-0000-0000-000000000002'
   $$,
   'signed agreement can be activated'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.agreement_acceptances
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  $$,
+  ARRAY[2::bigint],
+  'owner sees the tenant acceptance'
 );
 
 SELECT ok(
@@ -570,7 +758,7 @@ SELECT results_eq(
     FROM public.agreement_status_events
     WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
   $$,
-  ARRAY[3::bigint],
+  ARRAY[5::bigint],
   'owner sees every agreement lifecycle event'
 );
 
@@ -608,7 +796,7 @@ SELECT results_eq(
     FROM public.agreement_status_events
     WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
   $$,
-  ARRAY[3::bigint],
+  ARRAY[5::bigint],
   'tenant sees lifecycle history after the agreement is shared'
 );
 
@@ -625,8 +813,20 @@ SELECT results_eq(
         '10000000-0000-0000-0000-000000000002'
       )
   $$,
-  ARRAY[4::bigint],
+  ARRAY[8::bigint],
   'owner and tenant receive agreement status notifications'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.notifications
+    WHERE entity_id = '50000000-0000-0000-0000-000000000002'
+      AND kind = 'agreement_accepted'
+      AND user_id = '10000000-0000-0000-0000-000000000001'
+  $$,
+  ARRAY[2::bigint],
+  'owner receives a tenant acceptance notification'
 );
 
 SELECT ok(

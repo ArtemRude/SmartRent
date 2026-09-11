@@ -16,6 +16,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      agreement_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_by: string | null
+          agreement_id: string
+          agreement_version: string
+          id: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_by?: string | null
+          agreement_id: string
+          agreement_version: string
+          id?: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_by?: string | null
+          agreement_id?: string
+          agreement_version?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agreement_acceptances_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "lease_agreements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agreement_status_events: {
         Row: {
           agreement_id: string

@@ -10,6 +10,7 @@ export type NotificationKind =
   | "request_status"
   | "agreement_created"
   | "agreement_status"
+  | "agreement_accepted"
   | "agreement_expiring"
   | "payment_status"
   | "payment_due"
@@ -61,6 +62,7 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   request_status: "Статус заявки",
   agreement_created: "Договор",
   agreement_status: "Статус договора",
+  agreement_accepted: "Подтверждение договора",
   agreement_expiring: "Срок договора",
   payment_status: "Оплата",
   payment_due: "Срок оплаты",
