@@ -33,6 +33,7 @@ import {
   formatDate,
   formatMoney,
   getPaymentStatus,
+  getRentChargeBalance,
   getRentChargeTotal,
   localDateKey,
 } from "@/lib/domain";
@@ -100,13 +101,13 @@ function Dashboard() {
     .filter((a) => a.status === "active")
     .reduce((s, a) => s + Number(a.monthly_payment ?? 0), 0);
   const debt = (charges.data ?? [])
-    .filter((charge) => getPaymentStatus(charge) === "overdue")
-    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
+    .filter((charge) => charge.paid_at == null && charge.due_date < today)
+    .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
   const receivedThisMonth = (charges.data ?? [])
     .filter((charge) => charge.paid_at?.startsWith(today.slice(0, 7)))
     .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
   const overdueCharges = (charges.data ?? [])
-    .filter((charge) => getPaymentStatus(charge) === "overdue")
+    .filter((charge) => charge.paid_at == null && charge.due_date < today)
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
   const upcomingCharges = (charges.data ?? [])
     .filter((charge) => {

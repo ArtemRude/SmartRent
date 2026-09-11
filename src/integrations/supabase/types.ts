@@ -441,6 +441,7 @@ export type Database = {
           id: string
           owner_id: string
           paid_at: string | null
+          paid_amount: number
           payment_note: string | null
           period_start: string
           tenant_id: string
@@ -457,6 +458,7 @@ export type Database = {
           id?: string
           owner_id: string
           paid_at?: string | null
+          paid_amount?: number
           payment_note?: string | null
           period_start: string
           tenant_id: string
@@ -473,6 +475,7 @@ export type Database = {
           id?: string
           owner_id?: string
           paid_at?: string | null
+          paid_amount?: number
           payment_note?: string | null
           period_start?: string
           tenant_id?: string
@@ -487,6 +490,60 @@ export type Database = {
           },
           {
             foreignKeyName: "rent_charges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_payments: {
+        Row: {
+          amount: number
+          charge_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          owner_id: string
+          paid_at: string
+          receipt_file: string | null
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          charge_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          owner_id: string
+          paid_at: string
+          receipt_file?: string | null
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          charge_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          owner_id?: string
+          paid_at?: string
+          receipt_file?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_payments_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "rent_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_payments_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

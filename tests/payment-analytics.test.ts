@@ -51,3 +51,19 @@ test("buildPaymentAnalytics handles an empty selection", () => {
     properties: [],
   });
 });
+
+test("buildPaymentAnalytics includes partial payments", () => {
+  const result = buildPaymentAnalytics([
+    {
+      amount: 60_000,
+      paidAmount: 25_000,
+      period: "2026-09",
+      propertyId: "flat",
+      propertyName: "Квартира",
+    },
+  ]);
+
+  assert.equal(result.paid, 25_000);
+  assert.equal(result.unpaid, 35_000);
+  assert.equal(result.collectionRate, 42);
+});

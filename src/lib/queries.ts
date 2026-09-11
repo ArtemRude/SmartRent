@@ -111,8 +111,28 @@ export type RentCharge = {
   adjusted_at: string | null;
   adjusted_by: string | null;
   paid_at: string | null;
+  paid_amount: number;
   payment_note: string | null;
   created_at: string;
+};
+
+export type RentPayment = {
+  id: string;
+  charge_id: string;
+  owner_id: string;
+  tenant_id: string;
+  amount: number;
+  paid_at: string;
+  note: string | null;
+  receipt_file: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type RentPaymentState = {
+  payments: RentPayment[];
+  available: boolean;
+  receiptsAvailable: boolean;
 };
 
 export type RentChargeAdjustmentEvent = {
@@ -232,6 +252,38 @@ export const fetchRentCharges = () =>
   unwrap<RentCharge[]>(
     supabase.from("rent_charges").select("*").order("due_date", { ascending: false }),
   );
+
+export const fetchRentPayments = async (): Promise<RentPaymentState> => {
+  const { data, error } = await supabase
+    .from("rent_payments")
+    .select("*, receipt_file")
+    .order("paid_at", { ascending: false });
+  if (error?.code === "PGRST205") {
+    return { payments: [], available: false, receiptsAvailable: false };
+  }
+  if (error) {
+    const fallback = await supabase
+      .from("rent_payments")
+      .select("*")
+      .order("paid_at", { ascending: false });
+    if (!fallback.error) {
+      return {
+        payments: (fallback.data ?? []).map((payment) => ({
+          ...(payment as Omit<RentPayment, "receipt_file">),
+          receipt_file: null,
+        })),
+        available: true,
+        receiptsAvailable: false,
+      };
+    }
+    throw new Error(error.message);
+  }
+  return {
+    payments: (data ?? []) as RentPayment[],
+    available: true,
+    receiptsAvailable: true,
+  };
+};
 
 export const fetchRentChargeAdjustmentEvents = async (): Promise<RentChargeAdjustmentState> => {
   const { data, error } = await supabase

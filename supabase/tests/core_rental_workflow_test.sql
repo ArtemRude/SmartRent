@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(63);
+SELECT plan(72);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -997,6 +997,162 @@ SELECT ok(
       )
   ),
   'RLS helper functions are not exposed in the public schema'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.rent_payments (
+      id, charge_id, owner_id, tenant_id, amount, paid_at, note, receipt_file
+    )
+    SELECT
+      '90000000-0000-0000-0000-000000000001',
+      id,
+      owner_id,
+      tenant_id,
+      10000,
+      now(),
+      'Частичная оплата',
+      '10000000-0000-0000-0000-000000000001/test-receipt.pdf'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  'owner can record a partial rent payment'
+);
+
+SELECT results_eq(
+  $$
+    SELECT paid_amount
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  ARRAY[10000::numeric],
+  'partial payment updates the paid amount'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.rent_payments (
+      charge_id, owner_id, tenant_id, amount, paid_at, receipt_file
+    )
+    SELECT
+      id,
+      owner_id,
+      tenant_id,
+      1000,
+      now(),
+      '10000000-0000-0000-0000-000000000002/foreign-receipt.pdf'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  '23514',
+  'receipt must be uploaded to the current user folder',
+  'owner cannot attach a receipt from another user folder'
+);
+
+SELECT throws_ok(
+  $$
+    UPDATE public.rent_payments
+    SET amount = 100000
+    WHERE id = '90000000-0000-0000-0000-000000000001'
+  $$,
+  '23514',
+  'payment exceeds remaining charge balance',
+  'a payment cannot exceed the charge balance'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.rent_payments$$,
+  ARRAY[1::bigint],
+  'tenant can see payment history for their lease'
+);
+
+SELECT results_eq(
+  $$SELECT receipt_file FROM public.rent_payments$$,
+  ARRAY['10000000-0000-0000-0000-000000000001/test-receipt.pdf'::text],
+  'tenant can see the receipt attached to their payment'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.rent_payments (
+      charge_id, owner_id, tenant_id, amount, paid_at
+    )
+    SELECT id, owner_id, tenant_id, 1000, now()
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  '42501',
+  NULL,
+  'tenant cannot record a payment'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.rent_payments (
+      id, charge_id, owner_id, tenant_id, amount, paid_at
+    )
+    SELECT
+      '90000000-0000-0000-0000-000000000002',
+      id,
+      owner_id,
+      tenant_id,
+      47500,
+      now()
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  'owner can complete a charge with a second payment'
+);
+
+SELECT results_eq(
+  $$
+    WITH removed AS (
+      DELETE FROM public.rent_payments
+      WHERE id = '90000000-0000-0000-0000-000000000002'
+    )
+    SELECT paid_amount
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  ARRAY[10000::numeric],
+  'owner can remove a mistaken payment and reopen the balance'
 );
 
 SELECT * FROM finish();

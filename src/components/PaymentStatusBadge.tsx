@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 const styles: Record<PaymentStatus, string> = {
   pending: "border-warning/30 bg-warning/15 text-warning-foreground",
+  partial: "border-sky-300 bg-sky-50 text-sky-700",
   paid: "border-success/25 bg-success/12 text-success",
   overdue: "border-destructive/25 bg-destructive/10 text-destructive",
 };

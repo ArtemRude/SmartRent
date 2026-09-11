@@ -1,6 +1,7 @@
 export type PaymentAnalyticsItem = {
   amount: number;
-  paid: boolean;
+  paid?: boolean;
+  paidAmount?: number;
   period: string;
   propertyId: string;
   propertyName: string;
@@ -33,11 +34,10 @@ export function buildPaymentAnalytics(items: PaymentAnalyticsItem[]) {
     month.accrued += item.amount;
     property.accrued += item.amount;
 
-    if (item.paid) {
-      paid += item.amount;
-      month.paid += item.amount;
-      property.paid += item.amount;
-    }
+    const itemPaid = Math.min(item.amount, item.paidAmount ?? (item.paid ? item.amount : 0));
+    paid += itemPaid;
+    month.paid += itemPaid;
+    property.paid += itemPaid;
 
     months.set(item.period, month);
     properties.set(item.propertyId, property);

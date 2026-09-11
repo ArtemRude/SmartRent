@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const PROPERTY_PHOTOS = "property-photos";
 export const REQUEST_PHOTOS = "request-photos";
 export const LEASE_DOCUMENTS = "lease-documents";
+export const PAYMENT_RECEIPTS = "payment-receipts";
 
 function randomName(file: File) {
   const ext = file.name.split(".").pop() ?? "bin";
@@ -18,6 +19,13 @@ function validateFile(bucket: string, file: File) {
   if (bucket === LEASE_DOCUMENTS) {
     if (file.type !== "application/pdf") throw new Error("Договор должен быть в формате PDF");
     if (file.size > 20 * 1024 * 1024) throw new Error("Размер договора не должен превышать 20 МБ");
+  }
+  if (bucket === PAYMENT_RECEIPTS) {
+    const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+    if (!allowedTypes.has(file.type)) {
+      throw new Error("Чек должен быть в формате PDF, JPG, PNG или WebP");
+    }
+    if (file.size > 10 * 1024 * 1024) throw new Error("Размер чека не должен превышать 10 МБ");
   }
 }
 

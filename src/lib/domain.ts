@@ -1,7 +1,7 @@
 export type PropertyType = "apartment" | "warehouse" | "commercial" | "other";
 export type RequestCategory = "repair" | "question" | "payment" | "other";
 export type RequestStatus = "new" | "in_progress" | "closed";
-export type PaymentStatus = "pending" | "paid" | "overdue";
+export type PaymentStatus = "pending" | "partial" | "paid" | "overdue";
 export type AgreementStatus = "draft" | "pending_signature" | "active" | "completed";
 export type AppRole = "admin" | "owner" | "tenant";
 export type NotificationKind =
@@ -39,6 +39,7 @@ export const requestStatusLabels: Record<RequestStatus, string> = {
 
 export const paymentStatusLabels: Record<PaymentStatus, string> = {
   pending: "Ожидается",
+  partial: "Частично оплачено",
   paid: "Оплачено",
   overdue: "Просрочено",
 };
@@ -138,14 +139,28 @@ export function formatMonth(value: string) {
 
 export function getPaymentStatus(charge: {
   paid_at: string | null;
+  paid_amount?: number | null;
   due_date: string;
 }): PaymentStatus {
   if (charge.paid_at) return "paid";
+  if (Number(charge.paid_amount ?? 0) > 0) return "partial";
   return charge.due_date < localDateKey() ? "overdue" : "pending";
 }
 
 export function getRentChargeTotal(charge: { amount: number; adjustment_amount?: number | null }) {
   return Number(charge.amount) + Number(charge.adjustment_amount ?? 0);
+}
+
+export function getRentChargeBalance(charge: {
+  amount: number;
+  adjustment_amount?: number | null;
+  paid_amount?: number | null;
+  paid_at?: string | null;
+}) {
+  const total = getRentChargeTotal(charge);
+  const paid =
+    charge.paid_amount == null && charge.paid_at ? total : Number(charge.paid_amount ?? 0);
+  return Math.max(0, total - paid);
 }
 
 export function daysUntil(date: string) {

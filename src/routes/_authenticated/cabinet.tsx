@@ -38,7 +38,9 @@ import {
   formatDateTime,
   formatMoney,
   getPaymentStatus,
+  getRentChargeBalance,
   getRentChargeTotal,
+  localDateKey,
   propertyTypeLabels,
 } from "@/lib/domain";
 import {
@@ -125,8 +127,8 @@ function CabinetPage() {
     .filter((charge) => charge.paid_at == null)
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
   const debt = unpaidCharges
-    .filter((charge) => getPaymentStatus(charge) === "overdue")
-    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
+    .filter((charge) => charge.due_date < localDateKey())
+    .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
 
   return (
     <>

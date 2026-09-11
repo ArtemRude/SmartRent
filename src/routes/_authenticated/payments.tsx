@@ -10,7 +10,9 @@ import {
   CreditCard,
   Download,
   History,
+  Paperclip,
   PencilLine,
+  Trash2,
   WalletCards,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -20,6 +22,16 @@ import { DebtCenter } from "@/components/DebtCenter";
 import { PaymentAnalyticsCharts } from "@/components/PaymentAnalyticsCharts";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { RentForecastPanel } from "@/components/RentForecastPanel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,6 +65,7 @@ import {
   formatMoney,
   formatMonth,
   getPaymentStatus,
+  getRentChargeBalance,
   getRentChargeTotal,
   localDateKey,
   paymentStatusLabels,
@@ -60,14 +73,17 @@ import {
 } from "@/lib/domain";
 import { buildPaymentAnalytics } from "@/lib/payment-analytics";
 import { buildRentForecast } from "@/lib/rent-forecast";
+import { downloadFile, PAYMENT_RECEIPTS, removeFile, uploadFile } from "@/lib/storage";
 import {
   fetchAgreements,
   fetchProperties,
   fetchRentChargeAdjustmentEvents,
   fetchRentCharges,
+  fetchRentPayments,
   fetchTenants,
   fetchUnits,
   type RentCharge,
+  type RentPayment,
 } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/payments")({
@@ -118,9 +134,10 @@ function SummaryCard({
 }
 
 function PaymentsPage() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const qc = useQueryClient();
   const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
+  const payments = useQuery({ queryKey: ["rent-payments"], queryFn: fetchRentPayments });
   const adjustmentEvents = useQuery({
     queryKey: ["rent-charge-adjustment-events"],
     queryFn: fetchRentChargeAdjustmentEvents,
@@ -139,7 +156,10 @@ function PaymentsPage() {
   const [adjustedTotal, setAdjustedTotal] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [paidDate, setPaidDate] = useState(localDateKey());
+  const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
+  const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(new Set());
   const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
   const [bulkPaidDate, setBulkPaidDate] = useState(localDateKey());
@@ -148,6 +168,18 @@ function PaymentsPage() {
 
   const currentMonth = localDateKey().slice(0, 7);
   const allCharges = useMemo(() => charges.data ?? [], [charges.data]);
+  const paymentFeatureAvailable = payments.data?.available ?? false;
+  const receiptFeatureAvailable = payments.data?.receiptsAvailable ?? false;
+  const paymentRows = payments.data?.payments;
+  const paymentsByCharge = useMemo(() => {
+    const rows = new Map<string, RentPayment[]>();
+    for (const payment of paymentRows ?? []) {
+      const current = rows.get(payment.charge_id) ?? [];
+      current.push(payment);
+      rows.set(payment.charge_id, current);
+    }
+    return rows;
+  }, [paymentRows]);
   const adjustmentFeatureAvailable = adjustmentEvents.data?.available ?? false;
   const adjustmentEventRows = adjustmentEvents.data?.events;
   const adjustmentEventsByCharge = useMemo(() => {
@@ -160,14 +192,18 @@ function PaymentsPage() {
     return eventsByCharge;
   }, [adjustmentEventRows]);
   const overdueTotal = allCharges
-    .filter((charge) => getPaymentStatus(charge) === "overdue")
-    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
+    .filter((charge) => charge.paid_at == null && charge.due_date < localDateKey())
+    .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
   const currentMonthDue = allCharges
     .filter((charge) => charge.period_start.startsWith(currentMonth) && charge.paid_at == null)
-    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
-  const currentMonthPaid = allCharges
-    .filter((charge) => charge.paid_at?.slice(0, 7) === currentMonth)
-    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
+    .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
+  const currentMonthPaid = paymentFeatureAvailable
+    ? (payments.data?.payments ?? [])
+        .filter((payment) => payment.paid_at.slice(0, 7) === currentMonth)
+        .reduce((sum, payment) => sum + Number(payment.amount), 0)
+    : allCharges
+        .filter((charge) => charge.paid_at?.slice(0, 7) === currentMonth)
+        .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
 
   const periodLimits = useMemo(() => {
     if (allCharges.length === 0) return undefined;
@@ -182,14 +218,23 @@ function PaymentsPage() {
   const periodTo = periodRange?.to ? localDateKey(periodRange.to).slice(0, 7) : null;
 
   const visibleCharges = useMemo(() => {
-    const statusOrder: Record<PaymentStatus, number> = { overdue: 0, pending: 1, paid: 2 };
+    const statusOrder: Record<PaymentStatus, number> = {
+      overdue: 0,
+      partial: 1,
+      pending: 2,
+      paid: 3,
+    };
     return allCharges
       .filter((charge) => {
         const agreement = agreements.data?.find((item) => item.id === charge.agreement_id);
         const status = getPaymentStatus(charge);
         const chargePeriod = charge.period_start.slice(0, 7);
         return (
-          (statusFilter === "all" || status === statusFilter) &&
+          (statusFilter === "all" ||
+            status === statusFilter ||
+            (statusFilter === "overdue" &&
+              charge.paid_at == null &&
+              charge.due_date < localDateKey())) &&
           (propertyFilters.length === 0 ||
             (agreement?.property_id != null && propertyFilters.includes(agreement.property_id))) &&
           (tenantFilter === "all" || charge.tenant_id === tenantFilter) &&
@@ -224,7 +269,9 @@ function PaymentsPage() {
         const propertyId = agreementById.get(charge.agreement_id)?.property_id ?? "unknown";
         return {
           amount: getRentChargeTotal(charge),
-          paid: charge.paid_at != null,
+          paidAmount: Number(
+            charge.paid_amount ?? (charge.paid_at ? getRentChargeTotal(charge) : 0),
+          ),
           period: charge.period_start.slice(0, 7),
           propertyId,
           propertyName: propertyById.get(propertyId)?.name ?? "Без объекта",
@@ -244,7 +291,8 @@ function PaymentsPage() {
         .filter((charge) => {
           const agreement = agreementById.get(charge.agreement_id);
           return (
-            getPaymentStatus(charge) === "overdue" &&
+            charge.paid_at == null &&
+            charge.due_date < today &&
             (propertyFilters.length === 0 ||
               (agreement?.property_id != null &&
                 propertyFilters.includes(agreement.property_id))) &&
@@ -258,7 +306,7 @@ function PaymentsPage() {
             agreementId: charge.agreement_id,
             propertyName: propertyById.get(agreement?.property_id ?? "")?.name ?? "Без объекта",
             tenantName: tenantById.get(charge.tenant_id)?.name ?? "Арендатор",
-            amount: getRentChargeTotal(charge),
+            amount: getRentChargeBalance(charge),
             dueDate: charge.due_date,
           };
         }),
@@ -335,8 +383,10 @@ function PaymentsPage() {
 
   const openPaymentDialog = (charge: RentCharge) => {
     setSelectedCharge(charge);
-    setPaidDate(charge.paid_at ? localDateKey(new Date(charge.paid_at)) : localDateKey());
-    setPaymentNote(charge.payment_note ?? "");
+    setPaidDate(localDateKey());
+    setPaymentAmount(String(getRentChargeBalance(charge)));
+    setPaymentNote("");
+    setPaymentReceipt(null);
   };
 
   const openAdjustmentDialog = (charge: RentCharge) => {
@@ -350,36 +400,75 @@ function PaymentsPage() {
       if (!selectedCharge) throw new Error("Начисление не выбрано");
       if (!paidDate) throw new Error("Укажите дату оплаты");
       if (paidDate > localDateKey()) throw new Error("Дата оплаты не может быть в будущем");
-      const { error } = await supabase
-        .from("rent_charges")
-        .update({
-          paid_at: new Date(`${paidDate}T12:00:00`).toISOString(),
-          payment_note: paymentNote.trim() || null,
-        })
-        .eq("id", selectedCharge.id);
-      if (error) throw new Error(error.message);
+      const amount = Number(paymentAmount.replace(",", "."));
+      const balance = getRentChargeBalance(selectedCharge);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Укажите сумму больше нуля");
+      if (paymentFeatureAvailable && amount > balance) {
+        throw new Error(`Сумма больше остатка ${formatMoney(balance)}`);
+      }
+
+      let receiptPath: string | null = null;
+      try {
+        if (paymentReceipt && receiptFeatureAvailable) {
+          if (!user) throw new Error("Не удалось определить пользователя");
+          receiptPath = await uploadFile(PAYMENT_RECEIPTS, user.id, paymentReceipt);
+        }
+
+        const { error } = paymentFeatureAvailable
+          ? await supabase.from("rent_payments").insert({
+              charge_id: selectedCharge.id,
+              owner_id: selectedCharge.owner_id,
+              tenant_id: selectedCharge.tenant_id,
+              amount,
+              paid_at: new Date(`${paidDate}T12:00:00`).toISOString(),
+              note: paymentNote.trim() || null,
+              receipt_file: receiptPath,
+            })
+          : await supabase
+              .from("rent_charges")
+              .update({
+                paid_at: new Date(`${paidDate}T12:00:00`).toISOString(),
+                payment_note: paymentNote.trim() || null,
+              })
+              .eq("id", selectedCharge.id);
+        if (error) throw new Error(error.message);
+      } catch (error) {
+        if (receiptPath) await removeFile(PAYMENT_RECEIPTS, receiptPath).catch(() => undefined);
+        throw error;
+      }
     },
     onSuccess: () => {
-      toast.success(selectedCharge?.paid_at ? "Данные оплаты обновлены" : "Оплата отмечена");
+      toast.success("Платёж добавлен");
       setSelectedCharge(null);
       void qc.invalidateQueries({ queryKey: ["rent-charges"] });
+      void qc.invalidateQueries({ queryKey: ["rent-payments"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const clearPayment = useMutation({
-    mutationFn: async () => {
+  const deletePayment = useMutation({
+    mutationFn: async (paymentId?: string) => {
       if (!selectedCharge) throw new Error("Начисление не выбрано");
-      const { error } = await supabase
-        .from("rent_charges")
-        .update({ paid_at: null, payment_note: null })
-        .eq("id", selectedCharge.id);
+      const payment = payments.data?.payments.find((item) => item.id === paymentId);
+      const { error } = paymentFeatureAvailable
+        ? await supabase
+            .from("rent_payments")
+            .delete()
+            .eq("id", paymentId ?? "")
+        : await supabase
+            .from("rent_charges")
+            .update({ paid_at: null, payment_note: null })
+            .eq("id", selectedCharge.id);
       if (error) throw new Error(error.message);
+      if (payment?.receipt_file) {
+        await removeFile(PAYMENT_RECEIPTS, payment.receipt_file).catch(() => undefined);
+      }
     },
     onSuccess: () => {
-      toast.success("Отметка об оплате снята");
-      setSelectedCharge(null);
+      toast.success("Платёж удалён");
+      setDeletingPaymentId(null);
       void qc.invalidateQueries({ queryKey: ["rent-charges"] });
+      void qc.invalidateQueries({ queryKey: ["rent-payments"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -390,13 +479,25 @@ function PaymentsPage() {
       if (ids.length === 0) throw new Error("Выберите начисления");
       if (!bulkPaidDate) throw new Error("Укажите дату оплаты");
       if (bulkPaidDate > localDateKey()) throw new Error("Дата оплаты не может быть в будущем");
-      const { error } = await supabase
-        .from("rent_charges")
-        .update({
-          paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
-          payment_note: bulkPaymentNote.trim() || null,
-        })
-        .in("id", ids);
+      const selected = allCharges.filter((charge) => ids.includes(charge.id));
+      const { error } = paymentFeatureAvailable
+        ? await supabase.from("rent_payments").insert(
+            selected.map((charge) => ({
+              charge_id: charge.id,
+              owner_id: charge.owner_id,
+              tenant_id: charge.tenant_id,
+              amount: getRentChargeBalance(charge),
+              paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
+              note: bulkPaymentNote.trim() || null,
+            })),
+          )
+        : await supabase
+            .from("rent_charges")
+            .update({
+              paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
+              payment_note: bulkPaymentNote.trim() || null,
+            })
+            .in("id", ids);
       if (error) throw new Error(error.message);
       return ids.length;
     },
@@ -405,6 +506,7 @@ function PaymentsPage() {
       setBulkPaymentOpen(false);
       setSelectedChargeIds(new Set());
       void qc.invalidateQueries({ queryKey: ["rent-charges"] });
+      void qc.invalidateQueries({ queryKey: ["rent-payments"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -412,8 +514,8 @@ function PaymentsPage() {
   const saveAdjustment = useMutation({
     mutationFn: async () => {
       if (!adjustmentCharge) throw new Error("Начисление не выбрано");
-      if (adjustmentCharge.paid_at) {
-        throw new Error("Сначала снимите отметку об оплате");
+      if (Number(adjustmentCharge.paid_amount ?? 0) > 0 || adjustmentCharge.paid_at) {
+        throw new Error("Начисление с платежами нельзя корректировать");
       }
 
       const total = Number(adjustedTotal.replace(",", "."));
@@ -444,10 +546,12 @@ function PaymentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const loading = [charges, agreements, properties, units, tenants].some(
+  const loading = [charges, payments, agreements, properties, units, tenants].some(
     (query) => query.isPending,
   );
-  const failed = [charges, agreements, properties, units, tenants].some((query) => query.isError);
+  const failed = [charges, payments, agreements, properties, units, tenants].some(
+    (query) => query.isError,
+  );
 
   const agreementFor = (charge: RentCharge) =>
     agreements.data?.find((agreement) => agreement.id === charge.agreement_id);
@@ -462,6 +566,15 @@ function PaymentsPage() {
   const tenantFor = (charge: RentCharge) =>
     tenants.data?.find((tenant) => tenant.id === charge.tenant_id);
   const adjustmentEventsFor = (charge: RentCharge) => adjustmentEventsByCharge.get(charge.id) ?? [];
+  const openReceipt = (payment: RentPayment) => {
+    if (!payment.receipt_file) return;
+    const extension = payment.receipt_file.split(".").pop() ?? "pdf";
+    void downloadFile(
+      PAYMENT_RECEIPTS,
+      payment.receipt_file,
+      `чек-${payment.paid_at.slice(0, 10)}.${extension}`,
+    );
+  };
 
   const exportPayments = () => {
     const csv = createCsv(
@@ -473,6 +586,8 @@ function PaymentsPage() {
         "Базовая сумма, ₽",
         "Корректировка, ₽",
         "Итого, ₽",
+        "Оплачено, ₽",
+        "Остаток, ₽",
         "Причина корректировки",
         "Объект",
         "Помещение",
@@ -488,6 +603,8 @@ function PaymentsPage() {
           Number(charge.amount),
           Number(charge.adjustment_amount ?? 0),
           getRentChargeTotal(charge),
+          Number(charge.paid_amount ?? (charge.paid_at ? getRentChargeTotal(charge) : 0)),
+          getRentChargeBalance(charge),
           charge.adjustment_reason ?? "",
           propertyFor(charge)?.name ?? "",
           unitFor(charge)?.name ?? "",
@@ -557,6 +674,7 @@ function PaymentsPage() {
           <SelectContent>
             <SelectItem value="all">Все статусы</SelectItem>
             <SelectItem value="pending">Ожидается</SelectItem>
+            <SelectItem value="partial">Частично оплачено</SelectItem>
             <SelectItem value="overdue">Просрочено</SelectItem>
             <SelectItem value="paid">Оплачено</SelectItem>
           </SelectContent>
@@ -692,6 +810,19 @@ function PaymentsPage() {
         </p>
       )}
 
+      {payments.data?.available === false && role !== "tenant" && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Частичные оплаты и история платежей появятся после применения последней миграции Supabase.
+          До этого работает прежняя отметка полной оплаты.
+        </p>
+      )}
+
+      {payments.data?.available === true && !receiptFeatureAvailable && role !== "tenant" && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Прикрепление чеков появится после применения последней миграции Supabase.
+        </p>
+      )}
+
       {!loading && !failed && visibleCharges.length > 0 && (
         <Card className="mt-4">
           <CardContent className="p-5 md:p-6">
@@ -786,7 +917,11 @@ function PaymentsPage() {
             const unit = unitFor(charge);
             const tenant = tenantFor(charge);
             const chargeAdjustmentEvents = adjustmentEventsFor(charge);
+            const chargePayments = paymentsByCharge.get(charge.id) ?? [];
             const hasAdjustment = Number(charge.adjustment_amount ?? 0) !== 0;
+            const paidAmount = Number(
+              charge.paid_amount ?? (charge.paid_at ? getRentChargeTotal(charge) : 0),
+            );
             return (
               <Card key={charge.id}>
                 <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
@@ -822,6 +957,33 @@ function PaymentsPage() {
                         Корректировка: {charge.adjustment_reason}
                       </p>
                     )}
+                    {chargePayments.length > 0 && (
+                      <details className="mt-2 text-xs text-muted-foreground">
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-foreground">
+                          <History className="h-3.5 w-3.5" /> История платежей (
+                          {chargePayments.length})
+                        </summary>
+                        <div className="mt-2 space-y-2 border-l pl-3">
+                          {chargePayments.map((payment) => (
+                            <div key={payment.id}>
+                              <p className="font-medium text-foreground">
+                                {formatMoney(payment.amount)} · {formatDate(payment.paid_at)}
+                              </p>
+                              {payment.note && <p>{payment.note}</p>}
+                              {payment.receipt_file && (
+                                <button
+                                  type="button"
+                                  className="mt-1 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                                  onClick={() => openReceipt(payment)}
+                                >
+                                  <Paperclip className="h-3.5 w-3.5" /> Открыть чек
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     {chargeAdjustmentEvents.length > 0 && (
                       <details className="mt-2 text-xs text-muted-foreground">
                         <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-foreground">
@@ -855,10 +1017,16 @@ function PaymentsPage() {
                           {formatMoney(Math.abs(Number(charge.adjustment_amount)))}
                         </p>
                       )}
+                      {paidAmount > 0 && !charge.paid_at && (
+                        <p className="text-xs text-muted-foreground">
+                          Внесено {formatMoney(paidAmount)} · осталось{" "}
+                          {formatMoney(getRentChargeBalance(charge))}
+                        </p>
+                      )}
                     </div>
                     {role !== "tenant" && (
                       <div className="flex flex-wrap justify-end gap-2">
-                        {!charge.paid_at && adjustmentFeatureAvailable && (
+                        {paidAmount === 0 && adjustmentFeatureAvailable && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -872,7 +1040,7 @@ function PaymentsPage() {
                           size="sm"
                           onClick={() => openPaymentDialog(charge)}
                         >
-                          {charge.paid_at ? "Изменить оплату" : "Отметить оплату"}
+                          {charge.paid_at ? "История оплат" : "Добавить оплату"}
                         </Button>
                       </div>
                     )}
@@ -902,65 +1070,146 @@ function PaymentsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {selectedCharge?.paid_at ? "Изменить оплату" : "Отметить оплату"}
-            </DialogTitle>
+            <DialogTitle>Платежи по начислению</DialogTitle>
             <DialogDescription>
               {selectedCharge
-                ? `${formatMonth(selectedCharge.period_start)} · ${formatMoney(getRentChargeTotal(selectedCharge))}`
+                ? `${formatMonth(selectedCharge.period_start)} · осталось ${formatMoney(getRentChargeBalance(selectedCharge))}`
                 : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="paid-date">Дата оплаты</Label>
-              <Input
-                id="paid-date"
-                type="date"
-                value={paidDate}
-                max={localDateKey()}
-                onChange={(event) => setPaidDate(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="payment-note">Комментарий, необязательно</Label>
-              <Textarea
-                id="payment-note"
-                value={paymentNote}
-                onChange={(event) => setPaymentNote(event.target.value)}
-                placeholder="Например, перевод по СБП"
-                maxLength={1000}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:justify-between">
-            {selectedCharge?.paid_at ? (
-              <Button
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => clearPayment.mutate()}
-                disabled={clearPayment.isPending || savePayment.isPending}
-              >
-                Снять отметку
-              </Button>
-            ) : (
-              <span />
+            {selectedCharge && getRentChargeBalance(selectedCharge) > 0 && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payment-amount">Сумма, ₽</Label>
+                    <Input
+                      id="payment-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={paymentAmount}
+                      onChange={(event) => setPaymentAmount(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paid-date">Дата оплаты</Label>
+                    <Input
+                      id="paid-date"
+                      type="date"
+                      value={paidDate}
+                      max={localDateKey()}
+                      onChange={(event) => setPaidDate(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="payment-note">Комментарий, необязательно</Label>
+                  <Textarea
+                    id="payment-note"
+                    value={paymentNote}
+                    onChange={(event) => setPaymentNote(event.target.value)}
+                    placeholder="Например, перевод по СБП"
+                    maxLength={1000}
+                    rows={3}
+                  />
+                </div>
+                {receiptFeatureAvailable && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payment-receipt">Чек или подтверждение, необязательно</Label>
+                    <Input
+                      id="payment-receipt"
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      onChange={(event) => setPaymentReceipt(event.target.files?.[0] ?? null)}
+                    />
+                    <p className="text-xs text-muted-foreground">PDF, JPG, PNG или WebP до 10 МБ</p>
+                  </div>
+                )}
+              </>
             )}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setSelectedCharge(null)}>
-                Отмена
-              </Button>
+
+            {selectedCharge && (paymentsByCharge.get(selectedCharge.id) ?? []).length > 0 && (
+              <div className="space-y-2 border-t pt-4">
+                <p className="text-sm font-medium">История поступлений</p>
+                {(paymentsByCharge.get(selectedCharge.id) ?? []).map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {formatMoney(payment.amount)} · {formatDate(payment.paid_at)}
+                      </p>
+                      {payment.note && (
+                        <p className="mt-1 text-xs text-muted-foreground">{payment.note}</p>
+                      )}
+                      {payment.receipt_file && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto px-0 py-1"
+                          onClick={() => openReceipt(payment)}
+                        >
+                          <Paperclip className="h-4 w-4" /> Открыть чек
+                        </Button>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      aria-label="Удалить платёж"
+                      disabled={deletePayment.isPending}
+                      onClick={() => setDeletingPaymentId(payment.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedCharge(null)}>
+              Закрыть
+            </Button>
+            {selectedCharge && getRentChargeBalance(selectedCharge) > 0 && (
               <Button
                 onClick={() => savePayment.mutate()}
-                disabled={savePayment.isPending || clearPayment.isPending || !paidDate}
+                disabled={savePayment.isPending || !paidDate || !paymentAmount}
               >
-                {savePayment.isPending ? "Сохраняем…" : "Сохранить"}
+                {savePayment.isPending ? "Сохраняем…" : "Добавить платёж"}
               </Button>
-            </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(deletingPaymentId)}
+        onOpenChange={(open) => !open && setDeletingPaymentId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить платёж?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Оплаченная сумма и остаток по начислению будут пересчитаны автоматически.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deletePayment.isPending}
+              onClick={() => deletePayment.mutate(deletingPaymentId ?? undefined)}
+            >
+              {deletePayment.isPending ? "Удаляем…" : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={Boolean(adjustmentCharge)}
