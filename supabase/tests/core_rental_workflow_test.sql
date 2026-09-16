@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(92);
+SELECT plan(95);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1010,7 +1010,7 @@ SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$
     INSERT INTO public.rent_payments (
-      id, charge_id, owner_id, tenant_id, amount, paid_at, note, receipt_file
+      id, charge_id, owner_id, tenant_id, amount, paid_at, payment_method, note, receipt_file
     )
     SELECT
       '90000000-0000-0000-0000-000000000001',
@@ -1019,6 +1019,7 @@ SELECT lives_ok(
       tenant_id,
       10000,
       now(),
+      'bank_transfer',
       'Частичная оплата',
       '10000000-0000-0000-0000-000000000001/test-receipt.pdf'
     FROM public.rent_charges
@@ -1044,7 +1045,7 @@ SELECT results_eq(
 SELECT throws_ok(
   $$
     INSERT INTO public.rent_payments (
-      charge_id, owner_id, tenant_id, amount, paid_at, receipt_file
+      charge_id, owner_id, tenant_id, amount, paid_at, payment_method, receipt_file
     )
     SELECT
       id,
@@ -1052,6 +1053,7 @@ SELECT throws_ok(
       tenant_id,
       1000,
       now(),
+      'bank_transfer',
       '10000000-0000-0000-0000-000000000002/foreign-receipt.pdf'
     FROM public.rent_charges
     WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
@@ -1062,6 +1064,62 @@ SELECT throws_ok(
   '23514',
   'receipt must be uploaded to the current user folder',
   'owner cannot attach a receipt from another user folder'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.rent_payments (charge_id, owner_id, tenant_id, amount, paid_at)
+    SELECT id, owner_id, tenant_id, 1000, now()
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  '23502',
+  NULL,
+  'payment method must be selected explicitly'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.rent_payments (
+      charge_id, owner_id, tenant_id, amount, paid_at, payment_method
+    )
+    SELECT id, owner_id, tenant_id, 1000, now(), 'bank_transfer'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  '23514',
+  NULL,
+  'bank transfer payment requires a receipt'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.rent_payments (
+      charge_id, owner_id, tenant_id, amount, paid_at, payment_method, receipt_file
+    )
+    SELECT
+      id,
+      owner_id,
+      tenant_id,
+      1000,
+      now(),
+      'cash',
+      '10000000-0000-0000-0000-000000000001/unexpected-cash-receipt.pdf'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  '23514',
+  NULL,
+  'cash payment uses the cash declaration instead of a bank receipt'
 );
 
 SELECT throws_ok(
@@ -1122,7 +1180,7 @@ SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$
     INSERT INTO public.rent_payments (
-      id, charge_id, owner_id, tenant_id, amount, paid_at
+      id, charge_id, owner_id, tenant_id, amount, paid_at, payment_method
     )
     SELECT
       '90000000-0000-0000-0000-000000000002',
@@ -1130,7 +1188,8 @@ SELECT lives_ok(
       owner_id,
       tenant_id,
       47500,
-      now()
+      now(),
+      'cash'
     FROM public.rent_charges
     WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
     ORDER BY period_start
@@ -1355,10 +1414,11 @@ SELECT results_eq(
     JOIN public.payment_reports AS report ON report.payment_id = payment.id
     WHERE report.id = '91000000-0000-0000-0000-000000000001'
       AND payment.amount = 1000
+      AND payment.payment_method = 'bank_transfer'
       AND payment.receipt_file = '10000000-0000-0000-0000-000000000002/tenant-bank-receipt.pdf'
   $$,
   ARRAY[1::bigint],
-  'approval atomically creates a payment with the tenant receipt'
+  'approval atomically creates a bank payment with the tenant receipt'
 );
 
 SELECT results_eq(

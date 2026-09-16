@@ -123,6 +123,7 @@ export type RentPayment = {
   tenant_id: string;
   amount: number;
   paid_at: string;
+  payment_method: "bank_transfer" | "cash" | null;
   note: string | null;
   receipt_file: string | null;
   created_by: string | null;
@@ -133,6 +134,7 @@ export type RentPaymentState = {
   payments: RentPayment[];
   available: boolean;
   receiptsAvailable: boolean;
+  paymentMethodsAvailable: boolean;
 };
 
 export type PaymentReport = {
@@ -280,32 +282,53 @@ export const fetchRentCharges = () =>
 export const fetchRentPayments = async (): Promise<RentPaymentState> => {
   const { data, error } = await supabase
     .from("rent_payments")
-    .select("*, receipt_file")
+    .select("*, receipt_file, payment_method")
     .order("paid_at", { ascending: false });
   if (error?.code === "PGRST205") {
-    return { payments: [], available: false, receiptsAvailable: false };
+    return {
+      payments: [],
+      available: false,
+      receiptsAvailable: false,
+      paymentMethodsAvailable: false,
+    };
   }
   if (error) {
-    const fallback = await supabase
+    const receiptFallback = await supabase
+      .from("rent_payments")
+      .select("*, receipt_file")
+      .order("paid_at", { ascending: false });
+    if (!receiptFallback.error) {
+      return {
+        payments: (receiptFallback.data ?? []).map((payment) => ({
+          ...(payment as Omit<RentPayment, "payment_method">),
+          payment_method: null,
+        })),
+        available: true,
+        receiptsAvailable: true,
+        paymentMethodsAvailable: false,
+      };
+    }
+    const legacyFallback = await supabase
       .from("rent_payments")
       .select("*")
       .order("paid_at", { ascending: false });
-    if (!fallback.error) {
-      return {
-        payments: (fallback.data ?? []).map((payment) => ({
-          ...(payment as Omit<RentPayment, "receipt_file">),
-          receipt_file: null,
-        })),
-        available: true,
-        receiptsAvailable: false,
-      };
-    }
-    throw new Error(error.message);
+    if (legacyFallback.error) throw new Error(error.message);
+    return {
+      payments: (legacyFallback.data ?? []).map((payment) => ({
+        ...(payment as Omit<RentPayment, "receipt_file" | "payment_method">),
+        receipt_file: null,
+        payment_method: null,
+      })),
+      available: true,
+      receiptsAvailable: false,
+      paymentMethodsAvailable: false,
+    };
   }
   return {
     payments: (data ?? []) as RentPayment[],
     available: true,
     receiptsAvailable: true,
+    paymentMethodsAvailable: true,
   };
 };
 

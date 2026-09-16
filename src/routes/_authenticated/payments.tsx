@@ -169,18 +169,22 @@ function PaymentsPage() {
   const [paidDate, setPaidDate] = useState(localDateKey());
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
+  const [paymentCash, setPaymentCash] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(new Set());
   const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
   const [bulkPaidDate, setBulkPaidDate] = useState(localDateKey());
   const [bulkPaymentNote, setBulkPaymentNote] = useState("");
+  const [bulkPaymentCash, setBulkPaymentCash] = useState(false);
+  const [bulkPaymentReceipt, setBulkPaymentReceipt] = useState<File | null>(null);
   const [forecastHorizon, setForecastHorizon] = useState(6);
 
   const currentMonth = localDateKey().slice(0, 7);
   const allCharges = useMemo(() => charges.data ?? [], [charges.data]);
   const paymentFeatureAvailable = payments.data?.available ?? false;
   const receiptFeatureAvailable = payments.data?.receiptsAvailable ?? false;
+  const paymentMethodsAvailable = payments.data?.paymentMethodsAvailable ?? false;
   const paymentRows = payments.data?.payments;
   const paymentsByCharge = useMemo(() => {
     const rows = new Map<string, RentPayment[]>();
@@ -389,6 +393,8 @@ function PaymentsPage() {
     setSelectedChargeIds(new Set(chargeIds));
     setBulkPaidDate(localDateKey());
     setBulkPaymentNote("");
+    setBulkPaymentCash(false);
+    setBulkPaymentReceipt(null);
     setBulkPaymentOpen(true);
   };
 
@@ -397,6 +403,7 @@ function PaymentsPage() {
     setPaidDate(localDateKey());
     setPaymentAmount(String(getRentChargeBalance(charge)));
     setPaymentNote("");
+    setPaymentCash(false);
     setPaymentReceipt(null);
   };
 
@@ -417,10 +424,13 @@ function PaymentsPage() {
       if (paymentFeatureAvailable && amount > balance) {
         throw new Error(`Сумма больше остатка ${formatMoney(balance)}`);
       }
+      if (paymentMethodsAvailable && !paymentCash && !paymentReceipt) {
+        throw new Error("Для банковского перевода обязательно приложите чек");
+      }
 
       let receiptPath: string | null = null;
       try {
-        if (paymentReceipt && receiptFeatureAvailable) {
+        if (!paymentCash && paymentReceipt && receiptFeatureAvailable) {
           if (!user) throw new Error("Не удалось определить пользователя");
           receiptPath = await uploadFile(PAYMENT_RECEIPTS, user.id, paymentReceipt);
         }
@@ -432,6 +442,9 @@ function PaymentsPage() {
               tenant_id: selectedCharge.tenant_id,
               amount,
               paid_at: new Date(`${paidDate}T12:00:00`).toISOString(),
+              ...(paymentMethodsAvailable
+                ? { payment_method: paymentCash ? "cash" : "bank_transfer" }
+                : {}),
               note: paymentNote.trim() || null,
               receipt_file: receiptPath,
             })
@@ -490,31 +503,51 @@ function PaymentsPage() {
       if (ids.length === 0) throw new Error("Выберите начисления");
       if (!bulkPaidDate) throw new Error("Укажите дату оплаты");
       if (bulkPaidDate > localDateKey()) throw new Error("Дата оплаты не может быть в будущем");
+      if (paymentMethodsAvailable && !bulkPaymentCash && !bulkPaymentReceipt) {
+        throw new Error("Для банковского перевода обязательно приложите чек");
+      }
       const selected = allCharges.filter((charge) => ids.includes(charge.id));
-      const { error } = paymentFeatureAvailable
-        ? await supabase.from("rent_payments").insert(
-            selected.map((charge) => ({
-              charge_id: charge.id,
-              owner_id: charge.owner_id,
-              tenant_id: charge.tenant_id,
-              amount: getRentChargeBalance(charge),
-              paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
-              note: bulkPaymentNote.trim() || null,
-            })),
-          )
-        : await supabase
-            .from("rent_charges")
-            .update({
-              paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
-              payment_note: bulkPaymentNote.trim() || null,
-            })
-            .in("id", ids);
-      if (error) throw new Error(error.message);
+      let receiptPath: string | null = null;
+      try {
+        if (paymentMethodsAvailable && !bulkPaymentCash && bulkPaymentReceipt) {
+          if (!user) throw new Error("Не удалось определить пользователя");
+          receiptPath = await uploadFile(PAYMENT_RECEIPTS, user.id, bulkPaymentReceipt);
+        }
+        const { error } = paymentFeatureAvailable
+          ? await supabase.from("rent_payments").insert(
+              selected.map((charge) => ({
+                charge_id: charge.id,
+                owner_id: charge.owner_id,
+                tenant_id: charge.tenant_id,
+                amount: getRentChargeBalance(charge),
+                paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
+                ...(paymentMethodsAvailable
+                  ? {
+                      payment_method: bulkPaymentCash ? "cash" : "bank_transfer",
+                      receipt_file: receiptPath,
+                    }
+                  : {}),
+                note: bulkPaymentNote.trim() || null,
+              })),
+            )
+          : await supabase
+              .from("rent_charges")
+              .update({
+                paid_at: new Date(`${bulkPaidDate}T12:00:00`).toISOString(),
+                payment_note: bulkPaymentNote.trim() || null,
+              })
+              .in("id", ids);
+        if (error) throw new Error(error.message);
+      } catch (error) {
+        if (receiptPath) await removeFile(PAYMENT_RECEIPTS, receiptPath).catch(() => undefined);
+        throw error;
+      }
       return ids.length;
     },
     onSuccess: (count) => {
       toast.success(`Оплачено начислений: ${count}`);
       setBulkPaymentOpen(false);
+      setBulkPaymentReceipt(null);
       setSelectedChargeIds(new Set());
       void qc.invalidateQueries({ queryKey: ["rent-charges"] });
       void qc.invalidateQueries({ queryKey: ["rent-payments"] });
@@ -1292,16 +1325,43 @@ function PaymentsPage() {
                     rows={3}
                   />
                 </div>
-                {receiptFeatureAvailable && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="payment-receipt">Чек или подтверждение, необязательно</Label>
-                    <Input
-                      id="payment-receipt"
-                      type="file"
-                      accept="application/pdf,image/jpeg,image/png,image/webp"
-                      onChange={(event) => setPaymentReceipt(event.target.files?.[0] ?? null)}
+                {paymentMethodsAvailable && (
+                  <label className="flex items-start gap-3 rounded-lg border p-3">
+                    <Checkbox
+                      checked={paymentCash}
+                      onCheckedChange={(checked) => {
+                        setPaymentCash(checked === true);
+                        if (checked === true) setPaymentReceipt(null);
+                      }}
                     />
-                    <p className="text-xs text-muted-foreground">PDF, JPG, PNG или WebP до 10 МБ</p>
+                    <span>
+                      <span className="block text-sm font-medium">Оплата передана наличными</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Для наличной оплаты банковский чек не требуется
+                      </span>
+                    </span>
+                  </label>
+                )}
+                {receiptFeatureAvailable && (!paymentMethodsAvailable || !paymentCash) && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payment-receipt">
+                      {paymentMethodsAvailable
+                        ? "Чек банковского перевода *"
+                        : "Чек или подтверждение, необязательно"}
+                    </Label>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 text-sm hover:bg-muted/40">
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {paymentReceipt?.name ?? "Выберите PDF, JPG, PNG или WebP до 10 МБ"}
+                      </span>
+                      <Input
+                        id="payment-receipt"
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={(event) => setPaymentReceipt(event.target.files?.[0] ?? null)}
+                      />
+                    </label>
                   </div>
                 )}
               </>
@@ -1319,6 +1379,13 @@ function PaymentsPage() {
                       <p className="text-sm font-medium">
                         {formatMoney(payment.amount)} · {formatDate(payment.paid_at)}
                       </p>
+                      {payment.payment_method && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {payment.payment_method === "cash"
+                            ? "Оплата наличными"
+                            : "Банковский перевод"}
+                        </p>
+                      )}
                       {payment.note && (
                         <p className="mt-1 text-xs text-muted-foreground">{payment.note}</p>
                       )}
@@ -1355,7 +1422,12 @@ function PaymentsPage() {
             {selectedCharge && getRentChargeBalance(selectedCharge) > 0 && (
               <Button
                 onClick={() => savePayment.mutate()}
-                disabled={savePayment.isPending || !paidDate || !paymentAmount}
+                disabled={
+                  savePayment.isPending ||
+                  !paidDate ||
+                  !paymentAmount ||
+                  (paymentMethodsAvailable && !paymentCash && !paymentReceipt)
+                }
               >
                 {savePayment.isPending ? "Сохраняем…" : "Добавить платёж"}
               </Button>
@@ -1476,6 +1548,44 @@ function PaymentsPage() {
                 rows={3}
               />
             </div>
+            {paymentMethodsAvailable && (
+              <label className="flex items-start gap-3 rounded-lg border p-3">
+                <Checkbox
+                  checked={bulkPaymentCash}
+                  onCheckedChange={(checked) => {
+                    setBulkPaymentCash(checked === true);
+                    if (checked === true) setBulkPaymentReceipt(null);
+                  }}
+                />
+                <span>
+                  <span className="block text-sm font-medium">Оплата передана наличными</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Галочка применяется ко всем выбранным начислениям
+                  </span>
+                </span>
+              </label>
+            )}
+            {paymentMethodsAvailable && !bulkPaymentCash && (
+              <div className="space-y-1.5">
+                <Label htmlFor="bulk-payment-receipt">Чек банковского перевода *</Label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 text-sm hover:bg-muted/40">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {bulkPaymentReceipt?.name ?? "Выберите PDF, JPG, PNG или WebP до 10 МБ"}
+                  </span>
+                  <Input
+                    id="bulk-payment-receipt"
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(event) => setBulkPaymentReceipt(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Один чек будет прикреплён ко всем выбранным платежам
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkPaymentOpen(false)}>
@@ -1483,7 +1593,12 @@ function PaymentsPage() {
             </Button>
             <Button
               onClick={() => saveBulkPayment.mutate()}
-              disabled={saveBulkPayment.isPending || selectedChargeIds.size === 0 || !bulkPaidDate}
+              disabled={
+                saveBulkPayment.isPending ||
+                selectedChargeIds.size === 0 ||
+                !bulkPaidDate ||
+                (paymentMethodsAvailable && !bulkPaymentCash && !bulkPaymentReceipt)
+              }
             >
               {saveBulkPayment.isPending ? "Сохраняем…" : "Подтвердить оплату"}
             </Button>

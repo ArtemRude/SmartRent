@@ -586,6 +586,7 @@ export type Database = {
           note: string | null
           owner_id: string
           paid_at: string
+          payment_method: string
           receipt_file: string | null
           tenant_id: string
         }
@@ -598,6 +599,7 @@ export type Database = {
           note?: string | null
           owner_id: string
           paid_at: string
+          payment_method?: string
           receipt_file?: string | null
           tenant_id: string
         }
@@ -610,6 +612,7 @@ export type Database = {
           note?: string | null
           owner_id?: string
           paid_at?: string
+          payment_method?: string
           receipt_file?: string | null
           tenant_id?: string
         }
