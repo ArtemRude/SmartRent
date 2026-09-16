@@ -588,6 +588,42 @@ GitHub Actions повторяет `verify`, database-тесты и полный 
 одноразовый локальный Supabase внутри GitHub Runner и не требуют production
 секретов.
 
+### Деплой миграций Supabase
+
+Workflow `.github/workflows/deploy-supabase.yml` применяет миграции к production
+только из `main`. Перед первым запуском создайте GitHub Environment `production`
+и добавьте в него secrets:
+
+- `SUPABASE_ACCESS_TOKEN` — personal access token Supabase;
+- `SUPABASE_DB_PASSWORD` — пароль production-базы.
+
+Также добавьте repository variables:
+
+- `SUPABASE_PRODUCTION_PROJECT_ID` — ref production-проекта (для текущего проекта
+  `xmvobamndxfxmxukviww`);
+- `SUPABASE_PRODUCTION_DEPLOY_ENABLED` — установите `true` только после успешной
+  первой синхронизации.
+
+Первую синхронизацию запускайте вручную через GitHub Actions →
+`Deploy Supabase migrations` → `Run workflow`. Workflow сначала выполняет
+`db push --dry-run`, затем применяет только ожидающие миграции без seed-данных и
+показывает итоговый список версий.
+
+Если первая проверка сообщает о расхождении истории, не применяйте
+`migration repair` вслепую. Сначала сравните локальный и удалённый список через
+`supabase migration list --linked` и фактическую схему production. После успешной
+ручной синхронизации включите `SUPABASE_PRODUCTION_DEPLOY_ENABLED=true`: новые
+миграции будут применяться автоматически после успешного CI для push в `main`.
+
+Для дополнительной защиты включите required reviewers у GitHub Environment
+`production`. Workflow не отменяет уже начавшийся deploy при появлении нового
+коммита и никогда не выполняет удалённый `db reset`.
+
+Используйте только один механизм production-деплоя. Если в Supabase GitHub
+Integration уже включён `Deploy to production`, не включайте
+`SUPABASE_PRODUCTION_DEPLOY_ENABLED` для этого workflow, чтобы два процесса не
+применяли миграции одновременно.
+
 Prefer working locally? You need Node.js 22+ and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
