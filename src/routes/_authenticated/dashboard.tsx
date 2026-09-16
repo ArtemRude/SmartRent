@@ -25,6 +25,7 @@ import {
   fetchAgreements,
   fetchProperties,
   fetchRentCharges,
+  fetchRentPayments,
   fetchRequests,
   fetchTenants,
 } from "@/lib/queries";
@@ -37,6 +38,7 @@ import {
   getRentChargeTotal,
   localDateKey,
 } from "@/lib/domain";
+import { sumPaymentsForMonth } from "@/lib/payment-analytics";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -89,7 +91,8 @@ function Dashboard() {
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const requests = useQuery({ queryKey: ["requests"], queryFn: fetchRequests });
   const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
-  const queries = [properties, tenants, agreements, requests, charges];
+  const payments = useQuery({ queryKey: ["rent-payments"], queryFn: fetchRentPayments });
+  const queries = [properties, tenants, agreements, requests, charges, payments];
 
   const openRequests = (requests.data ?? []).filter((r) => r.status !== "closed");
   const today = localDateKey();
@@ -103,9 +106,11 @@ function Dashboard() {
   const debt = (charges.data ?? [])
     .filter((charge) => charge.paid_at == null && charge.due_date < today)
     .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
-  const receivedThisMonth = (charges.data ?? [])
-    .filter((charge) => charge.paid_at?.startsWith(today.slice(0, 7)))
-    .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
+  const receivedThisMonth = payments.data?.available
+    ? sumPaymentsForMonth(payments.data.payments, today.slice(0, 7))
+    : (charges.data ?? [])
+        .filter((charge) => charge.paid_at?.startsWith(today.slice(0, 7)))
+        .reduce((sum, charge) => sum + getRentChargeTotal(charge), 0);
   const overdueCharges = (charges.data ?? [])
     .filter((charge) => charge.paid_at == null && charge.due_date < today)
     .sort((a, b) => a.due_date.localeCompare(b.due_date));

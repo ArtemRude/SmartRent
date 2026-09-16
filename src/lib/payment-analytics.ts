@@ -12,6 +12,15 @@ export type PaymentAnalyticsGroup = {
   paid: number;
 };
 
+export function sumPaymentsForMonth(
+  payments: Array<{ amount: number; paid_at: string }>,
+  month: string,
+) {
+  return payments
+    .filter((payment) => payment.paid_at.slice(0, 7) === month)
+    .reduce((sum, payment) => sum + Number(payment.amount), 0);
+}
+
 export function buildPaymentAnalytics(items: PaymentAnalyticsItem[]) {
   let accrued = 0;
   let paid = 0;

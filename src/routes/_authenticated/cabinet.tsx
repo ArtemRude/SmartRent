@@ -5,9 +5,11 @@ import {
   BadgeCheck,
   Building2,
   CalendarDays,
+  ChevronDown,
   CreditCard,
   Download,
   FileText,
+  History,
   Inbox,
   MapPin,
   Paperclip,
@@ -19,6 +21,7 @@ import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
+import { PaymentReportStatusBadge } from "@/components/PaymentReportStatusBadge";
 import { StorageImage } from "@/components/StorageImage";
 import {
   AlertDialog,
@@ -90,6 +93,7 @@ function CabinetPage() {
   const [reportCash, setReportCash] = useState(false);
   const [reportReceipt, setReportReceipt] = useState<File | null>(null);
   const [reportNote, setReportNote] = useState("");
+  const [reportHistoryExpanded, setReportHistoryExpanded] = useState(false);
   const tenants = useQuery({
     queryKey: ["my-tenant-records", user?.id],
     queryFn: () => fetchMyTenantRecords(user!.id),
@@ -222,6 +226,10 @@ function CabinetPage() {
       .filter((report) => report.status === "pending")
       .map((report) => [report.charge_id, report]),
   );
+  const allPaymentReports = paymentReports.data?.reports ?? [];
+  const visiblePaymentReports = reportHistoryExpanded
+    ? allPaymentReports
+    : allPaymentReports.slice(0, 5);
 
   const openPaymentReport = (charge: RentCharge) => {
     setReportCharge(charge);
@@ -525,6 +533,82 @@ function CabinetPage() {
                 <p className="mt-3 text-xs text-amber-700">
                   Сообщения об оплате появятся после применения последней миграции Supabase.
                 </p>
+              )}
+              {visiblePaymentReports.length > 0 && (
+                <div className="mt-5 border-t pt-4">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    <History className="h-4 w-4" /> История сообщений об оплате
+                  </h3>
+                  <div className="mt-3 space-y-2">
+                    {visiblePaymentReports.map((report) => {
+                      const charge = charges.data?.find((item) => item.id === report.charge_id);
+                      const agreement = agreements.data?.find(
+                        (item) => item.id === charge?.agreement_id,
+                      );
+                      const property = properties.data?.find(
+                        (item) => item.id === agreement?.property_id,
+                      );
+                      return (
+                        <div key={report.id} className="rounded-lg bg-muted/50 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {property?.name ?? "Объект аренды"}
+                              </p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {formatMoney(report.amount)} · {formatDate(report.paid_at)} ·{" "}
+                                {report.payment_method === "cash"
+                                  ? "наличными"
+                                  : "банковский перевод"}
+                              </p>
+                            </div>
+                            <PaymentReportStatusBadge status={report.status} />
+                          </div>
+                          {report.review_note && (
+                            <p className="mt-2 text-xs">Причина: {report.review_note}</p>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">
+                              {report.reviewed_at
+                                ? `Решение: ${formatDateTime(report.reviewed_at)}`
+                                : `Отправлено: ${formatDateTime(report.created_at)}`}
+                            </p>
+                            {report.receipt_file && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  void downloadFile(
+                                    PAYMENT_RECEIPTS,
+                                    report.receipt_file!,
+                                    "Чек-оплаты",
+                                  ).catch((error: Error) => toast.error(error.message))
+                                }
+                              >
+                                <Download className="h-4 w-4" /> Чек
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {allPaymentReports.length > 5 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-2"
+                      onClick={() => setReportHistoryExpanded((current) => !current)}
+                    >
+                      {reportHistoryExpanded
+                        ? "Свернуть"
+                        : `Показать всю историю (${allPaymentReports.length})`}
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${reportHistoryExpanded ? "rotate-180" : ""}`}
+                      />
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildPaymentAnalytics } from "../src/lib/payment-analytics.ts";
+import { buildPaymentAnalytics, sumPaymentsForMonth } from "../src/lib/payment-analytics.ts";
 
 test("buildPaymentAnalytics aggregates months and properties", () => {
   const result = buildPaymentAnalytics([
@@ -66,4 +66,17 @@ test("buildPaymentAnalytics includes partial payments", () => {
   assert.equal(result.paid, 25_000);
   assert.equal(result.unpaid, 35_000);
   assert.equal(result.collectionRate, 42);
+});
+
+test("sumPaymentsForMonth uses actual partial payments from the selected month", () => {
+  const result = sumPaymentsForMonth(
+    [
+      { amount: 10_000, paid_at: "2026-09-03T12:00:00.000Z" },
+      { amount: 7_500, paid_at: "2026-09-18T12:00:00.000Z" },
+      { amount: 50_000, paid_at: "2026-08-31T12:00:00.000Z" },
+    ],
+    "2026-09",
+  );
+
+  assert.equal(result, 17_500);
 });
