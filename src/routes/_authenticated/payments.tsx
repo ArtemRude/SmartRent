@@ -563,6 +563,36 @@ function PaymentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const sendAllReminders = useMutation({
+    mutationFn: async (agreementIds: string[]) => {
+      const settled = await Promise.allSettled(agreementIds.map(sendPaymentReminder));
+      const results = settled.flatMap((item) => (item.status === "fulfilled" ? [item.value] : []));
+      const failed = settled.filter((item) => item.status === "rejected");
+      if (results.length === 0 && failed.length > 0) {
+        throw failed[0]?.reason ?? new Error("Не удалось отправить напоминания");
+      }
+      return { results, failedCount: failed.length };
+    },
+    onSuccess: ({ results, failedCount }) => {
+      const sent = results.filter((result) => result === "sent").length;
+      const alreadySent = results.filter((result) => result === "already_sent").length;
+      const notConnected = results.filter((result) => result === "tenant_not_connected").length;
+      const noDebt = results.filter((result) => result === "no_debt").length;
+      const summary = [
+        sent > 0 && `отправлено — ${sent}`,
+        alreadySent > 0 && `уже отправляли сегодня — ${alreadySent}`,
+        notConnected > 0 && `арендаторы не подключены — ${notConnected}`,
+        noDebt > 0 && `долг уже погашен — ${noDebt}`,
+        failedCount > 0 && `ошибка отправки — ${failedCount}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      if (sent > 0) toast.success(`Напоминания: ${summary}`);
+      else toast.info(`Напоминания: ${summary}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const loading = [charges, payments, agreements, properties, units, tenants].some(
     (query) => query.isPending,
   );
@@ -884,7 +914,9 @@ function PaymentsPage() {
           groups={debtGroups}
           onPay={openDebtPayment}
           onRemind={(agreementId) => sendReminder.mutate(agreementId)}
+          onRemindAll={(agreementIds) => sendAllReminders.mutate(agreementIds)}
           remindingAgreementId={sendReminder.isPending ? sendReminder.variables : null}
+          remindingAll={sendAllReminders.isPending}
         />
       )}
 

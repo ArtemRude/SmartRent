@@ -115,7 +115,9 @@ function NotificationsPage() {
     (notification) => notification.read_at == null,
   ).length;
   const reminderNotifications = allNotifications.filter((notification) =>
-    ["agreement_expiring", "payment_due", "payment_overdue"].includes(notification.kind),
+    ["agreement_expiring", "payment_due", "payment_overdue", "payment_reminder"].includes(
+      notification.kind,
+    ),
   );
   const visibleNotifications =
     filter === "unread"
@@ -236,7 +238,11 @@ function NotificationsPage() {
           <CardContent className="p-10 text-center">
             <Bell className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-3 font-medium">
-              {filter === "unread" ? "Новых уведомлений нет" : "Уведомлений пока нет"}
+              {filter === "unread"
+                ? "Новых уведомлений нет"
+                : filter === "reminders"
+                  ? "Напоминаний пока нет"
+                  : "Уведомлений пока нет"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Здесь появятся новые заявки, комментарии и изменения по аренде.

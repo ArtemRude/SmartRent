@@ -10,12 +10,16 @@ export function DebtCenter({
   groups,
   onPay,
   onRemind,
+  onRemindAll,
   remindingAgreementId,
+  remindingAll,
 }: {
   groups: DebtGroup[];
   onPay: (chargeIds: string[]) => void;
   onRemind: (agreementId: string) => void;
+  onRemindAll: (agreementIds: string[]) => void;
   remindingAgreementId?: string | null;
+  remindingAll?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visibleGroups = expanded ? groups : groups.slice(0, 4);
@@ -38,9 +42,27 @@ export function DebtCenter({
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-destructive/10 px-3 py-1 text-sm font-medium text-destructive">
-            Требует внимания
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {groups.length > 1 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={remindingAll || Boolean(remindingAgreementId)}
+                onClick={() => onRemindAll(groups.map((group) => group.agreementId))}
+              >
+                {remindingAll ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <BellRing className="h-4 w-4" />
+                )}
+                Напомнить всем
+              </Button>
+            )}
+            <span className="rounded-full bg-destructive/10 px-3 py-1 text-sm font-medium text-destructive">
+              Требует внимания
+            </span>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-2">
@@ -74,7 +96,7 @@ export function DebtCenter({
                   type="button"
                   size="sm"
                   variant="secondary"
-                  disabled={remindingAgreementId === group.agreementId}
+                  disabled={remindingAll || Boolean(remindingAgreementId)}
                   onClick={() => onRemind(group.agreementId)}
                 >
                   {remindingAgreementId === group.agreementId ? (
