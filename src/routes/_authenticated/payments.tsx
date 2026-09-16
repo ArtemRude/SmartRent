@@ -83,6 +83,7 @@ import {
   fetchRentPayments,
   fetchTenants,
   fetchUnits,
+  sendPaymentReminder,
   type RentCharge,
   type RentPayment,
 } from "@/lib/queries";
@@ -547,6 +548,21 @@ function PaymentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const sendReminder = useMutation({
+    mutationFn: sendPaymentReminder,
+    onSuccess: (result) => {
+      const messages = {
+        sent: "Напоминание отправлено арендатору",
+        already_sent: "Сегодня напоминание по этому договору уже отправляли",
+        tenant_not_connected: "Арендатор ещё не зарегистрирован в сервисе",
+        no_debt: "Задолженность по договору уже погашена",
+      } as const;
+      if (result === "sent") toast.success(messages[result]);
+      else toast.info(messages[result]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const loading = [charges, payments, agreements, properties, units, tenants].some(
     (query) => query.isPending,
   );
@@ -864,7 +880,12 @@ function PaymentsPage() {
       </div>
 
       {!loading && !failed && role !== "tenant" && (
-        <DebtCenter groups={debtGroups} onPay={openDebtPayment} />
+        <DebtCenter
+          groups={debtGroups}
+          onPay={openDebtPayment}
+          onRemind={(agreementId) => sendReminder.mutate(agreementId)}
+          remindingAgreementId={sendReminder.isPending ? sendReminder.variables : null}
+        />
       )}
 
       {adjustmentEvents.data?.available === false && role !== "tenant" && (

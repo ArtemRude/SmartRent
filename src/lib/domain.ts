@@ -14,7 +14,8 @@ export type NotificationKind =
   | "agreement_expiring"
   | "payment_status"
   | "payment_due"
-  | "payment_overdue";
+  | "payment_overdue"
+  | "payment_reminder";
 export type NotificationHref = "/requests" | "/payments" | "/agreements" | "/cabinet";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
@@ -68,6 +69,7 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   payment_status: "Оплата",
   payment_due: "Срок оплаты",
   payment_overdue: "Просрочка",
+  payment_reminder: "Напоминание об оплате",
 };
 
 export function formatMoney(value: number | null | undefined) {

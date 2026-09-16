@@ -303,6 +303,19 @@ export const fetchNotifications = async () =>
     supabase.from("notifications").select("*").order("created_at", { ascending: false }).limit(100),
   )) as NotificationRow[];
 
+export type PaymentReminderResult = "sent" | "already_sent" | "tenant_not_connected" | "no_debt";
+
+export const sendPaymentReminder = async (agreementId: string) => {
+  const { data, error } = await supabase.rpc("send_payment_reminder", {
+    p_agreement_id: agreementId,
+  });
+  if (error?.code === "PGRST202") {
+    throw new Error("Напоминания станут доступны после применения миграции Supabase");
+  }
+  if (error) throw new Error(error.message);
+  return data as PaymentReminderResult;
+};
+
 export const fetchReminderSettings = async (ownerId: string) => {
   const { data, error } = await supabase
     .from("reminder_settings")

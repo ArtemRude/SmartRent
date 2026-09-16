@@ -5,6 +5,7 @@ import {
   FileText,
   Inbox,
   MessageCircle,
+  Send,
   type LucideIcon,
 } from "lucide-react";
 import type { NotificationKind } from "@/lib/domain";
@@ -20,4 +21,5 @@ export const notificationIcons: Record<NotificationKind, LucideIcon> = {
   payment_status: CreditCard,
   payment_due: CalendarClock,
   payment_overdue: CircleAlert,
+  payment_reminder: Send,
 };

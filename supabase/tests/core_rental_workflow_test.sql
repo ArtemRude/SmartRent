@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(72);
+SELECT plan(76);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1153,6 +1153,56 @@ SELECT results_eq(
   $$,
   ARRAY[10000::numeric],
   'owner can remove a mistaken payment and reopen the balance'
+);
+
+RESET ROLE;
+UPDATE public.rent_charges
+SET due_date = CURRENT_DATE - 1
+WHERE id = (
+  SELECT id
+  FROM public.rent_charges
+  WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+  ORDER BY period_start
+  LIMIT 1
+);
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT public.send_payment_reminder('50000000-0000-0000-0000-000000000002')$$,
+  ARRAY['sent'::text],
+  'owner can remind a connected tenant about overdue rent'
+);
+
+SELECT results_eq(
+  $$SELECT public.send_payment_reminder('50000000-0000-0000-0000-000000000002')$$,
+  ARRAY['already_sent'::text],
+  'only one manual reminder is sent per agreement each day'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.notifications WHERE kind = 'payment_reminder'$$,
+  ARRAY[1::bigint],
+  'tenant sees the manual payment reminder'
+);
+
+SELECT throws_ok(
+  $$SELECT public.send_payment_reminder('50000000-0000-0000-0000-000000000002')$$,
+  '42501',
+  'Agreement is unavailable',
+  'tenant cannot send a payment reminder'
 );
 
 SELECT * FROM finish();

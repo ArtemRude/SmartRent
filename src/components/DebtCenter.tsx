@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowRight, CalendarClock } from "lucide-react";
+import { AlertTriangle, ArrowRight, BellRing, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate, formatMoney } from "@/lib/domain";
@@ -9,9 +9,13 @@ import type { DebtGroup } from "@/lib/debt-center";
 export function DebtCenter({
   groups,
   onPay,
+  onRemind,
+  remindingAgreementId,
 }: {
   groups: DebtGroup[];
   onPay: (chargeIds: string[]) => void;
+  onRemind: (agreementId: string) => void;
+  remindingAgreementId?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visibleGroups = expanded ? groups : groups.slice(0, 4);
@@ -65,6 +69,20 @@ export function DebtCenter({
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => onPay(group.chargeIds)}>
                   Отметить оплату
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={remindingAgreementId === group.agreementId}
+                  onClick={() => onRemind(group.agreementId)}
+                >
+                  {remindingAgreementId === group.agreementId ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <BellRing className="h-4 w-4" />
+                  )}
+                  Напомнить
                 </Button>
                 <Button asChild size="sm" variant="outline">
                   <Link to="/agreements" search={{ agreementId: group.agreementId }}>

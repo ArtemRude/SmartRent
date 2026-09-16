@@ -687,6 +687,10 @@ export type Database = {
       }
       is_my_tenant_record: { Args: { _tenant_id: string }; Returns: boolean }
       owns_property: { Args: { _property_id: string }; Returns: boolean }
+      send_payment_reminder: {
+        Args: { p_agreement_id: string }
+        Returns: string
+      }
       tenant_can_see_property: {
         Args: { _property_id: string }
         Returns: boolean
