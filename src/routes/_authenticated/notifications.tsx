@@ -179,7 +179,7 @@ function NotificationsPage() {
       {role === "owner" && reminderSettings.isError && (
         <Card className="mb-4 border-destructive/20">
           <CardContent className="p-5 text-sm text-destructive">
-            Не удалось загрузить настройки напоминаний. Проверьте применение миграции Supabase.
+            Настройки напоминаний временно недоступны. Попробуйте обновить страницу позже.
           </CardContent>
         </Card>
       )}
@@ -216,7 +216,7 @@ function NotificationsPage() {
       )}
       {notifications.isError && (
         <p className="text-sm text-destructive">
-          Не удалось загрузить уведомления. Проверьте применение миграции Supabase.
+          Не удалось загрузить уведомления. Попробуйте обновить страницу позже.
         </p>
       )}
 

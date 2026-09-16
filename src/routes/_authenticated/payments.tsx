@@ -20,6 +20,7 @@ import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { DebtCenter } from "@/components/DebtCenter";
+import { FeatureAvailabilityNotice } from "@/components/FeatureAvailabilityNotice";
 import { PaymentAnalyticsCharts } from "@/components/PaymentAnalyticsCharts";
 import { PaymentReportsPanel } from "@/components/PaymentReportsPanel";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
@@ -660,6 +661,25 @@ function PaymentsPage() {
   ];
   const loading = pageQueries.some((query) => query.isPending);
   const failed = pageQueries.some((query) => query.isError);
+  const availabilityIssues =
+    role === "tenant"
+      ? []
+      : [
+          paymentReports.data?.available === false &&
+            canReviewPaymentReports &&
+            "Недоступна проверка сообщений арендаторов об оплате",
+          adjustmentEvents.data?.available === false && "Недоступны корректировки начислений",
+          payments.data?.available === false && "Недоступны частичные оплаты и история поступлений",
+          payments.data?.available === true &&
+            !receiptFeatureAvailable &&
+            "Недоступно прикрепление чеков",
+          payments.data?.available === true &&
+            receiptFeatureAvailable &&
+            !paymentMethodsAvailable &&
+            "Недоступен выбор способа оплаты",
+        ].filter((issue): issue is string => Boolean(issue));
+  const availabilityRetrying =
+    paymentReports.isFetching || adjustmentEvents.isFetching || payments.isFetching;
 
   const agreementFor = (charge: RentCharge) =>
     agreements.data?.find((agreement) => agreement.id === charge.agreement_id);
@@ -1007,31 +1027,18 @@ function PaymentsPage() {
         />
       )}
 
-      {paymentReports.data?.available === false && canReviewPaymentReports && (
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Подтверждение оплат арендаторов появится после применения последней миграции Supabase.
-        </p>
-      )}
-
-      {adjustmentEvents.data?.available === false && role !== "tenant" && (
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Корректировки начислений появятся после применения последней миграции Supabase. Остальные
-          операции с платежами доступны.
-        </p>
-      )}
-
-      {payments.data?.available === false && role !== "tenant" && (
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Частичные оплаты и история платежей появятся после применения последней миграции Supabase.
-          До этого работает прежняя отметка полной оплаты.
-        </p>
-      )}
-
-      {payments.data?.available === true && !receiptFeatureAvailable && role !== "tenant" && (
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Прикрепление чеков появится после применения последней миграции Supabase.
-        </p>
-      )}
+      <FeatureAvailabilityNotice
+        issues={availabilityIssues}
+        isAdmin={role === "admin"}
+        retrying={availabilityRetrying}
+        onRetry={() => {
+          void Promise.all([
+            paymentReports.refetch(),
+            adjustmentEvents.refetch(),
+            payments.refetch(),
+          ]);
+        }}
+      />
 
       {!loading && !failed && visibleCharges.length > 0 && (
         <Card className="mt-4">
@@ -1115,7 +1122,7 @@ function PaymentsPage() {
       {loading && <p className="mt-4 text-sm text-muted-foreground">Загружаем платежи…</p>}
       {failed && (
         <p className="mt-4 text-sm text-destructive">
-          Не удалось загрузить начисления. Проверьте применение миграции Supabase.
+          Не удалось загрузить начисления. Попробуйте обновить страницу позже.
         </p>
       )}
 

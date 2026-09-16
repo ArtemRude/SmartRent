@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Clock3, XCircle } from "lucide-react";
 import type { PaymentReport } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,11 @@ const statusDetails = {
     label: "Отклонено",
     icon: XCircle,
     className: "bg-red-100 text-red-800",
+  },
+  cancelled: {
+    label: "Отменено",
+    icon: Ban,
+    className: "bg-muted text-muted-foreground",
   },
 } satisfies Record<
   PaymentReport["status"],

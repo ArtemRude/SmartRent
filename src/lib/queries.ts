@@ -148,9 +148,10 @@ export type PaymentReport = {
   payment_method: "bank_transfer" | "cash";
   receipt_file: string | null;
   note: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "cancelled";
   reviewed_by: string | null;
   reviewed_at: string | null;
+  cancelled_at: string | null;
   review_note: string | null;
   payment_id: string | null;
   created_at: string;
@@ -372,10 +373,21 @@ export const reviewPaymentReport = async ({
     ...(reviewNote !== undefined ? { p_review_note: reviewNote } : {}),
   });
   if (error?.code === "PGRST202") {
-    throw new Error("Подтверждение оплат станет доступно после применения миграции Supabase");
+    throw new Error("Подтверждение оплат временно недоступно");
   }
   if (error) throw new Error(error.message);
   return data as "approved" | "rejected";
+};
+
+export const cancelPaymentReport = async (reportId: string) => {
+  const { data, error } = await supabase.rpc("cancel_payment_report", {
+    p_report_id: reportId,
+  });
+  if (error?.code === "PGRST202") {
+    throw new Error("Отмена сообщения временно недоступна");
+  }
+  if (error) throw new Error(error.message);
+  return data as "cancelled";
 };
 
 export const fetchNotifications = async () =>
@@ -390,7 +402,7 @@ export const sendPaymentReminder = async (agreementId: string) => {
     p_agreement_id: agreementId,
   });
   if (error?.code === "PGRST202") {
-    throw new Error("Напоминания станут доступны после применения миграции Supabase");
+    throw new Error("Напоминания временно недоступны");
   }
   if (error) throw new Error(error.message);
   return data as PaymentReminderResult;

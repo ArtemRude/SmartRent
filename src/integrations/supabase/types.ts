@@ -239,6 +239,7 @@ export type Database = {
       payment_reports: {
         Row: {
           amount: number
+          cancelled_at: string | null
           charge_id: string
           created_at: string
           id: string
@@ -257,6 +258,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          cancelled_at?: string | null
           charge_id: string
           created_at?: string
           id?: string
@@ -275,6 +277,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          cancelled_at?: string | null
           charge_id?: string
           created_at?: string
           id?: string
@@ -759,6 +762,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_payment_report: {
+        Args: { p_report_id: string }
+        Returns: string
+      }
       can_see_request: { Args: { _request_id: string }; Returns: boolean }
       has_role: {
         Args: {

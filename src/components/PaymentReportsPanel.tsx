@@ -61,7 +61,7 @@ export function PaymentReportsPanel({
               <p className="mt-1 text-sm text-muted-foreground">
                 {pending.length > 0
                   ? "Проверьте чек или отметку о передаче наличных"
-                  : "История подтверждений и отклонений"}
+                  : "История сообщений и решений"}
               </p>
             </div>
             {pending.length > 0 && (
@@ -157,7 +157,7 @@ export function PaymentReportsPanel({
           {reviewed.length > 0 && (
             <div className={pending.length > 0 ? "mt-6 border-t pt-5" : "mt-5"}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-medium">История решений</h3>
+                <h3 className="font-medium">История сообщений</h3>
                 <span className="text-xs text-muted-foreground">Всего: {reviewed.length}</span>
               </div>
               <div className="mt-3 space-y-2">

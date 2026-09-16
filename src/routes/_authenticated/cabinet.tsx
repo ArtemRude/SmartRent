@@ -13,6 +13,7 @@ import {
   Inbox,
   MapPin,
   Paperclip,
+  RotateCcw,
   Ruler,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ import {
   propertyTypeLabels,
 } from "@/lib/domain";
 import {
+  cancelPaymentReport,
   fetchAgreements,
   fetchAgreementAcceptances,
   fetchAgreementStatusEvents,
@@ -186,7 +188,7 @@ function CabinetPage() {
           note: reportNote.trim() || null,
         });
         if (error?.code === "PGRST205" || error?.code === "42501") {
-          throw new Error("Сообщение об оплате станет доступно после применения миграции Supabase");
+          throw new Error("Сообщения об оплате временно недоступны");
         }
         if (error) throw new Error(error.message);
       } catch (error) {
@@ -198,6 +200,15 @@ function CabinetPage() {
       toast.success("Сообщение об оплате отправлено собственнику");
       setReportCharge(null);
       setReportReceipt(null);
+      void qc.invalidateQueries({ queryKey: ["payment-reports"] });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const cancelReport = useMutation({
+    mutationFn: cancelPaymentReport,
+    onSuccess: () => {
+      toast.success("Сообщение об оплате отменено");
       void qc.invalidateQueries({ queryKey: ["payment-reports"] });
       void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -530,9 +541,21 @@ function CabinetPage() {
                 )}
               </div>
               {paymentReports.data?.available === false && (
-                <p className="mt-3 text-xs text-amber-700">
-                  Сообщения об оплате появятся после применения последней миграции Supabase.
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-amber-700">
+                  <span>Сообщения об оплате временно недоступны.</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    disabled={paymentReports.isFetching}
+                    onClick={() => void paymentReports.refetch()}
+                  >
+                    <RotateCcw
+                      className={`h-3.5 w-3.5 ${paymentReports.isFetching ? "animate-spin" : ""}`}
+                    />
+                    Проверить снова
+                  </Button>
+                </div>
               )}
               {visiblePaymentReports.length > 0 && (
                 <div className="mt-5 border-t pt-4">
@@ -569,25 +592,61 @@ function CabinetPage() {
                           )}
                           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                             <p className="text-xs text-muted-foreground">
-                              {report.reviewed_at
-                                ? `Решение: ${formatDateTime(report.reviewed_at)}`
-                                : `Отправлено: ${formatDateTime(report.created_at)}`}
+                              {report.cancelled_at
+                                ? `Отменено: ${formatDateTime(report.cancelled_at)}`
+                                : report.reviewed_at
+                                  ? `Решение: ${formatDateTime(report.reviewed_at)}`
+                                  : `Отправлено: ${formatDateTime(report.created_at)}`}
                             </p>
-                            {report.receipt_file && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  void downloadFile(
-                                    PAYMENT_RECEIPTS,
-                                    report.receipt_file!,
-                                    "Чек-оплаты",
-                                  ).catch((error: Error) => toast.error(error.message))
-                                }
-                              >
-                                <Download className="h-4 w-4" /> Чек
-                              </Button>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1">
+                              {report.receipt_file && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    void downloadFile(
+                                      PAYMENT_RECEIPTS,
+                                      report.receipt_file!,
+                                      "Чек-оплаты",
+                                    ).catch((error: Error) => toast.error(error.message))
+                                  }
+                                >
+                                  <Download className="h-4 w-4" /> Чек
+                                </Button>
+                              )}
+                              {report.status === "pending" && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      disabled={cancelReport.isPending}
+                                    >
+                                      Отменить
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Отменить сообщение об оплате?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Собственник больше не сможет подтвердить это сообщение. При
+                                        необходимости вы сможете отправить новое.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Оставить</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => cancelReport.mutate(report.id)}
+                                      >
+                                        Отменить сообщение
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

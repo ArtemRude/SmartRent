@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(95);
+SELECT plan(99);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1350,6 +1350,46 @@ SELECT lives_ok(
   'tenant can report a cash payment without a receipt'
 );
 
+SELECT lives_ok(
+  $$
+    INSERT INTO public.payment_reports (
+      id, charge_id, owner_id, tenant_id, amount, paid_at, payment_method
+    )
+    SELECT
+      '91000000-0000-0000-0000-000000000003',
+      id,
+      owner_id,
+      tenant_id,
+      3000,
+      now(),
+      'cash'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 2
+    LIMIT 1
+  $$,
+  'tenant can create a payment report that will be cancelled'
+);
+
+SELECT results_eq(
+  $$SELECT public.cancel_payment_report('91000000-0000-0000-0000-000000000003')$$,
+  ARRAY['cancelled'::text],
+  'tenant can cancel their pending payment report'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.payment_reports
+    WHERE id = '91000000-0000-0000-0000-000000000003'
+      AND status = 'cancelled'
+      AND cancelled_at IS NOT NULL
+  $$,
+  ARRAY[1::bigint],
+  'cancelled payment report keeps an audit timestamp'
+);
+
 SELECT throws_ok(
   $$
     INSERT INTO public.payment_reports (
@@ -1380,6 +1420,13 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$SELECT public.cancel_payment_report('91000000-0000-0000-0000-000000000001')$$,
+  '42501',
+  'Payment report is unavailable',
+  'unrelated tenant cannot cancel another tenant payment report'
+);
 
 SELECT results_eq(
   $$SELECT count(*) FROM public.payment_reports$$,
@@ -1443,8 +1490,8 @@ SET LOCAL ROLE authenticated;
 
 SELECT results_eq(
   $$SELECT status FROM public.payment_reports ORDER BY status$$,
-  ARRAY['approved'::text, 'rejected'::text],
-  'tenant sees the review status of both payment reports'
+  ARRAY['approved'::text, 'cancelled'::text, 'rejected'::text],
+  'tenant sees approved, cancelled, and rejected payment reports'
 );
 
 SELECT results_eq(
