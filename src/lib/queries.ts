@@ -135,6 +135,30 @@ export type RentPaymentState = {
   receiptsAvailable: boolean;
 };
 
+export type PaymentReport = {
+  id: string;
+  charge_id: string;
+  owner_id: string;
+  tenant_id: string;
+  reported_by: string;
+  amount: number;
+  paid_at: string;
+  payment_method: "bank_transfer" | "cash";
+  receipt_file: string | null;
+  note: string | null;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  payment_id: string | null;
+  created_at: string;
+};
+
+export type PaymentReportState = {
+  reports: PaymentReport[];
+  available: boolean;
+};
+
 export type RentChargeAdjustmentEvent = {
   id: string;
   charge_id: string;
@@ -296,6 +320,39 @@ export const fetchRentChargeAdjustmentEvents = async (): Promise<RentChargeAdjus
   if (error?.code === "PGRST205") return { events: [], available: false };
   if (error) throw new Error(error.message);
   return { events: (data ?? []) as RentChargeAdjustmentEvent[], available: true };
+};
+
+export const fetchPaymentReports = async (): Promise<PaymentReportState> => {
+  const { data, error } = await supabase
+    .from("payment_reports")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error?.code === "PGRST205" || error?.code === "42501") {
+    return { reports: [], available: false };
+  }
+  if (error) throw new Error(error.message);
+  return { reports: (data ?? []) as PaymentReport[], available: true };
+};
+
+export const reviewPaymentReport = async ({
+  reportId,
+  approve,
+  reviewNote,
+}: {
+  reportId: string;
+  approve: boolean;
+  reviewNote?: string;
+}) => {
+  const { data, error } = await supabase.rpc("review_payment_report", {
+    p_report_id: reportId,
+    p_approve: approve,
+    ...(reviewNote !== undefined ? { p_review_note: reviewNote } : {}),
+  });
+  if (error?.code === "PGRST202") {
+    throw new Error("Подтверждение оплат станет доступно после применения миграции Supabase");
+  }
+  if (error) throw new Error(error.message);
+  return data as "approved" | "rejected";
 };
 
 export const fetchNotifications = async () =>

@@ -236,6 +236,85 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_reports: {
+        Row: {
+          amount: number
+          charge_id: string
+          created_at: string
+          id: string
+          note: string | null
+          owner_id: string
+          paid_at: string
+          payment_id: string | null
+          payment_method: string
+          receipt_file: string | null
+          reported_by: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          charge_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          owner_id: string
+          paid_at: string
+          payment_id?: string | null
+          payment_method: string
+          receipt_file?: string | null
+          reported_by?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          charge_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          owner_id?: string
+          paid_at?: string
+          payment_id?: string | null
+          payment_method?: string
+          receipt_file?: string | null
+          reported_by?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_reports_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "rent_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reports_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "rent_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reminder_settings: {
         Row: {
           agreement_expiring_enabled: boolean
@@ -687,6 +766,14 @@ export type Database = {
       }
       is_my_tenant_record: { Args: { _tenant_id: string }; Returns: boolean }
       owns_property: { Args: { _property_id: string }; Returns: boolean }
+      review_payment_report: {
+        Args: {
+          p_approve: boolean
+          p_report_id: string
+          p_review_note?: string
+        }
+        Returns: string
+      }
       send_payment_reminder: {
         Args: { p_agreement_id: string }
         Returns: string

@@ -22,4 +22,6 @@ export const notificationIcons: Record<NotificationKind, LucideIcon> = {
   payment_due: CalendarClock,
   payment_overdue: CircleAlert,
   payment_reminder: Send,
+  payment_reported: CreditCard,
+  payment_report_status: CreditCard,
 };

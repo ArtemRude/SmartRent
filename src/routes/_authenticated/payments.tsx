@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { DebtCenter } from "@/components/DebtCenter";
 import { PaymentAnalyticsCharts } from "@/components/PaymentAnalyticsCharts";
+import { PaymentReportsPanel } from "@/components/PaymentReportsPanel";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { RentForecastPanel } from "@/components/RentForecastPanel";
 import {
@@ -78,11 +79,13 @@ import { downloadFile, PAYMENT_RECEIPTS, removeFile, uploadFile } from "@/lib/st
 import {
   fetchAgreements,
   fetchProperties,
+  fetchPaymentReports,
   fetchRentChargeAdjustmentEvents,
   fetchRentCharges,
   fetchRentPayments,
   fetchTenants,
   fetchUnits,
+  reviewPaymentReport,
   sendPaymentReminder,
   type RentCharge,
   type RentPayment,
@@ -137,9 +140,15 @@ function SummaryCard({
 
 function PaymentsPage() {
   const { role, user } = useAuth();
+  const canReviewPaymentReports = role === "owner" || role === "admin";
   const qc = useQueryClient();
   const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
   const payments = useQuery({ queryKey: ["rent-payments"], queryFn: fetchRentPayments });
+  const paymentReports = useQuery({
+    queryKey: ["payment-reports"],
+    queryFn: fetchPaymentReports,
+    enabled: canReviewPaymentReports,
+  });
   const adjustmentEvents = useQuery({
     queryKey: ["rent-charge-adjustment-events"],
     queryFn: fetchRentChargeAdjustmentEvents,
@@ -593,12 +602,31 @@ function PaymentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const loading = [charges, payments, agreements, properties, units, tenants].some(
-    (query) => query.isPending,
-  );
-  const failed = [charges, payments, agreements, properties, units, tenants].some(
-    (query) => query.isError,
-  );
+  const reviewReport = useMutation({
+    mutationFn: reviewPaymentReport,
+    onSuccess: (status) => {
+      toast.success(
+        status === "approved" ? "Оплата подтверждена" : "Сообщение об оплате отклонено",
+      );
+      void qc.invalidateQueries({ queryKey: ["payment-reports"] });
+      void qc.invalidateQueries({ queryKey: ["rent-charges"] });
+      void qc.invalidateQueries({ queryKey: ["rent-payments"] });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const pageQueries = [
+    charges,
+    payments,
+    agreements,
+    properties,
+    units,
+    tenants,
+    ...(canReviewPaymentReports ? [paymentReports] : []),
+  ];
+  const loading = pageQueries.some((query) => query.isPending);
+  const failed = pageQueries.some((query) => query.isError);
 
   const agreementFor = (charge: RentCharge) =>
     agreements.data?.find((agreement) => agreement.id === charge.agreement_id);
@@ -909,6 +937,32 @@ function PaymentsPage() {
         )}
       </div>
 
+      {!loading && !failed && canReviewPaymentReports && (
+        <PaymentReportsPanel
+          reports={paymentReports.data?.reports ?? []}
+          tenantName={(tenantId) =>
+            tenants.data?.find((tenant) => tenant.id === tenantId)?.name ?? "Арендатор"
+          }
+          propertyName={(chargeId) => {
+            const charge = allCharges.find((item) => item.id === chargeId);
+            return charge ? (propertyFor(charge)?.name ?? "Объект аренды") : "Объект аренды";
+          }}
+          reviewingId={reviewReport.isPending ? reviewReport.variables?.reportId : null}
+          onReceipt={(path) =>
+            void downloadFile(PAYMENT_RECEIPTS, path, "Чек-оплаты").catch((error: Error) =>
+              toast.error(error.message),
+            )
+          }
+          onReview={(reportId, approve, reviewNote) =>
+            reviewReport.mutate({
+              reportId,
+              approve,
+              ...(reviewNote !== undefined ? { reviewNote } : {}),
+            })
+          }
+        />
+      )}
+
       {!loading && !failed && role !== "tenant" && (
         <DebtCenter
           groups={debtGroups}
@@ -918,6 +972,12 @@ function PaymentsPage() {
           remindingAgreementId={sendReminder.isPending ? sendReminder.variables : null}
           remindingAll={sendAllReminders.isPending}
         />
+      )}
+
+      {paymentReports.data?.available === false && canReviewPaymentReports && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Подтверждение оплат арендаторов появится после применения последней миграции Supabase.
+        </p>
       )}
 
       {adjustmentEvents.data?.available === false && role !== "tenant" && (

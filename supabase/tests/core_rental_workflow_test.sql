@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(76);
+SELECT plan(92);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1203,6 +1203,238 @@ SELECT throws_ok(
   '42501',
   'Agreement is unavailable',
   'tenant cannot send a payment reminder'
+);
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.payment_reports (
+      id, charge_id, owner_id, tenant_id, amount, paid_at, payment_method, receipt_file, note
+    )
+    SELECT
+      '91000000-0000-0000-0000-000000000001',
+      id,
+      owner_id,
+      tenant_id,
+      1000,
+      now(),
+      'bank_transfer',
+      '10000000-0000-0000-0000-000000000002/tenant-bank-receipt.pdf',
+      'Перевод по договору'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  'tenant can report a bank transfer with a receipt'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.payment_reports (
+      charge_id, owner_id, tenant_id, amount, paid_at, payment_method
+    )
+    SELECT id, owner_id, tenant_id, 1000, now(), 'bank_transfer'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  '23514',
+  NULL,
+  'bank transfer report requires a receipt'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.payment_reports (
+      charge_id, owner_id, tenant_id, amount, paid_at, payment_method, receipt_file
+    )
+    SELECT
+      id,
+      owner_id,
+      tenant_id,
+      1000,
+      now(),
+      'cash',
+      '10000000-0000-0000-0000-000000000002/unexpected-receipt.pdf'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  '23514',
+  NULL,
+  'cash report uses the cash declaration instead of a bank receipt'
+);
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.payment_reports (
+      id, charge_id, owner_id, tenant_id, amount, paid_at, payment_method
+    )
+    SELECT
+      '91000000-0000-0000-0000-000000000002',
+      id,
+      owner_id,
+      tenant_id,
+      2000,
+      now(),
+      'cash'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    OFFSET 1
+    LIMIT 1
+  $$,
+  'tenant can report a cash payment without a receipt'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.payment_reports (
+      charge_id, owner_id, tenant_id, amount, paid_at, payment_method
+    )
+    SELECT id, owner_id, tenant_id, 500, now(), 'cash'
+    FROM public.rent_charges
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
+    ORDER BY period_start
+    LIMIT 1
+  $$,
+  '23505',
+  NULL,
+  'only one pending report is allowed per charge'
+);
+
+SELECT throws_ok(
+  $$SELECT public.review_payment_report('91000000-0000-0000-0000-000000000001', true)$$,
+  '42501',
+  'Payment report is unavailable',
+  'tenant cannot approve their own payment report'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.payment_reports$$,
+  ARRAY[0::bigint],
+  'unrelated tenant cannot see payment reports'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.payment_reports WHERE status = 'pending'$$,
+  ARRAY[2::bigint],
+  'owner sees pending payment reports for their tenants'
+);
+
+SELECT results_eq(
+  $$SELECT public.review_payment_report('91000000-0000-0000-0000-000000000001', true)$$,
+  ARRAY['approved'::text],
+  'owner can approve a reported bank transfer'
+);
+
+SELECT results_eq(
+  $$
+    SELECT count(*)
+    FROM public.rent_payments AS payment
+    JOIN public.payment_reports AS report ON report.payment_id = payment.id
+    WHERE report.id = '91000000-0000-0000-0000-000000000001'
+      AND payment.amount = 1000
+      AND payment.receipt_file = '10000000-0000-0000-0000-000000000002/tenant-bank-receipt.pdf'
+  $$,
+  ARRAY[1::bigint],
+  'approval atomically creates a payment with the tenant receipt'
+);
+
+SELECT results_eq(
+  $$
+    SELECT public.review_payment_report(
+      '91000000-0000-0000-0000-000000000002',
+      false,
+      'Наличные не получены'
+    )
+  $$,
+  ARRAY['rejected'::text],
+  'owner can reject a reported cash payment with a reason'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT status FROM public.payment_reports ORDER BY status$$,
+  ARRAY['approved'::text, 'rejected'::text],
+  'tenant sees the review status of both payment reports'
+);
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.notifications WHERE kind = 'payment_report_status'$$,
+  ARRAY[2::bigint],
+  'tenant receives a notification for each owner decision'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    DELETE FROM public.rent_payments
+    WHERE id = (
+      SELECT payment_id
+      FROM public.payment_reports
+      WHERE id = '91000000-0000-0000-0000-000000000001'
+    )
+  $$,
+  'owner can remove a mistaken payment created from a tenant report'
+);
+
+SELECT results_eq(
+  $$
+    SELECT status
+    FROM public.payment_reports
+    WHERE id = '91000000-0000-0000-0000-000000000001'
+  $$,
+  ARRAY['rejected'::text],
+  'removing the linked payment revokes the earlier approval'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.notifications WHERE kind = 'payment_report_status'$$,
+  ARRAY[3::bigint],
+  'tenant is notified when a confirmed payment is removed'
 );
 
 SELECT * FROM finish();

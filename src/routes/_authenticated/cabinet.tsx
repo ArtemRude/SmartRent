@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,6 +10,7 @@ import {
   FileText,
   Inbox,
   MapPin,
+  Paperclip,
   Ruler,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,6 +33,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -39,7 +53,6 @@ import {
   formatMoney,
   getPaymentStatus,
   getRentChargeBalance,
-  getRentChargeTotal,
   localDateKey,
   propertyTypeLabels,
 } from "@/lib/domain";
@@ -48,11 +61,20 @@ import {
   fetchAgreementAcceptances,
   fetchAgreementStatusEvents,
   fetchMyTenantRecords,
+  fetchPaymentReports,
   fetchProperties,
   fetchRentCharges,
   fetchUnits,
+  type RentCharge,
 } from "@/lib/queries";
-import { downloadFile, LEASE_DOCUMENTS, PROPERTY_PHOTOS } from "@/lib/storage";
+import {
+  downloadFile,
+  LEASE_DOCUMENTS,
+  PAYMENT_RECEIPTS,
+  PROPERTY_PHOTOS,
+  removeFile,
+  uploadFile,
+} from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/cabinet")({
   head: () => ({ meta: [{ title: "Мой кабинет — Умная Аренда" }] }),
@@ -62,6 +84,12 @@ export const Route = createFileRoute("/_authenticated/cabinet")({
 function CabinetPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const [reportCharge, setReportCharge] = useState<RentCharge | null>(null);
+  const [reportAmount, setReportAmount] = useState("");
+  const [reportDate, setReportDate] = useState(localDateKey());
+  const [reportCash, setReportCash] = useState(false);
+  const [reportReceipt, setReportReceipt] = useState<File | null>(null);
+  const [reportNote, setReportNote] = useState("");
   const tenants = useQuery({
     queryKey: ["my-tenant-records", user?.id],
     queryFn: () => fetchMyTenantRecords(user!.id),
@@ -97,6 +125,11 @@ function CabinetPage() {
     queryFn: fetchRentCharges,
     enabled: Boolean(user),
   });
+  const paymentReports = useQuery({
+    queryKey: ["payment-reports", "tenant", user?.id],
+    queryFn: fetchPaymentReports,
+    enabled: Boolean(user),
+  });
   const acceptAgreement = useMutation({
     mutationFn: async ({
       agreementId,
@@ -120,7 +153,62 @@ function CabinetPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const queries = [tenants, agreements, statusEvents, acceptances, properties, units, charges];
+  const reportPayment = useMutation({
+    mutationFn: async () => {
+      if (!user || !reportCharge) throw new Error("Начисление не выбрано");
+      if (!reportDate) throw new Error("Укажите дату оплаты");
+      if (reportDate > localDateKey()) throw new Error("Дата оплаты не может быть в будущем");
+      const amount = Number(reportAmount.replace(",", "."));
+      const balance = getRentChargeBalance(reportCharge);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Укажите сумму больше нуля");
+      if (amount > balance) throw new Error(`Сумма больше остатка ${formatMoney(balance)}`);
+      if (!reportCash && !reportReceipt) {
+        throw new Error("Для банковского перевода обязательно приложите чек");
+      }
+
+      let receiptPath: string | null = null;
+      try {
+        if (!reportCash && reportReceipt) {
+          receiptPath = await uploadFile(PAYMENT_RECEIPTS, user.id, reportReceipt);
+        }
+        const { error } = await supabase.from("payment_reports").insert({
+          charge_id: reportCharge.id,
+          owner_id: reportCharge.owner_id,
+          tenant_id: reportCharge.tenant_id,
+          amount,
+          paid_at: new Date(`${reportDate}T12:00:00`).toISOString(),
+          payment_method: reportCash ? "cash" : "bank_transfer",
+          receipt_file: receiptPath,
+          note: reportNote.trim() || null,
+        });
+        if (error?.code === "PGRST205" || error?.code === "42501") {
+          throw new Error("Сообщение об оплате станет доступно после применения миграции Supabase");
+        }
+        if (error) throw new Error(error.message);
+      } catch (error) {
+        if (receiptPath) await removeFile(PAYMENT_RECEIPTS, receiptPath).catch(() => undefined);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Сообщение об оплате отправлено собственнику");
+      setReportCharge(null);
+      setReportReceipt(null);
+      void qc.invalidateQueries({ queryKey: ["payment-reports"] });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const queries = [
+    tenants,
+    agreements,
+    statusEvents,
+    acceptances,
+    properties,
+    units,
+    charges,
+    paymentReports,
+  ];
   const loading = queries.some((query) => query.isPending);
   const failed = queries.some((query) => query.isError);
   const unpaidCharges = (charges.data ?? [])
@@ -129,6 +217,20 @@ function CabinetPage() {
   const debt = unpaidCharges
     .filter((charge) => charge.due_date < localDateKey())
     .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
+  const pendingReportByCharge = new Map(
+    (paymentReports.data?.reports ?? [])
+      .filter((report) => report.status === "pending")
+      .map((report) => [report.charge_id, report]),
+  );
+
+  const openPaymentReport = (charge: RentCharge) => {
+    setReportCharge(charge);
+    setReportAmount(String(getRentChargeBalance(charge)));
+    setReportDate(localDateKey());
+    setReportCash(false);
+    setReportReceipt(null);
+    setReportNote("");
+  };
 
   return (
     <>
@@ -375,7 +477,7 @@ function CabinetPage() {
                 </Button>
               </div>
               <div className="space-y-2">
-                {unpaidCharges.slice(0, 3).map((charge) => {
+                {unpaidCharges.map((charge) => {
                   const agreement = agreements.data?.find(
                     (item) => item.id === charge.agreement_id,
                   );
@@ -383,19 +485,34 @@ function CabinetPage() {
                     (item) => item.id === agreement?.property_id,
                   );
                   return (
-                    <div
-                      key={charge.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium">{property?.name ?? "Объект аренды"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Оплатить до {formatDate(charge.due_date)}
-                        </p>
+                    <div key={charge.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium">{property?.name ?? "Объект аренды"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Оплатить до {formatDate(charge.due_date)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">{formatMoney(getRentChargeBalance(charge))}</p>
+                          <PaymentStatusBadge status={getPaymentStatus(charge)} />
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">{formatMoney(getRentChargeTotal(charge))}</p>
-                        <PaymentStatusBadge status={getPaymentStatus(charge)} />
+                      <div className="mt-3 border-t pt-3">
+                        {pendingReportByCharge.has(charge.id) ? (
+                          <p className="text-xs font-medium text-amber-700">
+                            Оплата отправлена собственнику и ожидает подтверждения
+                          </p>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={paymentReports.data?.available === false}
+                            onClick={() => openPaymentReport(charge)}
+                          >
+                            Сообщить об оплате
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -404,6 +521,11 @@ function CabinetPage() {
                   <p className="text-sm text-muted-foreground">Нет ожидающих платежей.</p>
                 )}
               </div>
+              {paymentReports.data?.available === false && (
+                <p className="mt-3 text-xs text-amber-700">
+                  Сообщения об оплате появятся после применения последней миграции Supabase.
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -424,6 +546,87 @@ function CabinetPage() {
         </div>
       )}
       <NotificationsPreview className="mt-6" />
+
+      <Dialog open={Boolean(reportCharge)} onOpenChange={(open) => !open && setReportCharge(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Сообщить об оплате</DialogTitle>
+            <DialogDescription>
+              Собственник проверит данные и подтвердит платёж. До подтверждения задолженность не
+              изменится.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="reported-payment-amount">Сумма</Label>
+              <Input
+                id="reported-payment-amount"
+                inputMode="decimal"
+                value={reportAmount}
+                onChange={(event) => setReportAmount(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reported-payment-date">Дата оплаты</Label>
+              <Input
+                id="reported-payment-date"
+                type="date"
+                max={localDateKey()}
+                value={reportDate}
+                onChange={(event) => setReportDate(event.target.value)}
+              />
+            </div>
+            <label className="flex items-start gap-3 rounded-lg border p-3 sm:col-span-2">
+              <Checkbox
+                checked={reportCash}
+                onCheckedChange={(checked) => setReportCash(checked === true)}
+              />
+              <span>
+                <span className="block text-sm font-medium">Оплата передана наличными</span>
+                <span className="block text-xs text-muted-foreground">
+                  Для наличной оплаты чек из банка не требуется
+                </span>
+              </span>
+            </label>
+            {!reportCash && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="reported-payment-receipt">Чек банковского перевода *</Label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 text-sm hover:bg-muted/40">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {reportReceipt?.name ?? "Выберите PDF, JPG, PNG или WebP до 10 МБ"}
+                  </span>
+                  <Input
+                    id="reported-payment-receipt"
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(event) => setReportReceipt(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="reported-payment-note">Комментарий</Label>
+              <Textarea
+                id="reported-payment-note"
+                maxLength={1000}
+                value={reportNote}
+                placeholder="Необязательно"
+                onChange={(event) => setReportNote(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReportCharge(null)}>
+              Отмена
+            </Button>
+            <Button disabled={reportPayment.isPending} onClick={() => reportPayment.mutate()}>
+              Отправить собственнику
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
