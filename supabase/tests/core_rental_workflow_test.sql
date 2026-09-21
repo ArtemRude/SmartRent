@@ -1062,7 +1062,7 @@ SELECT throws_ok(
     LIMIT 1
   $$,
   '23514',
-  'receipt must be uploaded to the current user folder',
+  'receipt must be uploaded by the current user or submitted by the tenant',
   'owner cannot attach a receipt from another user folder'
 );
 
