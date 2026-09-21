@@ -2,7 +2,7 @@
 CREATE SCHEMA IF NOT EXISTS private;
 REVOKE ALL ON SCHEMA private FROM PUBLIC;
 
-CREATE TABLE public.rent_charges (
+CREATE TABLE IF NOT EXISTS public.rent_charges (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   agreement_id uuid NOT NULL REFERENCES public.lease_agreements(id) ON DELETE CASCADE,
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -27,12 +27,14 @@ GRANT SELECT ON public.rent_charges TO authenticated;
 GRANT UPDATE (paid_at, payment_note) ON public.rent_charges TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.rent_charges TO service_role;
 
+DROP POLICY IF EXISTS "rent_charges_admin_select" ON public.rent_charges;
 CREATE POLICY "rent_charges_admin_select"
   ON public.rent_charges
   FOR SELECT
   TO authenticated
   USING ((SELECT public.has_role((SELECT auth.uid()), 'admin')));
 
+DROP POLICY IF EXISTS "rent_charges_admin_update" ON public.rent_charges;
 CREATE POLICY "rent_charges_admin_update"
   ON public.rent_charges
   FOR UPDATE
@@ -40,12 +42,14 @@ CREATE POLICY "rent_charges_admin_update"
   USING ((SELECT public.has_role((SELECT auth.uid()), 'admin')))
   WITH CHECK ((SELECT public.has_role((SELECT auth.uid()), 'admin')));
 
+DROP POLICY IF EXISTS "rent_charges_owner_select" ON public.rent_charges;
 CREATE POLICY "rent_charges_owner_select"
   ON public.rent_charges
   FOR SELECT
   TO authenticated
   USING (owner_id = (SELECT auth.uid()));
 
+DROP POLICY IF EXISTS "rent_charges_owner_update" ON public.rent_charges;
 CREATE POLICY "rent_charges_owner_update"
   ON public.rent_charges
   FOR UPDATE
@@ -53,17 +57,18 @@ CREATE POLICY "rent_charges_owner_update"
   USING (owner_id = (SELECT auth.uid()))
   WITH CHECK (owner_id = (SELECT auth.uid()));
 
+DROP POLICY IF EXISTS "rent_charges_tenant_select" ON public.rent_charges;
 CREATE POLICY "rent_charges_tenant_select"
   ON public.rent_charges
   FOR SELECT
   TO authenticated
   USING ((SELECT public.is_my_tenant_record(tenant_id)));
 
-CREATE INDEX rent_charges_owner_due_idx
+CREATE INDEX IF NOT EXISTS rent_charges_owner_due_idx
   ON public.rent_charges(owner_id, due_date DESC);
-CREATE INDEX rent_charges_tenant_due_idx
+CREATE INDEX IF NOT EXISTS rent_charges_tenant_due_idx
   ON public.rent_charges(tenant_id, due_date DESC);
-CREATE INDEX rent_charges_owner_unpaid_due_idx
+CREATE INDEX IF NOT EXISTS rent_charges_owner_unpaid_due_idx
   ON public.rent_charges(owner_id, due_date)
   WHERE paid_at IS NULL;
 
