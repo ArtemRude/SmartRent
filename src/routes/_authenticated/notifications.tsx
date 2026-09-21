@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, CheckCheck } from "lucide-react";
@@ -34,6 +34,24 @@ export const Route = createFileRoute("/_authenticated/notifications")({
 });
 
 type NotificationFilter = "all" | "unread" | "reminders";
+
+const NOTIFICATIONS_PAGE_SIZE = 20;
+
+function notificationDateLabel(createdAt: string, now = new Date()) {
+  const date = new Date(createdAt);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysAgo = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
+
+  if (daysAgo === 0) return "Сегодня";
+  if (daysAgo === 1) return "Вчера";
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  }).format(date);
+}
 
 function NotificationCard({
   notification,
@@ -99,6 +117,7 @@ function NotificationsPage() {
   const { user, role } = useAuth();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [visibleLimit, setVisibleLimit] = useState(NOTIFICATIONS_PAGE_SIZE);
   const notifications = useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: fetchNotifications,
@@ -119,12 +138,31 @@ function NotificationsPage() {
       notification.kind,
     ),
   );
-  const visibleNotifications =
+  const filteredNotifications =
     filter === "unread"
       ? allNotifications.filter((notification) => notification.read_at == null)
       : filter === "reminders"
         ? reminderNotifications
         : allNotifications;
+  const visibleNotifications = filteredNotifications.slice(0, visibleLimit);
+  const groupedNotifications = visibleNotifications.reduce<
+    Array<{ label: string; notifications: NotificationRow[] }>
+  >((groups, notification) => {
+    const label = notificationDateLabel(notification.created_at);
+    const lastGroup = groups.at(-1);
+
+    if (lastGroup?.label === label) {
+      lastGroup.notifications.push(notification);
+    } else {
+      groups.push({ label, notifications: [notification] });
+    }
+
+    return groups;
+  }, []);
+
+  useEffect(() => {
+    setVisibleLimit(NOTIFICATIONS_PAGE_SIZE);
+  }, [filter]);
 
   const markRead = useMutation({
     mutationFn: markNotificationRead,
@@ -220,20 +258,50 @@ function NotificationsPage() {
         </p>
       )}
 
-      {!notifications.isPending && !notifications.isError && visibleNotifications.length > 0 && (
-        <div className="space-y-3">
-          {visibleNotifications.map((notification) => (
-            <NotificationCard
-              key={notification.id}
-              notification={notification}
-              onRead={(id) => markRead.mutate(id)}
-              reading={markRead.isPending}
-            />
+      {!notifications.isPending && !notifications.isError && groupedNotifications.length > 0 && (
+        <div className="space-y-6">
+          {groupedNotifications.map((group, groupIndex) => (
+            <section key={group.label} aria-labelledby={`notifications-group-${groupIndex}`}>
+              <h2
+                id={`notifications-group-${groupIndex}`}
+                className="mb-3 text-sm font-medium text-muted-foreground"
+              >
+                {group.label}
+              </h2>
+              <div className="space-y-3">
+                {group.notifications.map((notification) => (
+                  <NotificationCard
+                    key={notification.id}
+                    notification={notification}
+                    onRead={(id) => markRead.mutate(id)}
+                    reading={markRead.isPending}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
+
+          {visibleNotifications.length < filteredNotifications.length && (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setVisibleLimit((current) => current + NOTIFICATIONS_PAGE_SIZE)}
+              >
+                Показать ещё ·{" "}
+                {Math.min(
+                  NOTIFICATIONS_PAGE_SIZE,
+                  filteredNotifications.length - visibleNotifications.length,
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Показано {visibleNotifications.length} из {filteredNotifications.length}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {!notifications.isPending && !notifications.isError && visibleNotifications.length === 0 && (
+      {!notifications.isPending && !notifications.isError && filteredNotifications.length === 0 && (
         <Card>
           <CardContent className="p-10 text-center">
             <Bell className="mx-auto h-8 w-8 text-muted-foreground" />
