@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(99);
+SELECT plan(100);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1198,12 +1198,16 @@ SELECT lives_ok(
   'owner can complete a charge with a second payment'
 );
 
+SELECT lives_ok(
+  $$
+    DELETE FROM public.rent_payments
+    WHERE id = '90000000-0000-0000-0000-000000000002'
+  $$,
+  'owner can remove a mistaken payment'
+);
+
 SELECT results_eq(
   $$
-    WITH removed AS (
-      DELETE FROM public.rent_payments
-      WHERE id = '90000000-0000-0000-0000-000000000002'
-    )
     SELECT paid_amount
     FROM public.rent_charges
     WHERE agreement_id = '50000000-0000-0000-0000-000000000002'
@@ -1211,7 +1215,7 @@ SELECT results_eq(
     LIMIT 1
   $$,
   ARRAY[10000::numeric],
-  'owner can remove a mistaken payment and reopen the balance'
+  'removing a mistaken payment reopens the balance'
 );
 
 RESET ROLE;
