@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(100);
+SELECT plan(106);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1546,6 +1546,110 @@ SELECT results_eq(
   $$SELECT count(*) FROM public.notifications WHERE kind = 'payment_report_status'$$,
   ARRAY[3::bigint],
   'tenant is notified when a confirmed payment is removed'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.lease_agreements (
+      id,
+      owner_id,
+      property_id,
+      unit_id,
+      tenant_id,
+      start_date,
+      end_date,
+      monthly_payment
+    )
+    VALUES (
+      '50000000-0000-0000-0000-000000000004',
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      CURRENT_DATE + 300,
+      CURRENT_DATE + 360,
+      65000
+    )
+  $$,
+  'owner can create an agreement for tenant document upload'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'pending_signature'
+    WHERE id = '50000000-0000-0000-0000-000000000004'
+  $$,
+  'owner can send the agreement to the tenant for signing'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO storage.objects (bucket_id, name, owner)
+    VALUES (
+      'lease-documents',
+      '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000004/tenant-signed.pdf',
+      '10000000-0000-0000-0000-000000000002'
+    )
+  $$,
+  'tenant can upload a signed PDF only for their pending agreement'
+);
+
+SELECT is(
+  public.submit_signed_agreement(
+    '50000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000004/tenant-signed.pdf'
+  ),
+  NULL::text,
+  'tenant can attach the first signed PDF to their agreement'
+);
+
+SELECT results_eq(
+  $$
+    SELECT signed_document_file
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000004'
+  $$,
+  ARRAY[
+    '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000004/tenant-signed.pdf'::text
+  ],
+  'tenant submission stores the signed PDF on the agreement'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.submit_signed_agreement(
+      '50000000-0000-0000-0000-000000000004',
+      '10000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000004/owner.pdf'
+    )
+  $$,
+  '42501',
+  'Договор недоступен для отправки',
+  'the RPC remains restricted to the linked tenant'
 );
 
 SELECT * FROM finish();

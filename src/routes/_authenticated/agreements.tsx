@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
+import { FileUploadField } from "@/components/FileUploadField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -903,13 +904,17 @@ function AgreementsPage() {
               <Label htmlFor="lease-file">
                 Исходный договор PDF {editing?.document_file ? "(необязательно заменять)" : ""}
               </Label>
-              <Input
+              <FileUploadField
                 id="lease-file"
-                type="file"
                 accept="application/pdf"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))
+                file={form.file}
+                description={
+                  editing?.document_file
+                    ? "Исходный PDF уже загружен — выберите файл только для замены"
+                    : "PDF до 20 МБ"
                 }
+                disabled={save.isPending}
+                onFileChange={(file) => setForm((current) => ({ ...current, file }))}
               />
             </div>
             <div className="order-3 space-y-1.5">
@@ -917,16 +922,17 @@ function AgreementsPage() {
                 Подписанный договор PDF{" "}
                 {editing?.signed_document_file ? "(необязательно заменять)" : ""}
               </Label>
-              <Input
+              <FileUploadField
                 id="lease-signed-file"
-                type="file"
                 accept="application/pdf"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    signedFile: event.target.files?.[0] ?? null,
-                  }))
+                file={form.signedFile}
+                description={
+                  editing?.signed_document_file
+                    ? "Подписанный PDF уже загружен — выберите файл только для замены"
+                    : "PDF до 20 МБ"
                 }
+                disabled={save.isPending}
+                onFileChange={(signedFile) => setForm((current) => ({ ...current, signedFile }))}
               />
               <p className="text-xs text-muted-foreground">
                 Без подписанного файла договор нельзя перевести в статус «Активен».

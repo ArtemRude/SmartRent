@@ -788,6 +788,10 @@ export type Database = {
         Args: { p_agreement_id: string }
         Returns: string
       }
+      submit_signed_agreement: {
+        Args: { p_agreement_id: string; p_document_path: string }
+        Returns: string
+      }
       tenant_can_see_property: {
         Args: { _property_id: string }
         Returns: boolean

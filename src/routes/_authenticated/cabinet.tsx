@@ -15,11 +15,13 @@ import {
   Paperclip,
   RotateCcw,
   Ruler,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
+import { FileUploadField } from "@/components/FileUploadField";
 import { NotificationsPreview } from "@/components/NotificationsPreview";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { PaymentReportStatusBadge } from "@/components/PaymentReportStatusBadge";
@@ -96,6 +98,7 @@ function CabinetPage() {
   const [reportReceipt, setReportReceipt] = useState<File | null>(null);
   const [reportNote, setReportNote] = useState("");
   const [reportHistoryExpanded, setReportHistoryExpanded] = useState(false);
+  const [signedAgreementFiles, setSignedAgreementFiles] = useState<Record<string, File | null>>({});
   const tenants = useQuery({
     queryKey: ["my-tenant-records", user?.id],
     queryFn: () => fetchMyTenantRecords(user!.id),
@@ -155,6 +158,34 @@ function CabinetPage() {
     onSuccess: () => {
       toast.success("Ознакомление с договором подтверждено");
       void qc.invalidateQueries({ queryKey: ["agreement-acceptances"] });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const submitSignedAgreement = useMutation({
+    mutationFn: async ({ agreementId, file }: { agreementId: string; file: File }) => {
+      if (!user) throw new Error("Нет активной сессии");
+      let uploadedPath: string | null = null;
+      try {
+        uploadedPath = await uploadFile(LEASE_DOCUMENTS, `${user.id}/${agreementId}`, file);
+        const { data: previousPath, error } = await supabase.rpc("submit_signed_agreement", {
+          p_agreement_id: agreementId,
+          p_document_path: uploadedPath,
+        });
+        if (error) throw new Error(error.message);
+        return { agreementId, previousPath };
+      } catch (error) {
+        if (uploadedPath) await removeFile(LEASE_DOCUMENTS, uploadedPath).catch(() => undefined);
+        throw error;
+      }
+    },
+    onSuccess: ({ agreementId, previousPath }) => {
+      toast.success("Подписанный договор отправлен собственнику");
+      setSignedAgreementFiles((current) => ({ ...current, [agreementId]: null }));
+      if (previousPath) {
+        void removeFile(LEASE_DOCUMENTS, previousPath).catch(() => undefined);
+      }
+      void qc.invalidateQueries({ queryKey: ["agreements"] });
       void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -369,17 +400,6 @@ function CabinetPage() {
                           : "Срок оплаты определяется датой начала аренды"}
                       </p>
                     </div>
-                    {visibleAcceptance && (
-                      <div className="mt-4 flex items-start gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
-                        <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div>
-                          <p className="font-medium">Вы подтвердили ознакомление с договором</p>
-                          <p className="mt-0.5 text-xs text-emerald-700">
-                            {formatDateTime(visibleAcceptance.accepted_at)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
                     {agreement.status === "pending_signature" && !currentAcceptance && (
                       <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
                         <p className="text-sm font-medium text-amber-900">
@@ -421,6 +441,75 @@ function CabinetPage() {
                         </AlertDialog>
                       </div>
                     )}
+                    {agreement.status === "pending_signature" &&
+                      currentAcceptance &&
+                      !agreement.signed_document_file && (
+                        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                          <div className="flex items-start gap-2 text-sm">
+                            <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <div>
+                              <p className="font-medium">Условия подтверждены</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                Теперь подпишите договор и отправьте собственнику PDF-файл.
+                              </p>
+                            </div>
+                          </div>
+                          <FileUploadField
+                            id={`tenant-signed-agreement-${agreement.id}`}
+                            className="mt-3 bg-background"
+                            accept="application/pdf"
+                            file={signedAgreementFiles[agreement.id] ?? null}
+                            description="Подписанный договор в PDF до 20 МБ"
+                            disabled={
+                              submitSignedAgreement.isPending &&
+                              submitSignedAgreement.variables?.agreementId === agreement.id
+                            }
+                            onFileChange={(file) =>
+                              setSignedAgreementFiles((current) => ({
+                                ...current,
+                                [agreement.id]: file,
+                              }))
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            className="mt-3"
+                            disabled={
+                              !signedAgreementFiles[agreement.id] || submitSignedAgreement.isPending
+                            }
+                            onClick={() => {
+                              const file = signedAgreementFiles[agreement.id];
+                              if (file)
+                                submitSignedAgreement.mutate({ agreementId: agreement.id, file });
+                            }}
+                          >
+                            <Send className="mr-2 h-4 w-4" />
+                            {submitSignedAgreement.isPending &&
+                            submitSignedAgreement.variables?.agreementId === agreement.id
+                              ? "Отправляем…"
+                              : "Отправить собственнику"}
+                          </Button>
+                        </div>
+                      )}
+                    {visibleAcceptance &&
+                      (agreement.status !== "pending_signature" ||
+                        agreement.signed_document_file) && (
+                        <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                          <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div>
+                            <p className="font-medium">
+                              {agreement.signed_document_file
+                                ? "Подписанный договор отправлен"
+                                : "Договор подтверждён"}
+                            </p>
+                            <p className="mt-0.5 text-xs text-emerald-700">
+                              {agreement.status === "pending_signature"
+                                ? "С вашей стороны всё готово — собственник проверит файл и активирует договор."
+                                : `Подтверждено ${formatDateTime(visibleAcceptance.accepted_at)}`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     <div className="mt-4 border-t pt-4">
                       {agreement.signed_document_file || agreement.document_file ? (
                         <div className="flex flex-wrap gap-2">
