@@ -69,6 +69,10 @@ test("agreement document inserts saved contract details", () => {
       ownerRegistrationAddress: "г. Москва, тестовый адрес 1",
       tenantPassport: "11 11 № 111111",
       tenantRegistrationAddress: "г. Москва, тестовый адрес 2",
+      inventoryItems: [
+        { name: "Холодильник Samsung", quantity: "1 шт.", condition: "Исправное" },
+        { name: "Стол & 4 стула", quantity: "1 комплект", condition: "Небольшие царапины" },
+      ],
     },
   });
 
@@ -79,6 +83,10 @@ test("agreement document inserts saved contract details", () => {
   assert.match(html, /за 30 календарных дней/);
   assert.match(html, /оплачиваются нанимателем по квитанциям/);
   assert.match(html, /00 00 № 000000/);
+  assert.match(html, /Холодильник Samsung/);
+  assert.match(html, /1 комплект/);
+  assert.match(html, /Стол &amp; 4 стула/);
+  assert.equal((html.match(/<tbody>[\s\S]*?<\/tbody>/)?.[0].match(/<tr>/g) ?? []).length, 9);
 });
 
 test("agreement document escapes contract detail text", () => {
@@ -87,10 +95,13 @@ test("agreement document escapes contract detail text", () => {
     contractDetails: {
       agreementNumber: "<12>",
       utilitiesTerms: "собственник & наниматель",
+      inventoryItems: [{ name: "Телевизор <OLED>", quantity: "1", condition: "как новый" }],
     },
   });
 
   assert.doesNotMatch(html, /№ <12>/);
   assert.match(html, /№ &lt;12&gt;/);
   assert.match(html, /собственник &amp; наниматель/);
+  assert.doesNotMatch(html, /Телевизор <OLED>/);
+  assert.match(html, /Телевизор &lt;OLED&gt;/);
 });

@@ -12,6 +12,7 @@ import {
   Plus,
   RotateCcw,
   Send,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -39,7 +40,11 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
-import { type AgreementContractDetails, printAgreementDocument } from "@/lib/agreement-document";
+import {
+  type AgreementContractDetails,
+  type AgreementInventoryItem,
+  printAgreementDocument,
+} from "@/lib/agreement-document";
 import {
   agreementStatusLabels,
   formatDate,
@@ -91,6 +96,7 @@ type AgreementForm = {
   ownerRegistrationAddress: string;
   tenantPassport: string;
   tenantRegistrationAddress: string;
+  inventoryItems: AgreementInventoryItem[];
   file: File | null;
   signedFile: File | null;
 };
@@ -113,6 +119,7 @@ const emptyForm: AgreementForm = {
   ownerRegistrationAddress: "",
   tenantPassport: "",
   tenantRegistrationAddress: "",
+  inventoryItems: [],
   file: null,
   signedFile: null,
 };
@@ -129,6 +136,18 @@ function readContractDetails(value: Agreement["contract_details"]): AgreementCon
 
   const stringValue = (key: string) => (typeof value[key] === "string" ? value[key] : undefined);
   const numberValue = (key: string) => (typeof value[key] === "number" ? value[key] : undefined);
+  const inventoryValue = value["inventoryItems"];
+  const inventoryItems = Array.isArray(inventoryValue)
+    ? inventoryValue
+        .flatMap((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+          const name = typeof item["name"] === "string" ? item["name"] : "";
+          const quantity = typeof item["quantity"] === "string" ? item["quantity"] : "";
+          const condition = typeof item["condition"] === "string" ? item["condition"] : "";
+          return name.trim() ? [{ name, quantity, condition }] : [];
+        })
+        .slice(0, 15)
+    : undefined;
 
   return {
     agreementNumber: stringValue("agreementNumber"),
@@ -142,6 +161,7 @@ function readContractDetails(value: Agreement["contract_details"]): AgreementCon
     ownerRegistrationAddress: stringValue("ownerRegistrationAddress"),
     tenantPassport: stringValue("tenantPassport"),
     tenantRegistrationAddress: stringValue("tenantRegistrationAddress"),
+    inventoryItems,
   };
 }
 
@@ -206,6 +226,7 @@ function AgreementsPage() {
       ownerRegistrationAddress: details.ownerRegistrationAddress ?? "",
       tenantPassport: details.tenantPassport ?? "",
       tenantRegistrationAddress: details.tenantRegistrationAddress ?? "",
+      inventoryItems: details.inventoryItems ?? [],
       file: null,
       signedFile: null,
     });
@@ -234,6 +255,7 @@ function AgreementsPage() {
       ownerRegistrationAddress: details.ownerRegistrationAddress ?? "",
       tenantPassport: details.tenantPassport ?? "",
       tenantRegistrationAddress: details.tenantRegistrationAddress ?? "",
+      inventoryItems: details.inventoryItems ?? [],
       file: null,
       signedFile: null,
     });
@@ -261,6 +283,13 @@ function AgreementsPage() {
         min: 1,
         max: 365,
       });
+      const inventoryItems = form.inventoryItems
+        .map((item) => ({
+          name: item.name.trim(),
+          quantity: item.quantity.trim(),
+          condition: item.condition.trim(),
+        }))
+        .filter((item) => item.name);
 
       const contractDetails = {
         agreementNumber: form.agreementNumber.trim(),
@@ -274,6 +303,7 @@ function AgreementsPage() {
         ownerRegistrationAddress: form.ownerRegistrationAddress.trim(),
         tenantPassport: form.tenantPassport.trim(),
         tenantRegistrationAddress: form.tenantRegistrationAddress.trim(),
+        inventoryItems,
       };
 
       let uploadedPath: string | null = null;
@@ -822,6 +852,129 @@ function AgreementsPage() {
                   />
                 </div>
               </div>
+            </div>
+            <div className="order-2 space-y-3 rounded-xl border p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="font-medium">Передаваемое имущество</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Предметы появятся в описи на последней странице договора.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={form.inventoryItems.length >= 15}
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      inventoryItems: [
+                        ...current.inventoryItems,
+                        { name: "", quantity: "1", condition: "" },
+                      ],
+                    }))
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Добавить предмет
+                </Button>
+              </div>
+              {form.inventoryItems.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Список пока пуст. В печатном договоре останутся строки для заполнения вручную.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {form.inventoryItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-[minmax(0,2fr)_minmax(90px,0.7fr)_minmax(0,1.5fr)_auto] sm:items-end"
+                    >
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`inventory-name-${index}`}>Предмет {index + 1}</Label>
+                        <Input
+                          id={`inventory-name-${index}`}
+                          value={item.name}
+                          maxLength={120}
+                          placeholder="Например, холодильник Samsung"
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              inventoryItems: current.inventoryItems.map(
+                                (currentItem, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...currentItem, name: event.target.value }
+                                    : currentItem,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`inventory-quantity-${index}`}>Количество</Label>
+                        <Input
+                          id={`inventory-quantity-${index}`}
+                          value={item.quantity}
+                          maxLength={20}
+                          placeholder="1 шт."
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              inventoryItems: current.inventoryItems.map(
+                                (currentItem, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...currentItem, quantity: event.target.value }
+                                    : currentItem,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`inventory-condition-${index}`}>Состояние</Label>
+                        <Input
+                          id={`inventory-condition-${index}`}
+                          value={item.condition}
+                          maxLength={80}
+                          placeholder="Исправное, без повреждений"
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              inventoryItems: current.inventoryItems.map(
+                                (currentItem, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...currentItem, condition: event.target.value }
+                                    : currentItem,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Удалить предмет ${index + 1}`}
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            inventoryItems: current.inventoryItems.filter(
+                              (_, itemIndex) => itemIndex !== index,
+                            ),
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {form.inventoryItems.length >= 15 && (
+                    <p className="text-xs text-muted-foreground">
+                      Достигнут лимит: 15 предметов на одной странице акта.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Помещение</Label>

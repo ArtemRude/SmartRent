@@ -1,3 +1,9 @@
+export type AgreementInventoryItem = {
+  name: string;
+  quantity: string;
+  condition: string;
+};
+
 export type AgreementContractDetails = {
   agreementNumber?: string | undefined;
   contractCity?: string | undefined;
@@ -10,6 +16,7 @@ export type AgreementContractDetails = {
   ownerRegistrationAddress?: string | undefined;
   tenantPassport?: string | undefined;
   tenantRegistrationAddress?: string | undefined;
+  inventoryItems?: AgreementInventoryItem[] | undefined;
 };
 
 export type AgreementDocumentData = {
@@ -69,6 +76,20 @@ function filled(value: string | undefined, fallback: string) {
 
 export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
   const details = data.contractDetails ?? {};
+  const inventoryItems = (details.inventoryItems ?? [])
+    .filter((item) => item.name.trim())
+    .slice(0, 15);
+  const inventoryRows = [
+    ...inventoryItems.map(
+      (item, index) =>
+        `<tr><td>${index + 1}</td><td>${text(item.name, "")}</td><td>${text(item.quantity, "")}</td><td>${text(item.condition, "")}</td></tr>`,
+    ),
+    ...Array.from(
+      { length: Math.max(0, 9 - inventoryItems.length) },
+      (_, index) =>
+        `<tr><td>${inventoryItems.length + index + 1}</td><td></td><td></td><td></td></tr>`,
+    ),
+  ].join("");
   const agreementNumber = filled(
     details.agreementNumber,
     data.agreementId.slice(0, 8).toUpperCase(),
@@ -145,7 +166,7 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
     .signature { padding-top: 8mm; border-top: 1px solid #111; font-size: 12px; }
     .appendix-label { margin: 0 0 6mm; font-size: 11px; text-align: right; }
     .inventory { width: 100%; margin-top: 5mm; border-collapse: collapse; font-size: 11px; }
-    .inventory th, .inventory td { height: 10mm; border: 1px solid #777; padding: 2mm; text-align: left; vertical-align: middle; }
+    .inventory th, .inventory td { min-height: 8mm; border: 1px solid #777; padding: 2mm; text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
     .inventory th:nth-child(1), .inventory td:nth-child(1) { width: 9%; text-align: center; }
     .inventory th:nth-child(3), .inventory td:nth-child(3) { width: 15%; text-align: center; }
     .inventory th:nth-child(4), .inventory td:nth-child(4) { width: 28%; }
@@ -312,7 +333,7 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
     <table class="inventory">
       <thead><tr><th>№</th><th>Наименование имущества</th><th>Кол-во</th><th>Состояние</th></tr></thead>
       <tbody>
-        ${Array.from({ length: 9 }, (_, index) => `<tr><td>${index + 1}</td><td></td><td></td><td></td></tr>`).join("")}
+        ${inventoryRows}
       </tbody>
     </table>
     <p>С момента подписания настоящего акта обязанность по передаче Помещения считается исполненной. Акт составлен в двух экземплярах, по одному для каждой Стороны.</p>
