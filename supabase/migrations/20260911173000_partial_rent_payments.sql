@@ -119,7 +119,7 @@ ALTER TABLE public.rent_payments ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.rent_payments FROM anon, authenticated;
 GRANT SELECT ON public.rent_payments TO authenticated;
-GRANT INSERT (charge_id, owner_id, tenant_id, amount, paid_at, note)
+GRANT INSERT (id, charge_id, owner_id, tenant_id, amount, paid_at, note)
   ON public.rent_payments TO authenticated;
 GRANT UPDATE (amount, paid_at, note) ON public.rent_payments TO authenticated;
 GRANT DELETE ON public.rent_payments TO authenticated;
