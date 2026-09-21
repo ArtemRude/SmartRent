@@ -600,7 +600,7 @@ Workflow `.github/workflows/deploy-supabase.yml` применяет миграц
 Также добавьте repository variables:
 
 - `SUPABASE_PRODUCTION_PROJECT_ID` — ref production-проекта (для текущего проекта
-  `xmvobamndxfxmxukviww`);
+  `euuyvfidarhpeqeeheuu`);
 - `SUPABASE_PRODUCTION_DEPLOY_ENABLED` — установите `true` только после успешной
   первой синхронизации.
 
