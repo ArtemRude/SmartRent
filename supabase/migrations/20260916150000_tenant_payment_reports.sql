@@ -56,7 +56,7 @@ ALTER TABLE public.payment_reports ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.payment_reports FROM anon, authenticated;
 GRANT SELECT ON public.payment_reports TO authenticated;
-GRANT INSERT (charge_id, owner_id, tenant_id, amount, paid_at, payment_method, receipt_file, note)
+GRANT INSERT (id, charge_id, owner_id, tenant_id, amount, paid_at, payment_method, receipt_file, note)
   ON public.payment_reports TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.payment_reports TO service_role;
 
