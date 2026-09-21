@@ -117,6 +117,8 @@ $function$;
 
 REVOKE EXECUTE ON FUNCTION private.tenant_can_see_property(uuid)
   FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.tenant_can_see_property(uuid)
+  TO authenticated, service_role;
 
 ALTER POLICY lease_documents_select_authorized ON storage.objects
   USING (
