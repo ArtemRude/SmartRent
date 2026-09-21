@@ -127,17 +127,17 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.rent_payments TO service_role;
 
 CREATE POLICY "rent_payments_admin_select"
   ON public.rent_payments FOR SELECT TO authenticated
-  USING ((SELECT public.has_role((SELECT auth.uid()), 'admin')));
+  USING ((SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)));
 CREATE POLICY "rent_payments_admin_insert"
   ON public.rent_payments FOR INSERT TO authenticated
-  WITH CHECK ((SELECT public.has_role((SELECT auth.uid()), 'admin')));
+  WITH CHECK ((SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)));
 CREATE POLICY "rent_payments_admin_update"
   ON public.rent_payments FOR UPDATE TO authenticated
-  USING ((SELECT public.has_role((SELECT auth.uid()), 'admin')))
-  WITH CHECK ((SELECT public.has_role((SELECT auth.uid()), 'admin')));
+  USING ((SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)))
+  WITH CHECK ((SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)));
 CREATE POLICY "rent_payments_admin_delete"
   ON public.rent_payments FOR DELETE TO authenticated
-  USING ((SELECT public.has_role((SELECT auth.uid()), 'admin')));
+  USING ((SELECT private.has_role((SELECT auth.uid()), 'admin'::public.app_role)));
 
 CREATE POLICY "rent_payments_owner_select"
   ON public.rent_payments FOR SELECT TO authenticated
@@ -163,7 +163,7 @@ CREATE POLICY "rent_payments_owner_delete"
 
 CREATE POLICY "rent_payments_tenant_select"
   ON public.rent_payments FOR SELECT TO authenticated
-  USING ((SELECT public.is_my_tenant_record(tenant_id)));
+  USING ((SELECT private.is_my_tenant_record(tenant_id)));
 
 CREATE INDEX rent_payments_charge_paid_idx
   ON public.rent_payments(charge_id, paid_at DESC);
