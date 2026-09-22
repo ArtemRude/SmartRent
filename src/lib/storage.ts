@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const PROPERTY_PHOTOS = "property-photos";
 export const REQUEST_PHOTOS = "request-photos";
+export const AGREEMENT_INVENTORY_PHOTOS = "agreement-inventory-photos";
 export const LEASE_DOCUMENTS = "lease-documents";
 export const PAYMENT_RECEIPTS = "payment-receipts";
 
@@ -11,7 +12,7 @@ function randomName(file: File) {
 }
 
 function validateFile(bucket: string, file: File) {
-  const imageBuckets = new Set([PROPERTY_PHOTOS, REQUEST_PHOTOS]);
+  const imageBuckets = new Set([PROPERTY_PHOTOS, REQUEST_PHOTOS, AGREEMENT_INVENTORY_PHOTOS]);
   if (imageBuckets.has(bucket)) {
     if (!file.type.startsWith("image/")) throw new Error("Можно загружать только изображения");
     if (file.size > 8 * 1024 * 1024) throw new Error("Размер изображения не должен превышать 8 МБ");

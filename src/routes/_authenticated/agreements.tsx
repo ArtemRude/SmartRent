@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/AppShell";
 import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
 import { FileUploadField } from "@/components/FileUploadField";
+import { StorageImage } from "@/components/StorageImage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -41,9 +42,9 @@ import {
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  type AgreementContractDetails,
   type AgreementInventoryItem,
   printAgreementDocument,
+  readAgreementContractDetails,
 } from "@/lib/agreement-document";
 import {
   agreementStatusLabels,
@@ -63,7 +64,13 @@ import {
   fetchTenants,
   fetchUnits,
 } from "@/lib/queries";
-import { downloadFile, LEASE_DOCUMENTS, removeFile, uploadFile } from "@/lib/storage";
+import {
+  AGREEMENT_INVENTORY_PHOTOS,
+  downloadFile,
+  LEASE_DOCUMENTS,
+  removeFile,
+  uploadFile,
+} from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/agreements")({
@@ -131,40 +138,6 @@ function createForm(): AgreementForm {
   };
 }
 
-function readContractDetails(value: Agreement["contract_details"]): AgreementContractDetails {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-
-  const stringValue = (key: string) => (typeof value[key] === "string" ? value[key] : undefined);
-  const numberValue = (key: string) => (typeof value[key] === "number" ? value[key] : undefined);
-  const inventoryValue = value["inventoryItems"];
-  const inventoryItems = Array.isArray(inventoryValue)
-    ? inventoryValue
-        .flatMap((item) => {
-          if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-          const name = typeof item["name"] === "string" ? item["name"] : "";
-          const quantity = typeof item["quantity"] === "string" ? item["quantity"] : "";
-          const condition = typeof item["condition"] === "string" ? item["condition"] : "";
-          return name.trim() ? [{ name, quantity, condition }] : [];
-        })
-        .slice(0, 15)
-    : undefined;
-
-  return {
-    agreementNumber: stringValue("agreementNumber"),
-    contractCity: stringValue("contractCity"),
-    signedDate: stringValue("signedDate"),
-    paymentDueDay: numberValue("paymentDueDay"),
-    depositAmount: numberValue("depositAmount"),
-    utilitiesTerms: stringValue("utilitiesTerms"),
-    noticeDays: numberValue("noticeDays"),
-    ownerPassport: stringValue("ownerPassport"),
-    ownerRegistrationAddress: stringValue("ownerRegistrationAddress"),
-    tenantPassport: stringValue("tenantPassport"),
-    tenantRegistrationAddress: stringValue("tenantRegistrationAddress"),
-    inventoryItems,
-  };
-}
-
 function optionalNumber(value: string, label: string, options: { min: number; max: number }) {
   if (!value.trim()) return null;
   const parsed = Number(value);
@@ -204,7 +177,7 @@ function AgreementsPage() {
   };
 
   const openEdit = (agreement: Agreement) => {
-    const details = readContractDetails(agreement.contract_details);
+    const details = readAgreementContractDetails(agreement.contract_details);
     setEditing(agreement);
     setRenewingFrom(null);
     setForm({
@@ -234,7 +207,7 @@ function AgreementsPage() {
   };
 
   const openRenewal = (agreement: Agreement) => {
-    const details = readContractDetails(agreement.contract_details);
+    const details = readAgreementContractDetails(agreement.contract_details);
     setEditing(null);
     setRenewingFrom(agreement);
     setForm({
@@ -462,6 +435,7 @@ function AgreementsPage() {
           );
           const visibleAcceptance =
             agreement.status === "pending_signature" ? currentAcceptance : latestAcceptance;
+          const acceptancePhotos = visibleAcceptance?.photos ?? [];
           return (
             <Card
               key={agreement.id}
@@ -473,7 +447,7 @@ function AgreementsPage() {
               )}
             >
               <CardContent className="p-5">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-4">
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
                     <FileText className="h-5 w-5" />
                   </span>
@@ -514,7 +488,7 @@ function AgreementsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="col-span-2 flex flex-wrap gap-2 border-t pt-4">
                     <Button
                       variant="outline"
                       size="sm"
@@ -536,7 +510,11 @@ function AgreementsPage() {
                             startDate: agreement.start_date,
                             endDate: agreement.end_date,
                             monthlyPayment: agreement.monthly_payment,
-                            contractDetails: readContractDetails(agreement.contract_details),
+                            contractDetails: readAgreementContractDetails(
+                              agreement.contract_details,
+                            ),
+                            tenantAcceptedAt: visibleAcceptance?.accepted_at,
+                            inventoryPhotoCount: acceptancePhotos.length,
                           });
                         } catch (error) {
                           toast.error(
@@ -642,6 +620,24 @@ function AgreementsPage() {
                     )}
                   </div>
                 </div>
+                {acceptancePhotos.length > 0 && (
+                  <div className="mt-4 border-t pt-4">
+                    <p className="mb-2 text-sm font-medium">
+                      Фотографии к акту · {acceptancePhotos.length}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                      {acceptancePhotos.map((photo, index) => (
+                        <StorageImage
+                          key={photo}
+                          bucket={AGREEMENT_INVENTORY_PHOTOS}
+                          path={photo}
+                          alt={`Имущество, фото ${index + 1}`}
+                          className="aspect-square w-full rounded-lg border"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <AgreementStatusHistory
                   agreementId={agreement.id}
                   ownerId={agreement.owner_id}

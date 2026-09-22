@@ -23,6 +23,7 @@ export type Database = {
           agreement_id: string
           agreement_version: string
           id: string
+          photos: string[]
         }
         Insert: {
           accepted_at?: string
@@ -30,6 +31,7 @@ export type Database = {
           agreement_id: string
           agreement_version: string
           id?: string
+          photos?: string[]
         }
         Update: {
           accepted_at?: string
@@ -37,6 +39,7 @@ export type Database = {
           agreement_id?: string
           agreement_version?: string
           id?: string
+          photos?: string[]
         }
         Relationships: [
           {
@@ -790,6 +793,15 @@ export type Database = {
       }
       submit_signed_agreement: {
         Args: { p_agreement_id: string; p_document_path: string }
+        Returns: string
+      }
+      submit_tenant_agreement: {
+        Args: {
+          p_agreement_id: string
+          p_agreement_version: string
+          p_document_path: string
+          p_photo_paths?: string[]
+        }
         Returns: string
       }
       tenant_can_see_property: {

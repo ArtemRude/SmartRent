@@ -10,12 +10,14 @@ import {
   Download,
   FileText,
   History,
+  ImagePlus,
   Inbox,
   MapPin,
   Paperclip,
   RotateCcw,
   Ruler,
   Send,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -53,6 +55,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/auth-context";
 import { supabase } from "@/integrations/supabase/client";
+import { readAgreementContractDetails } from "@/lib/agreement-document";
 import {
   formatDate,
   formatDateTime,
@@ -75,6 +78,7 @@ import {
   type RentCharge,
 } from "@/lib/queries";
 import {
+  AGREEMENT_INVENTORY_PHOTOS,
   downloadFile,
   LEASE_DOCUMENTS,
   PAYMENT_RECEIPTS,
@@ -99,6 +103,7 @@ function CabinetPage() {
   const [reportNote, setReportNote] = useState("");
   const [reportHistoryExpanded, setReportHistoryExpanded] = useState(false);
   const [signedAgreementFiles, setSignedAgreementFiles] = useState<Record<string, File | null>>({});
+  const [inventoryPhotoFiles, setInventoryPhotoFiles] = useState<Record<string, File[]>>({});
   const tenants = useQuery({
     queryKey: ["my-tenant-records", user?.id],
     queryFn: () => fetchMyTenantRecords(user!.id),
@@ -139,24 +144,54 @@ function CabinetPage() {
     queryFn: fetchPaymentReports,
     enabled: Boolean(user),
   });
-  const acceptAgreement = useMutation({
+  const signAgreement = useMutation({
     mutationFn: async ({
       agreementId,
       agreementVersion,
+      document,
+      photos,
     }: {
       agreementId: string;
       agreementVersion: string;
+      document: File;
+      photos: File[];
     }) => {
       if (!user) throw new Error("Нет активной сессии");
-      const { error } = await supabase.from("agreement_acceptances").insert({
-        agreement_id: agreementId,
-        agreement_version: agreementVersion,
-        accepted_by: user.id,
-      });
-      if (error) throw new Error(error.message);
+      if (photos.length > 6) throw new Error("Можно приложить не более 6 фотографий");
+
+      let documentPath: string | null = null;
+      const photoPaths: string[] = [];
+      try {
+        documentPath = await uploadFile(LEASE_DOCUMENTS, `${user.id}/${agreementId}`, document);
+        for (const photo of photos) {
+          photoPaths.push(
+            await uploadFile(AGREEMENT_INVENTORY_PHOTOS, `${user.id}/${agreementId}`, photo),
+          );
+        }
+        const { data: previousPath, error } = await supabase.rpc("submit_tenant_agreement", {
+          p_agreement_id: agreementId,
+          p_agreement_version: agreementVersion,
+          p_document_path: documentPath,
+          p_photo_paths: photoPaths,
+        });
+        if (error) throw new Error(error.message);
+        return { agreementId, previousPath };
+      } catch (error) {
+        if (documentPath) await removeFile(LEASE_DOCUMENTS, documentPath).catch(() => undefined);
+        await Promise.all(
+          photoPaths.map((path) =>
+            removeFile(AGREEMENT_INVENTORY_PHOTOS, path).catch(() => undefined),
+          ),
+        );
+        throw error;
+      }
     },
-    onSuccess: () => {
-      toast.success("Ознакомление с договором подтверждено");
+    onSuccess: ({ agreementId, previousPath }) => {
+      toast.success("Договор подписан и отправлен собственнику");
+      setSignedAgreementFiles((current) => ({ ...current, [agreementId]: null }));
+      setInventoryPhotoFiles((current) => ({ ...current, [agreementId]: [] }));
+      if (previousPath) void removeFile(LEASE_DOCUMENTS, previousPath).catch(() => undefined);
+      void qc.invalidateQueries({ queryKey: ["agreements"] });
       void qc.invalidateQueries({ queryKey: ["agreement-acceptances"] });
       void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -282,6 +317,19 @@ function CabinetPage() {
     setReportNote("");
   };
 
+  const addInventoryPhotos = (agreementId: string, files: FileList | null) => {
+    if (!files?.length) return;
+    const selected = Array.from(files);
+    setInventoryPhotoFiles((current) => {
+      const existing = current[agreementId] ?? [];
+      const next = [...existing, ...selected].slice(0, 6);
+      if (existing.length + selected.length > 6) {
+        toast.warning("Можно приложить не более 6 фотографий");
+      }
+      return { ...current, [agreementId]: next };
+    });
+  };
+
   return (
     <>
       <PageHeader title="Мой кабинет" description="Данные вашей аренды в одном месте" />
@@ -373,6 +421,10 @@ function CabinetPage() {
                 );
                 const visibleAcceptance =
                   agreement.status === "pending_signature" ? currentAcceptance : latestAcceptance;
+                const acceptancePhotos = visibleAcceptance?.photos ?? [];
+                const inventoryItems =
+                  readAgreementContractDetails(agreement.contract_details).inventoryItems ?? [];
+                const selectedPhotos = inventoryPhotoFiles[agreement.id] ?? [];
                 return (
                   <div key={agreement.id} className="rounded-xl border p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -400,41 +452,165 @@ function CabinetPage() {
                           : "Срок оплаты определяется датой начала аренды"}
                       </p>
                     </div>
+                    {inventoryItems.length > 0 && (
+                      <div className="mt-4 rounded-xl border bg-muted/30 p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">Передаваемое имущество</p>
+                          <span className="text-xs text-muted-foreground">
+                            {inventoryItems.length} поз.
+                          </span>
+                        </div>
+                        <div className="mt-3 divide-y rounded-lg border bg-background">
+                          {inventoryItems.map((item, index) => (
+                            <div
+                              key={`${item.name}-${index}`}
+                              className="grid gap-1 px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,0.7fr)] sm:gap-4"
+                            >
+                              <span className="font-medium">
+                                {index + 1}. {item.name}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {item.quantity || "Количество не указано"}
+                              </span>
+                              <span className="text-muted-foreground sm:text-right">
+                                {item.condition || "Состояние не указано"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {agreement.status === "pending_signature" && !currentAcceptance && (
-                      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
                         <p className="text-sm font-medium text-amber-900">
-                          Договор ожидает вашего подтверждения
+                          Подпишите договор и отправьте собственнику
                         </p>
                         <p className="mt-1 text-xs text-amber-800">
-                          Сначала проверьте срок, сумму и приложенный PDF. Это подтверждение
-                          ознакомления в сервисе и не заменяет юридическую подпись.
+                          Одним действием вы подтверждаете условия договора
+                          {inventoryItems.length > 0 ? " и получение перечисленного имущества" : ""}
+                          . Дата подписания будет зафиксирована автоматически.
                         </p>
+                        <FileUploadField
+                          id={`tenant-signed-agreement-${agreement.id}`}
+                          className="mt-3 bg-background"
+                          accept="application/pdf"
+                          file={signedAgreementFiles[agreement.id] ?? null}
+                          description="Подписанный договор в PDF до 20 МБ"
+                          disabled={signAgreement.isPending}
+                          onFileChange={(file) =>
+                            setSignedAgreementFiles((current) => ({
+                              ...current,
+                              [agreement.id]: file,
+                            }))
+                          }
+                        />
+                        <div className="mt-3 rounded-lg border border-dashed border-amber-300 bg-background/70 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                Фотографии имущества
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Необязательно · до 6 изображений по 8 МБ
+                              </p>
+                            </div>
+                            <Label
+                              htmlFor={`inventory-photos-${agreement.id}`}
+                              className="inline-flex h-9 cursor-pointer items-center rounded-md border bg-background px-3 text-sm font-medium shadow-xs hover:bg-muted"
+                            >
+                              <ImagePlus className="mr-2 h-4 w-4" /> Добавить фото
+                            </Label>
+                            <Input
+                              id={`inventory-photos-${agreement.id}`}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              multiple
+                              className="sr-only"
+                              disabled={signAgreement.isPending || selectedPhotos.length >= 6}
+                              onChange={(event) => {
+                                addInventoryPhotos(agreement.id, event.target.files);
+                                event.target.value = "";
+                              }}
+                            />
+                          </div>
+                          {selectedPhotos.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              {selectedPhotos.map((file, index) => (
+                                <div
+                                  key={`${file.name}-${file.lastModified}-${index}`}
+                                  className="flex items-center gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs"
+                                >
+                                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0"
+                                    aria-label={`Удалить фото ${file.name}`}
+                                    onClick={() =>
+                                      setInventoryPhotoFiles((current) => ({
+                                        ...current,
+                                        [agreement.id]: (current[agreement.id] ?? []).filter(
+                                          (_, photoIndex) => photoIndex !== index,
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button size="sm" className="mt-3">
-                              <BadgeCheck className="mr-2 h-4 w-4" /> Подтвердить ознакомление
+                            <Button
+                              size="sm"
+                              className="mt-3"
+                              disabled={
+                                !signedAgreementFiles[agreement.id] || signAgreement.isPending
+                              }
+                            >
+                              <Send className="mr-2 h-4 w-4" /> Подписать и отправить
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Подтвердить ознакомление?</AlertDialogTitle>
+                              <AlertDialogTitle>Подписать договор?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Вы подтверждаете, что ознакомились с условиями договора для объекта
-                                «{property?.name ?? "Объект аренды"}». Отменить это действие нельзя.
+                                Вы подтверждаете условия договора для объекта «
+                                {property?.name ?? "Объект аренды"}»
+                                {inventoryItems.length > 0
+                                  ? ` и получение имущества (${inventoryItems.length} поз.)`
+                                  : ""}
+                                . Подписанный PDF
+                                {selectedPhotos.length > 0
+                                  ? ` и фотографии (${selectedPhotos.length})`
+                                  : ""}{" "}
+                                будут отправлены собственнику. Отменить подтверждение нельзя.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Отмена</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() =>
-                                  acceptAgreement.mutate({
-                                    agreementId: agreement.id,
-                                    agreementVersion: agreement.status_changed_at,
-                                  })
-                                }
-                                disabled={acceptAgreement.isPending}
+                                onClick={() => {
+                                  const document = signedAgreementFiles[agreement.id];
+                                  if (document) {
+                                    signAgreement.mutate({
+                                      agreementId: agreement.id,
+                                      agreementVersion: agreement.status_changed_at,
+                                      document,
+                                      photos: selectedPhotos,
+                                    });
+                                  }
+                                }}
+                                disabled={signAgreement.isPending}
                               >
-                                Подтвердить
+                                {signAgreement.isPending &&
+                                signAgreement.variables?.agreementId === agreement.id
+                                  ? "Отправляем…"
+                                  : "Подписать и отправить"}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -448,14 +624,14 @@ function CabinetPage() {
                           <div className="flex items-start gap-2 text-sm">
                             <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                             <div>
-                              <p className="font-medium">Условия подтверждены</p>
+                              <p className="font-medium">Подписание уже подтверждено</p>
                               <p className="mt-0.5 text-xs text-muted-foreground">
-                                Теперь подпишите договор и отправьте собственнику PDF-файл.
+                                Осталось отправить собственнику подписанный PDF-файл.
                               </p>
                             </div>
                           </div>
                           <FileUploadField
-                            id={`tenant-signed-agreement-${agreement.id}`}
+                            id={`tenant-signed-agreement-legacy-${agreement.id}`}
                             className="mt-3 bg-background"
                             accept="application/pdf"
                             file={signedAgreementFiles[agreement.id] ?? null}
@@ -503,13 +679,37 @@ function CabinetPage() {
                                 : "Договор подтверждён"}
                             </p>
                             <p className="mt-0.5 text-xs text-emerald-700">
-                              {agreement.status === "pending_signature"
-                                ? "С вашей стороны всё готово — собственник проверит файл и активирует договор."
-                                : `Подтверждено ${formatDateTime(visibleAcceptance.accepted_at)}`}
+                              Подписано {formatDateTime(visibleAcceptance.accepted_at)}
+                              {inventoryItems.length > 0
+                                ? " · получение имущества подтверждено"
+                                : ""}
                             </p>
+                            {agreement.status === "pending_signature" && (
+                              <p className="mt-1 text-xs text-emerald-700">
+                                Собственник проверит файл и активирует договор.
+                              </p>
+                            )}
                           </div>
                         </div>
                       )}
+                    {acceptancePhotos.length > 0 && (
+                      <div className="mt-4">
+                        <p className="mb-2 text-sm font-medium">
+                          Фотографии к акту · {acceptancePhotos.length}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                          {acceptancePhotos.map((photo, index) => (
+                            <StorageImage
+                              key={photo}
+                              bucket={AGREEMENT_INVENTORY_PHOTOS}
+                              path={photo}
+                              alt={`Имущество, фото ${index + 1}`}
+                              className="aspect-square w-full rounded-lg border"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-4 border-t pt-4">
                       {agreement.signed_document_file || agreement.document_file ? (
                         <div className="flex flex-wrap gap-2">

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildAgreementDocumentHtml,
+  readAgreementContractDetails,
   type AgreementDocumentData,
 } from "../src/lib/agreement-document.ts";
 
@@ -104,4 +105,43 @@ test("agreement document escapes contract detail text", () => {
   assert.match(html, /собственник &amp; наниматель/);
   assert.doesNotMatch(html, /Телевизор <OLED>/);
   assert.match(html, /Телевизор &lt;OLED&gt;/);
+});
+
+test("contract details parser restores a safe inventory list", () => {
+  assert.deepEqual(
+    readAgreementContractDetails({
+      agreementNumber: "15/2026",
+      inventoryItems: [
+        { name: "Холодильник", quantity: "1 шт.", condition: "Исправное" },
+        { name: "", quantity: "2", condition: "" },
+        { name: 42, quantity: null, condition: [] },
+      ],
+    }),
+    {
+      agreementNumber: "15/2026",
+      contractCity: undefined,
+      signedDate: undefined,
+      paymentDueDay: undefined,
+      depositAmount: undefined,
+      utilitiesTerms: undefined,
+      noticeDays: undefined,
+      ownerPassport: undefined,
+      ownerRegistrationAddress: undefined,
+      tenantPassport: undefined,
+      tenantRegistrationAddress: undefined,
+      inventoryItems: [{ name: "Холодильник", quantity: "1 шт.", condition: "Исправное" }],
+    },
+  );
+});
+
+test("transfer act includes the tenant signing date and photo count", () => {
+  const html = buildAgreementDocumentHtml({
+    ...agreement,
+    tenantAcceptedAt: "2026-09-22T15:30:00.000Z",
+    inventoryPhotoCount: 3,
+  });
+
+  assert.match(html, /Электронное подтверждение/);
+  assert.match(html, /22 сентября 2026 г\./);
+  assert.match(html, /К акту приложено фотографий: 3/);
 });

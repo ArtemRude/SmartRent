@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(106);
+SELECT plan(114);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1650,6 +1650,137 @@ SELECT throws_ok(
   '42501',
   'Договор недоступен для отправки',
   'the RPC remains restricted to the linked tenant'
+);
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.lease_agreements (
+      id,
+      owner_id,
+      property_id,
+      unit_id,
+      tenant_id,
+      start_date,
+      end_date,
+      monthly_payment,
+      contract_details
+    )
+    VALUES (
+      '50000000-0000-0000-0000-000000000005',
+      '10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      CURRENT_DATE + 370,
+      CURRENT_DATE + 730,
+      68000,
+      '{"inventoryItems":[{"name":"Холодильник","quantity":"1","condition":"Исправное"}]}'::jsonb
+    )
+  $$,
+  'owner can create an agreement with an inventory for combined signing'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.lease_agreements
+    SET status = 'pending_signature'
+    WHERE id = '50000000-0000-0000-0000-000000000005'
+  $$,
+  'owner can send the inventory agreement for signing'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    INSERT INTO storage.objects (bucket_id, name, owner_id)
+    VALUES (
+      'lease-documents',
+      '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/signed.pdf',
+      '10000000-0000-0000-0000-000000000002'
+    )
+  $$,
+  'tenant can upload the signed PDF for combined signing'
+);
+
+SELECT lives_ok(
+  $$
+    INSERT INTO storage.objects (bucket_id, name, owner_id)
+    VALUES (
+      'agreement-inventory-photos',
+      '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/fridge.webp',
+      '10000000-0000-0000-0000-000000000002'
+    )
+  $$,
+  'tenant can upload an inventory photo for their pending agreement'
+);
+
+SELECT is(
+  public.submit_tenant_agreement(
+    '50000000-0000-0000-0000-000000000005',
+    (
+      SELECT status_changed_at
+      FROM public.lease_agreements
+      WHERE id = '50000000-0000-0000-0000-000000000005'
+    ),
+    '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/signed.pdf',
+    ARRAY[
+      '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/fridge.webp'
+    ]
+  ),
+  NULL::text,
+  'tenant can sign, accept the inventory, and attach photos atomically'
+);
+
+SELECT results_eq(
+  $$
+    SELECT photos
+    FROM public.agreement_acceptances
+    WHERE agreement_id = '50000000-0000-0000-0000-000000000005'
+  $$,
+  ARRAY[
+    ARRAY[
+      '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/fridge.webp'
+    ]::text[]
+  ],
+  'agreement acceptance stores the attached inventory photos'
+);
+
+SELECT results_eq(
+  $$
+    SELECT signed_document_file
+    FROM public.lease_agreements
+    WHERE id = '50000000-0000-0000-0000-000000000005'
+  $$,
+  ARRAY[
+    '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/signed.pdf'::text
+  ],
+  'combined signing attaches the signed PDF to the agreement'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$
+    SELECT count(*)::bigint
+    FROM storage.objects
+    WHERE bucket_id = 'agreement-inventory-photos'
+      AND name = '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/fridge.webp'
+  $$,
+  ARRAY[1::bigint],
+  'owner can read inventory photos attached to their agreement'
 );
 
 SELECT * FROM finish();

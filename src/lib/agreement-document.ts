@@ -36,7 +36,47 @@ export type AgreementDocumentData = {
   endDate: string;
   monthlyPayment: number;
   contractDetails?: AgreementContractDetails;
+  tenantAcceptedAt?: string | null | undefined;
+  inventoryPhotoCount?: number | undefined;
 };
+
+export function readAgreementContractDetails(value: unknown): AgreementContractDetails {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const details = value as Record<string, unknown>;
+  const stringValue = (key: string) =>
+    typeof details[key] === "string" ? details[key] : undefined;
+  const numberValue = (key: string) =>
+    typeof details[key] === "number" ? details[key] : undefined;
+  const inventoryValue = details["inventoryItems"];
+  const inventoryItems = Array.isArray(inventoryValue)
+    ? inventoryValue
+        .flatMap((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+          const row = item as Record<string, unknown>;
+          const name = typeof row["name"] === "string" ? row["name"] : "";
+          const quantity = typeof row["quantity"] === "string" ? row["quantity"] : "";
+          const condition = typeof row["condition"] === "string" ? row["condition"] : "";
+          return name.trim() ? [{ name, quantity, condition }] : [];
+        })
+        .slice(0, 15)
+    : undefined;
+
+  return {
+    agreementNumber: stringValue("agreementNumber"),
+    contractCity: stringValue("contractCity"),
+    signedDate: stringValue("signedDate"),
+    paymentDueDay: numberValue("paymentDueDay"),
+    depositAmount: numberValue("depositAmount"),
+    utilitiesTerms: stringValue("utilitiesTerms"),
+    noticeDays: numberValue("noticeDays"),
+    ownerPassport: stringValue("ownerPassport"),
+    ownerRegistrationAddress: stringValue("ownerRegistrationAddress"),
+    tenantPassport: stringValue("tenantPassport"),
+    tenantRegistrationAddress: stringValue("tenantRegistrationAddress"),
+    inventoryItems,
+  };
+}
 
 function escapeHtml(value: string) {
   return value
@@ -63,6 +103,13 @@ function formatMoney(value: number) {
     currency: "RUB",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function optionalDate(value: string | undefined) {
@@ -117,6 +164,9 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
     "________________________________________________________________",
   );
   const noticeDays = details.noticeDays ? String(details.noticeDays) : "______";
+  const tenantConfirmation = data.tenantAcceptedAt
+    ? `Подтверждение ${tenantRoleGenitive.toLocaleLowerCase("ru-RU")} зафиксировано в сервисе ${text(formatDateTime(data.tenantAcceptedAt))}.${data.inventoryPhotoCount ? ` К акту приложено фотографий: ${data.inventoryPhotoCount}.` : ""}`
+    : "";
   const premises = data.unitName
     ? `${text(data.unitName)}${data.unitArea ? `, площадь ${data.unitArea} м²` : ""}`
     : "объект полностью";
@@ -337,6 +387,7 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
       </tbody>
     </table>
     <p>С момента подписания настоящего акта обязанность по передаче Помещения считается исполненной. Акт составлен в двух экземплярах, по одному для каждой Стороны.</p>
+    ${tenantConfirmation ? `<p class="no-indent"><strong>Электронное подтверждение:</strong> ${tenantConfirmation}</p>` : ""}
     <div class="signatures">
       <div class="signature">Передал: ${ownerRole} / ${text(data.ownerName)}</div>
       <div class="signature">Принял: ${tenantRole} / ${text(data.tenantName)}</div>

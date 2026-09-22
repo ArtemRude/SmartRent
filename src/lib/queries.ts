@@ -65,6 +65,7 @@ export type AgreementAcceptance = {
   agreement_version: string;
   accepted_by: string | null;
   accepted_at: string;
+  photos: string[];
 };
 
 export type RequestRow = {
