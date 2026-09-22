@@ -378,6 +378,50 @@ export type Database = {
         }
         Relationships: []
       }
+      property_activity_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          property_id: string
+          title: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          property_id: string
+          title: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          property_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_activity_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       properties: {
         Row: {
           address: string
@@ -592,7 +636,7 @@ export type Database = {
           note: string | null
           owner_id: string
           paid_at: string
-          payment_method: string
+          payment_method: "bank_transfer" | "cash"
           receipt_file: string | null
           tenant_id: string
         }
@@ -605,7 +649,7 @@ export type Database = {
           note?: string | null
           owner_id: string
           paid_at: string
-          payment_method?: string
+          payment_method?: "bank_transfer" | "cash"
           receipt_file?: string | null
           tenant_id: string
         }
@@ -618,7 +662,7 @@ export type Database = {
           note?: string | null
           owner_id?: string
           paid_at?: string
-          payment_method?: string
+          payment_method?: "bank_transfer" | "cash"
           receipt_file?: string | null
           tenant_id?: string
         }

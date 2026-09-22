@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(114);
+SELECT plan(122);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -86,6 +86,90 @@ SELECT lives_ok(
     )
   $$,
   'owner can add a unit to their property'
+);
+
+SELECT results_eq(
+  $$
+    SELECT event_type
+    FROM public.property_activity_events
+    WHERE property_id = '20000000-0000-0000-0000-000000000001'
+      AND entity_id = '20000000-0000-0000-0000-000000000001'
+  $$,
+  ARRAY['property_created'::text],
+  'property creation is recorded in the property activity log'
+);
+
+SELECT results_eq(
+  $$
+    SELECT event_type
+    FROM public.property_activity_events
+    WHERE property_id = '20000000-0000-0000-0000-000000000001'
+      AND entity_id = '30000000-0000-0000-0000-000000000001'
+  $$,
+  ARRAY['unit_created'::text],
+  'unit creation is recorded in the property activity log'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.properties
+    SET description = 'Updated description'
+    WHERE id = '20000000-0000-0000-0000-000000000001'
+  $$,
+  'owner can update a property while audit logging is enabled'
+);
+
+SELECT results_eq(
+  $$
+    SELECT details -> 'fields'
+    FROM public.property_activity_events
+    WHERE property_id = '20000000-0000-0000-0000-000000000001'
+      AND event_type = 'property_updated'
+  $$,
+  ARRAY['["Описание"]'::jsonb],
+  'property activity records which field changed'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE public.units
+    SET area = 43
+    WHERE id = '30000000-0000-0000-0000-000000000001'
+  $$,
+  'owner can update a unit while audit logging is enabled'
+);
+
+SELECT results_eq(
+  $$
+    SELECT details -> 'fields'
+    FROM public.property_activity_events
+    WHERE entity_id = '30000000-0000-0000-0000-000000000001'
+      AND event_type = 'unit_updated'
+  $$,
+  ARRAY['["Площадь"]'::jsonb],
+  'unit activity records which field changed'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.property_activity_events (
+      property_id,
+      event_type,
+      entity_type,
+      entity_id,
+      title
+    )
+    VALUES (
+      '20000000-0000-0000-0000-000000000001',
+      'property_updated',
+      'property',
+      '20000000-0000-0000-0000-000000000001',
+      'Forged event'
+    )
+  $$,
+  '42501',
+  NULL,
+  'clients cannot forge property activity events'
 );
 
 SELECT lives_ok(
@@ -244,6 +328,12 @@ SELECT results_eq(
   $$SELECT count(*) FROM public.properties$$,
   ARRAY[1::bigint],
   'tenant sees the property from their active agreement'
+);
+
+SELECT results_eq(
+  $$SELECT count(*) FROM public.property_activity_events$$,
+  ARRAY[0::bigint],
+  'tenant cannot read the owner property activity log'
 );
 
 SELECT results_eq(

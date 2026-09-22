@@ -34,6 +34,7 @@ export type Tenant = {
 
 export type Agreement = {
   id: string;
+  created_at: string;
   owner_id: string;
   property_id: string;
   unit_id: string | null;
@@ -66,6 +67,18 @@ export type AgreementAcceptance = {
   accepted_by: string | null;
   accepted_at: string;
   photos: string[];
+};
+
+export type PropertyActivityEvent = {
+  id: string;
+  property_id: string;
+  actor_id: string | null;
+  event_type: string;
+  entity_type: string;
+  entity_id: string;
+  title: string;
+  details: Json;
+  created_at: string;
 };
 
 export type RequestRow = {
@@ -235,12 +248,24 @@ export const fetchProperty = async (id: string) => {
 
 export const fetchUnits = () => unwrap<Unit[]>(supabase.from("units").select("*").order("name"));
 
+export const fetchUnitsForProperty = (propertyId: string) =>
+  unwrap<Unit[]>(supabase.from("units").select("*").eq("property_id", propertyId).order("name"));
+
 export const fetchTenants = () =>
   unwrap<Tenant[]>(supabase.from("tenants").select("*").order("created_at", { ascending: false }));
 
 export const fetchAgreements = () =>
   unwrap<Agreement[]>(
     supabase.from("lease_agreements").select("*").order("end_date", { ascending: true }),
+  );
+
+export const fetchAgreementsForProperty = (propertyId: string) =>
+  unwrap<Agreement[]>(
+    supabase
+      .from("lease_agreements")
+      .select("*")
+      .eq("property_id", propertyId)
+      .order("end_date", { ascending: true }),
   );
 
 export const fetchAgreementStatusEvents = () =>
@@ -257,6 +282,116 @@ export const fetchRequests = () =>
   unwrap<RequestRow[]>(
     supabase.from("requests").select("*").order("created_at", { ascending: false }),
   );
+
+export const fetchRequestsForProperty = (propertyId: string) =>
+  unwrap<RequestRow[]>(
+    supabase
+      .from("requests")
+      .select("*")
+      .eq("property_id", propertyId)
+      .order("created_at", { ascending: false }),
+  );
+
+export type PropertyTimelineSources = {
+  propertyEvents: PropertyActivityEvent[];
+  agreementEvents: AgreementStatusEvent[];
+  agreementAcceptances: AgreementAcceptance[];
+  requestEvents: RequestStatusEvent[];
+  charges: RentCharge[];
+  payments: RentPayment[];
+};
+
+export const fetchPropertyTimelineSources = async (
+  propertyId: string,
+  agreementIds: string[],
+  requestIds: string[],
+): Promise<PropertyTimelineSources> => {
+  const propertyEventsRequest = supabase
+    .from("property_activity_events")
+    .select("*")
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const agreementEventsRequest = agreementIds.length
+    ? unwrap<AgreementStatusEvent[]>(
+        supabase
+          .from("agreement_status_events")
+          .select("*")
+          .in("agreement_id", agreementIds)
+          .order("created_at", { ascending: false })
+          .limit(300),
+      )
+    : Promise.resolve([]);
+  const agreementAcceptancesRequest = agreementIds.length
+    ? unwrap<AgreementAcceptance[]>(
+        supabase
+          .from("agreement_acceptances")
+          .select("*")
+          .in("agreement_id", agreementIds)
+          .order("accepted_at", { ascending: false })
+          .limit(200),
+      )
+    : Promise.resolve([]);
+  const requestEventsRequest = requestIds.length
+    ? unwrap<RequestStatusEvent[]>(
+        supabase
+          .from("request_status_events")
+          .select("*")
+          .in("request_id", requestIds)
+          .order("created_at", { ascending: false })
+          .limit(300),
+      )
+    : Promise.resolve([]);
+  const chargesRequest = agreementIds.length
+    ? unwrap<RentCharge[]>(
+        supabase
+          .from("rent_charges")
+          .select("*")
+          .in("agreement_id", agreementIds)
+          .order("due_date", { ascending: false })
+          .limit(500),
+      )
+    : Promise.resolve([]);
+
+  const [propertyEventsResult, agreementEvents, agreementAcceptances, requestEvents, charges] =
+    await Promise.all([
+      propertyEventsRequest,
+      agreementEventsRequest,
+      agreementAcceptancesRequest,
+      requestEventsRequest,
+      chargesRequest,
+    ]);
+
+  const activityUnavailable =
+    propertyEventsResult.error?.code === "PGRST205" || propertyEventsResult.error?.code === "42501";
+  if (propertyEventsResult.error && !activityUnavailable) {
+    throw new Error(propertyEventsResult.error.message);
+  }
+  const propertyEvents = activityUnavailable
+    ? []
+    : ((propertyEventsResult.data ?? []) as PropertyActivityEvent[]);
+
+  const chargeIds = charges.map((charge) => charge.id);
+  const payments = chargeIds.length
+    ? await unwrap<RentPayment[]>(
+        supabase
+          .from("rent_payments")
+          .select("*")
+          .in("charge_id", chargeIds)
+          .order("paid_at", { ascending: false })
+          .limit(500),
+      )
+    : [];
+
+  return {
+    propertyEvents,
+    agreementEvents,
+    agreementAcceptances,
+    requestEvents,
+    charges,
+    payments,
+  };
+};
 
 export const fetchComments = (requestId: string) =>
   unwrap<CommentRow[]>(
