@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -55,6 +55,7 @@ export const Route = createFileRoute("/_authenticated/properties")({
 
 function PropertiesPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
   const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
@@ -301,10 +302,19 @@ function PropertiesPage() {
                     </Button>
                   )}
                 </div>
-                <Button asChild variant="outline" size="sm" className="mt-4 w-full">
-                  <Link to="/properties/$propertyId" params={{ propertyId: p.id }}>
-                    Открыть объект
-                  </Link>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 w-full"
+                  onClick={() =>
+                    void navigate({
+                      to: "/properties/$propertyId",
+                      params: { propertyId: p.id },
+                    })
+                  }
+                >
+                  Открыть объект
                 </Button>
               </CardContent>
             </Card>
