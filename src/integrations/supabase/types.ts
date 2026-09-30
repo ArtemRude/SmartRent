@@ -557,6 +557,48 @@ export type Database = {
           },
         ]
       }
+      support_requests: {
+        Row: {
+          admin_response: string | null
+          category: "question" | "access" | "billing" | "technical" | "other"
+          created_at: string
+          id: string
+          message: string
+          requester_email: string
+          requester_name: string
+          source: "landing" | "account"
+          status: "new" | "in_progress" | "resolved"
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          admin_response?: string | null
+          category: "question" | "access" | "billing" | "technical" | "other"
+          created_at?: string
+          id?: string
+          message: string
+          requester_email: string
+          requester_name: string
+          source: "landing" | "account"
+          status?: "new" | "in_progress" | "resolved"
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          admin_response?: string | null
+          category?: "question" | "access" | "billing" | "technical" | "other"
+          created_at?: string
+          id?: string
+          message?: string
+          requester_email?: string
+          requester_name?: string
+          source?: "landing" | "account"
+          status?: "new" | "in_progress" | "resolved"
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       rent_charges: {
         Row: {
           adjusted_at: string | null

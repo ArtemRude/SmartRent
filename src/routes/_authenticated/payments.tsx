@@ -95,7 +95,7 @@ import {
 export const Route = createFileRoute("/_authenticated/payments")({
   head: () => ({
     meta: [
-      { title: "Платежи — Умная Аренда" },
+      { title: "Платежи — SmartRent" },
       {
         name: "description",
         content: "Начисления аренды, задолженность и история оплат.",

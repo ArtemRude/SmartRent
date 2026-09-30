@@ -20,6 +20,7 @@ import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authen
 import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
 import { Route as AuthenticatedPropertiesRouteImport } from './routes/_authenticated/properties'
 import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
+import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTenantsRouteImport } from './routes/_authenticated/tenants'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties.$propertyId'
 
@@ -78,6 +79,11 @@ const AuthenticatedRequestsRoute = AuthenticatedRequestsRouteImport.update({
   path: '/requests',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTenantsRoute = AuthenticatedTenantsRouteImport.update({
   id: '/tenants',
   path: '/tenants',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/payments': typeof AuthenticatedPaymentsRoute
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
   '/requests': typeof AuthenticatedRequestsRoute
+  '/support': typeof AuthenticatedSupportRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/payments': typeof AuthenticatedPaymentsRoute
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
   '/requests': typeof AuthenticatedRequestsRoute
+  '/support': typeof AuthenticatedSupportRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/properties': typeof AuthenticatedPropertiesRouteWithChildren
   '/_authenticated/requests': typeof AuthenticatedRequestsRoute
+  '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/tenants': typeof AuthenticatedTenantsRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/payments'
     | '/properties'
     | '/requests'
+    | '/support'
     | '/tenants'
     | '/properties/$propertyId'
   fileRoutesByTo: FileRoutesByTo
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/payments'
     | '/properties'
     | '/requests'
+    | '/support'
     | '/tenants'
     | '/properties/$propertyId'
   id:
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_authenticated/payments'
     | '/_authenticated/properties'
     | '/_authenticated/requests'
+    | '/_authenticated/support'
     | '/_authenticated/tenants'
     | '/_authenticated/properties/$propertyId'
   fileRoutesById: FileRoutesById
@@ -265,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRequestsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/support': {
+      id: '/_authenticated/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof AuthenticatedSupportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tenants': {
       id: '/_authenticated/tenants'
       path: '/tenants'
@@ -306,6 +325,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedPropertiesRoute: typeof AuthenticatedPropertiesRouteWithChildren
   AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
+  AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedTenantsRoute: typeof AuthenticatedTenantsRoute
 }
 
@@ -318,6 +338,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedPropertiesRoute: AuthenticatedPropertiesRouteWithChildren,
   AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
+  AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedTenantsRoute: AuthenticatedTenantsRoute,
 }
 

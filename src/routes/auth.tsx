@@ -19,13 +19,13 @@ import {
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Вход и регистрация — Умная Аренда" },
+      { title: "Вход и регистрация — SmartRent" },
       {
         name: "description",
-        content: "Войдите в «Умную Аренду» или создайте аккаунт собственника либо арендатора.",
+        content: "Войдите в SmartRent или создайте аккаунт собственника либо арендатора.",
       },
-      { property: "og:title", content: "Вход и регистрация — Умная Аренда" },
-      { property: "og:description", content: "Кабинет собственника и арендатора «Умная Аренда»." },
+      { property: "og:title", content: "Вход и регистрация — SmartRent" },
+      { property: "og:description", content: "Кабинет собственника и арендатора SmartRent." },
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({
@@ -159,7 +159,7 @@ function AuthPage() {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Building2 className="h-4 w-4" />
           </span>
-          <span className="font-display text-lg font-semibold tracking-tight">Умная Аренда</span>
+          <span className="font-display text-lg font-semibold tracking-tight">SmartRent</span>
         </Link>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">

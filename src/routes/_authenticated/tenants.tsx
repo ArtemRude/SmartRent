@@ -34,9 +34,9 @@ import { normalizeTenantEmail, validateTenantDetails } from "@/lib/tenant";
 export const Route = createFileRoute("/_authenticated/tenants")({
   head: () => ({
     meta: [
-      { title: "Арендаторы — Умная Аренда" },
+      { title: "Арендаторы — SmartRent" },
       { name: "description", content: "Карточки арендаторов и их контактные данные." },
-      { property: "og:title", content: "Арендаторы — Умная Аренда" },
+      { property: "og:title", content: "Арендаторы — SmartRent" },
       { property: "og:description", content: "Список арендаторов собственника." },
     ],
   }),
@@ -104,7 +104,7 @@ function TenantsPage() {
   const emailInvitation = (tenant: { email: string; name: string }) => {
     const subject = encodeURIComponent("Приглашение в «Умную Аренду»");
     const body = encodeURIComponent(
-      `Здравствуйте, ${tenant.name}!\n\nСобственник пригласил вас в сервис «Умная Аренда». Зарегистрируйтесь по ссылке, чтобы увидеть договор и данные аренды:\n\n${getInvitationUrl(tenant)}`,
+      `Здравствуйте, ${tenant.name}!\n\nСобственник пригласил вас в сервис SmartRent. Зарегистрируйтесь по ссылке, чтобы увидеть договор и данные аренды:\n\n${getInvitationUrl(tenant)}`,
     );
     window.location.href = `mailto:${encodeURIComponent(tenant.email)}?subject=${subject}&body=${body}`;
   };

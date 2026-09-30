@@ -43,9 +43,9 @@ import { sumPaymentsForMonth } from "@/lib/payment-analytics";
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Мой кабинет — Умная Аренда" },
+      { title: "Мой кабинет — SmartRent" },
       { name: "description", content: "Сводка по объектам, договорам и заявкам собственника." },
-      { property: "og:title", content: "Мой кабинет — Умная Аренда" },
+      { property: "og:title", content: "Мой кабинет — SmartRent" },
       { property: "og:description", content: "Сводка по объектам, договорам и заявкам." },
     ],
   }),

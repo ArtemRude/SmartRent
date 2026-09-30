@@ -44,9 +44,9 @@ import { fetchProperties, fetchUnits } from "@/lib/queries";
 export const Route = createFileRoute("/_authenticated/properties")({
   head: () => ({
     meta: [
-      { title: "Объекты — Умная Аренда" },
+      { title: "Объекты — SmartRent" },
       { name: "description", content: "Квартиры, склады и коммерческие помещения собственника." },
-      { property: "og:title", content: "Объекты — Умная Аренда" },
+      { property: "og:title", content: "Объекты — SmartRent" },
       { property: "og:description", content: "Управление объектами и помещениями." },
     ],
   }),

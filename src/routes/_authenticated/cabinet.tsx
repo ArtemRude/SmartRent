@@ -88,7 +88,7 @@ import {
 } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/cabinet")({
-  head: () => ({ meta: [{ title: "Мой кабинет — Умная Аренда" }] }),
+  head: () => ({ meta: [{ title: "Мой кабинет — SmartRent" }] }),
   component: CabinetPage,
 });
 

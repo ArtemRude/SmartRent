@@ -78,7 +78,7 @@ export const Route = createFileRoute("/_authenticated/agreements")({
     typeof search["agreementId"] === "string" ? { agreementId: search["agreementId"] } : {},
   head: () => ({
     meta: [
-      { title: "Договоры — Умная Аренда" },
+      { title: "Договоры — SmartRent" },
       { name: "description", content: "Договоры аренды, сроки, суммы и документы." },
     ],
   }),

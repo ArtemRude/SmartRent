@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/notifications")({
   head: () => ({
     meta: [
-      { title: "Уведомления — Умная Аренда" },
+      { title: "Уведомления — SmartRent" },
       {
         name: "description",
         content: "Новые заявки, комментарии, статусы договоров и платежей.",

@@ -6,11 +6,13 @@ test("landing page opens registration", async ({ page }) => {
   await page.goto("/");
 
   await expect(
-    page.getByRole("heading", { name: "Аренда без таблиц, чатов и потерянных договоров" }),
+    page.getByRole("heading", { name: /Недвижимость\.\s+Арендаторы\.\s+Всё связано\./ }),
   ).toBeVisible();
-  await expect(page.getByText("Умная Аренда", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("SmartRent", { exact: true }).first()).toBeVisible();
+  await page.getByRole("link", { name: "Поддержка" }).first().click();
+  await expect(page.getByRole("heading", { name: "Остался вопрос? Напишите нам" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Начать бесплатно" }).click();
+  await page.getByRole("link", { name: "Попробовать" }).click();
 
   await expect(page).toHaveURL(/\/auth(?:\?|$)/);
   const submitButton = page.getByRole("button", { name: "Создать аккаунт" });
@@ -19,7 +21,7 @@ test("landing page opens registration", async ({ page }) => {
 });
 
 test("protected pages redirect an anonymous user to sign in", async ({ page }) => {
-  for (const path of ["/dashboard", "/properties", "/tenants", "/agreements"]) {
+  for (const path of ["/dashboard", "/properties", "/tenants", "/agreements", "/support"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/auth(?:\?|$)/);
     await expect(page.getByRole("button", { name: "Войти" })).toBeVisible();

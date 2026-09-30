@@ -49,7 +49,7 @@ import { getSignedUrl, removeFile, REQUEST_PHOTOS, uploadFile } from "@/lib/stor
 export const Route = createFileRoute("/_authenticated/requests")({
   head: () => ({
     meta: [
-      { title: "Заявки — Умная Аренда" },
+      { title: "Заявки — SmartRent" },
       {
         name: "description",
         content: "Заявки арендаторов, обсуждение и контроль выполнения.",

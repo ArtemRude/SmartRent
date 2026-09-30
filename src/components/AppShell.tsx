@@ -9,6 +9,7 @@ import {
   FileText,
   Home,
   Inbox,
+  LifeBuoy,
   LogOut,
   Menu,
   ShieldCheck,
@@ -32,6 +33,7 @@ const ownerNav: NavItem[] = [
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
+  { to: "/support", label: "Поддержка", icon: LifeBuoy },
 ];
 
 const tenantNav: NavItem[] = [
@@ -39,6 +41,7 @@ const tenantNav: NavItem[] = [
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
+  { to: "/support", label: "Поддержка", icon: LifeBuoy },
 ];
 
 const adminNav: NavItem[] = [
@@ -52,7 +55,7 @@ function Brand() {
       <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
         <Building2 className="h-4 w-4" />
       </span>
-      <span className="font-display text-lg font-semibold tracking-tight">Умная Аренда</span>
+      <span className="font-display text-lg font-semibold tracking-tight">SmartRent</span>
     </div>
   );
 }

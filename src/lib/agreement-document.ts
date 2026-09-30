@@ -238,7 +238,7 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
     <button onclick="window.close()">Закрыть</button>
   </div>
   <main class="page cover">
-    <div class="brand">Умная Аренда</div>
+    <div class="brand">SmartRent</div>
     <h1>${documentTitle}</h1>
     <p class="number">№ ${agreementNumber}</p>
 
@@ -266,7 +266,7 @@ export function buildAgreementDocumentHtml(data: AgreementDocumentData) {
     </div>
 
     <div class="notice"><strong>Черновик.</strong> Первый лист содержит краткую карточку. Далее расположен полный текст договора и акт приёма-передачи. Перед подписанием заполните пропуски, согласуйте индивидуальные условия и проверьте документ с юристом.</div>
-    <div class="footer">Сформировано в сервисе «Умная Аренда»</div>
+    <div class="footer">Сформировано в сервисе SmartRent</div>
   </main>
 
   <section class="page legal">

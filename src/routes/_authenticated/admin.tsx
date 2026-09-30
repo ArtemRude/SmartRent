@@ -30,7 +30,7 @@ import { formatDate, roleLabels, type AppRole } from "@/lib/domain";
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
-      { title: "Администрирование — Умная Аренда" },
+      { title: "Администрирование — SmartRent" },
       { name: "description", content: "Управление пользователями и ролями платформы." },
     ],
   }),
