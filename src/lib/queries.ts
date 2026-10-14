@@ -128,6 +128,7 @@ export type RentCharge = {
   paid_amount: number;
   payment_note: string | null;
   created_at: string;
+  charge_type?: "rent" | "utilities";
 };
 
 export type RentPayment = {

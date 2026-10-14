@@ -1,0 +1,331 @@
+import { expect, test, type BrowserContext } from "@playwright/test";
+
+// UI contract tests use intercepted Auth/REST/Storage responses. They never
+// register users or modify any Supabase project; SQL behavior is tested separately.
+test("owner configures services, tenant submits photos, owner reviews and payments show utilities", async ({
+  browser,
+}) => {
+  const apiUrl = process.env["E2E_SUPABASE_URL"];
+  test.skip(!apiUrl, "Use the local Supabase configuration for intercepted UI tests.");
+  const storageKey = `sb-${new URL(apiUrl!).hostname.split(".")[0]}-auth-token`;
+  const ownerId = "91000000-0000-0000-0000-000000000001";
+  const tenantId = "91000000-0000-0000-0000-000000000002";
+  const agreementId = "94000000-0000-0000-0000-000000000001";
+  const today = new Date();
+  const dateKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const period = `${dateKey(today).slice(0, 7)}-01`;
+  const now = today.toISOString();
+  const agreement = {
+    id: agreementId,
+    owner_id: ownerId,
+    tenant_id: "tenant-record",
+    property_id: "property",
+    unit_id: null,
+    start_date: period,
+    end_date: `${today.getFullYear() + 1}-12-31`,
+    monthly_payment: 30000,
+    status: "active",
+    payment_due_day: 15,
+    created_at: now,
+    status_changed_at: now,
+    document_file: null,
+    signed_document_file: "test/lease.pdf",
+    signed_at: now,
+    contract_details: {},
+  };
+  const services: Record<string, unknown>[] = [];
+  const bills: Record<string, unknown>[] = [];
+  const items: Record<string, unknown>[] = [];
+  const charges: Record<string, unknown>[] = [
+    {
+      id: "rent-charge",
+      agreement_id: agreementId,
+      owner_id: ownerId,
+      tenant_id: "tenant-record",
+      period_start: period,
+      due_date: dateKey(today),
+      amount: 30000,
+      adjustment_amount: 0,
+      adjustment_reason: null,
+      paid_amount: 0,
+      paid_at: null,
+      charge_type: "rent",
+      created_at: now,
+    },
+  ];
+  const submissions: Record<string, unknown>[] = [];
+
+  const installApi = async (context: BrowserContext, role: "owner" | "tenant") => {
+    const id = role === "owner" ? ownerId : tenantId;
+    const user = {
+      id,
+      aud: "authenticated",
+      role: "authenticated",
+      email: `${role}@example.invalid`,
+      app_metadata: { provider: "email" },
+      user_metadata: { role, name: role === "owner" ? "Анна Собственник" : "Иван Арендатор" },
+      created_at: now,
+    };
+    const tokenPart = Buffer.from(
+      JSON.stringify({ sub: id, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 }),
+    ).toString("base64url");
+    const session = {
+      access_token: `eyJhbGciOiJIUzI1NiJ9.${tokenPart}.fixture`,
+      refresh_token: "fixture",
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user,
+    };
+    await context.addInitScript(
+      ({ session, storageKey }) => {
+        localStorage.setItem(storageKey, JSON.stringify(session));
+      },
+      { session, storageKey },
+    );
+    await context.route("**/auth/v1/**", (route) =>
+      route.fulfill({ json: route.request().url().includes("/token") ? session : user }),
+    );
+    await context.route("**/storage/v1/**", (route) =>
+      route.fulfill({
+        json: {
+          Key: new URL(route.request().url()).pathname.replace("/storage/v1/object/", ""),
+          Id: "photo",
+        },
+      }),
+    );
+    await context.route("**/rest/v1/**", async (route) => {
+      const url = new URL(route.request().url());
+      const resource = url.pathname.split("/").at(-1)!;
+      const body =
+        route.request().method() === "POST"
+          ? (route.request().postDataJSON() as Record<string, unknown>)
+          : {};
+      let response: unknown = [];
+      if (url.pathname.includes("/rpc/")) {
+        if (resource === "save_utility_service") {
+          const input = body["p_service"] as Record<string, unknown>;
+          const service = {
+            ...input,
+            id: `service-${services.length + 1}`,
+            agreement_id: agreementId,
+            active: true,
+            created_at: now,
+          };
+          services.push(service);
+          response = service.id;
+        } else if (resource === "submit_utility_readings") {
+          submissions.push(body);
+          const reading = (body["p_readings"] as Record<string, unknown>[])[0]!;
+          const bill = {
+            id: `bill-${bills.length + 1}`,
+            agreement_id: agreementId,
+            period_start: period,
+            status: "pending",
+            amount: 636.8,
+            submitted_by: id,
+            reviewed_by: null,
+            reviewed_at: null,
+            review_note: null,
+            charge_id: null,
+            created_at: now,
+          };
+          bills.push(bill);
+          items.push(
+            {
+              id: `water-${bill.id}`,
+              bill_id: bill.id,
+              service_id: services[0]!["id"],
+              name: "Холодная вода",
+              kind: "meter",
+              unit: "м³",
+              previous_reading: 100,
+              reading: 103.2,
+              rate: 42.75,
+              amount: 136.8,
+              photo_path: reading["photo_path"],
+            },
+            {
+              id: `internet-${bill.id}`,
+              bill_id: bill.id,
+              service_id: services[1]!["id"],
+              name: "Интернет",
+              kind: "fixed",
+              unit: "мес.",
+              previous_reading: null,
+              reading: null,
+              rate: 500,
+              amount: 500,
+              photo_path: null,
+            },
+          );
+          response = bill.id;
+        } else if (resource === "review_utility_bill") {
+          const bill = bills.find((bill) => bill["id"] === body["p_bill_id"])!;
+          const approve = body["p_approve"] === true;
+          Object.assign(bill, {
+            status: approve ? "approved" : "rejected",
+            reviewed_by: ownerId,
+            reviewed_at: now,
+            review_note: body["p_note"],
+            charge_id: approve ? "utility-charge" : null,
+          });
+          if (approve)
+            charges.push({
+              ...charges[0],
+              id: "utility-charge",
+              charge_type: "utilities",
+              amount: 636.8,
+              due_date: body["p_due_date"],
+            });
+          response = bill["status"];
+        }
+      } else {
+        const tables: Record<string, unknown> = {
+          profiles: { id, name: user.user_metadata.name, email: user.email, phone: null },
+          user_roles: { role },
+          properties: [
+            {
+              id: "property",
+              owner_id: ownerId,
+              name: "Квартира на Садовой",
+              address: "Садовая, 12",
+              photos: [],
+              type: "apartment",
+              status: "active",
+              created_at: now,
+            },
+          ],
+          tenants: [
+            {
+              id: "tenant-record",
+              owner_id: ownerId,
+              user_id: tenantId,
+              name: "Иван Арендатор",
+              email: "tenant@example.invalid",
+              phone: null,
+              created_at: now,
+            },
+          ],
+          units: [],
+          lease_agreements: [agreement],
+          utility_services: services,
+          utility_bills: [...bills].reverse(),
+          utility_bill_items: items,
+          rent_charges: charges,
+          rent_payments: [],
+          rent_charge_adjustment_events: [],
+          payment_reports: [],
+          agreement_acceptances: [],
+          agreement_status_events: [],
+          notifications: [],
+          requests: [],
+        };
+        response = tables[resource] ?? [];
+      }
+      await route.fulfill({ json: response });
+    });
+  };
+  const ownerContext = await browser.newContext();
+  const tenantContext = await browser.newContext();
+  await installApi(ownerContext, "owner");
+  await installApi(tenantContext, "tenant");
+  const owner = await ownerContext.newPage();
+  const tenant = await tenantContext.newPage();
+  const errors: string[] = [];
+  for (const page of [owner, tenant]) page.on("pageerror", (error) => errors.push(error.message));
+
+  await owner.goto("/utilities");
+  await expect(
+    owner.getByRole("heading", { name: "Коммунальные услуги", exact: true }),
+  ).toBeVisible();
+  await owner.getByRole("tab", { name: "Счётчики и услуги" }).click();
+  await owner.getByRole("button", { name: "Добавить услугу", exact: true }).click();
+  await owner.getByLabel("Название", { exact: true }).fill("Холодная вода");
+  await owner.getByLabel("Начальные показания", { exact: true }).fill("100");
+  await owner.getByLabel("Тариф, ₽ за м³").fill("42,75");
+  await owner
+    .getByRole("dialog")
+    .getByRole("button", { name: "Добавить услугу", exact: true })
+    .click();
+  await expect(owner.getByRole("dialog")).toHaveCount(0);
+  await expect(owner.getByText("Холодная вода", { exact: true })).toBeVisible();
+  await owner.getByRole("button", { name: "Добавить услугу", exact: true }).click();
+  await owner.getByRole("combobox", { name: "Тип услуги" }).click();
+  await owner.getByRole("option", { name: "Фиксированный платёж" }).click();
+  await owner.getByLabel("Название", { exact: true }).fill("Интернет");
+  await owner.getByLabel("Платёж, ₽ в месяц").fill("500");
+  await owner
+    .getByRole("dialog")
+    .getByRole("button", { name: "Добавить услугу", exact: true })
+    .click();
+  await expect(owner.getByRole("dialog")).toHaveCount(0);
+
+  await tenant.goto("/utilities");
+  await expect(tenant.getByRole("button", { name: "Добавить услугу", exact: true })).toHaveCount(0);
+  const readingInput = tenant.getByLabel("Текущие показания, м³");
+  await readingInput.fill("99");
+  await expect(tenant.getByText("Показания не должны уменьшаться", { exact: false })).toBeVisible();
+  await expect(tenant.getByRole("button", { name: "Отправить на проверку" })).toBeDisabled();
+  await readingInput.fill("103,2");
+  await expect(tenant.getByText("636,80", { exact: false })).toBeVisible();
+  await tenant.locator('input[type="file"]').setInputFiles({
+    name: "meter.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQp0AAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await tenant.getByRole("button", { name: "Отправить на проверку" }).click();
+  await expect(tenant.getByText("На проверке", { exact: true })).toBeVisible();
+  expect((submissions[0]!["p_readings"] as Record<string, unknown>[])[0]!["photo_path"]).toContain(
+    `${tenantId}/${agreementId}/`,
+  );
+
+  await owner.reload();
+  await owner.getByRole("button", { name: "Вернуть на исправление" }).click();
+  await owner.getByLabel("Причина возврата").fill("Проверьте фотографию счётчика");
+  await owner.getByRole("button", { name: "Отправить на исправление" }).click();
+  await expect(owner.getByRole("dialog")).toHaveCount(0);
+  await tenant.reload();
+  await expect(tenant.getByText("Причина возврата: Проверьте фотографию счётчика")).toBeVisible();
+  await tenant.getByLabel("Текущие показания, м³").fill("103,2");
+  await tenant.getByRole("button", { name: "Отправить на проверку" }).click();
+  await expect(tenant.getByText("На проверке", { exact: true })).toBeVisible();
+
+  await owner.reload();
+  await owner.getByRole("button", { name: "Утвердить расчёт" }).click();
+  await owner.getByRole("button", { name: "Утвердить", exact: true }).click();
+  await expect(owner.getByRole("dialog")).toHaveCount(0);
+  await expect(owner.getByText("Утверждено", { exact: true })).toBeVisible();
+  await tenant.reload();
+  await expect(tenant.getByText("Утверждено", { exact: true })).toBeVisible();
+  await expect(tenant.getByRole("link", { name: "Открыть оплату" })).toBeVisible();
+  await owner.screenshot({ path: "test-results/utilities-owner.png", fullPage: true });
+  await tenant.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    tenant.getByRole("heading", { name: "Коммунальные услуги", exact: true }),
+  ).toBeVisible();
+  expect(
+    await tenant.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await tenant.screenshot({ path: "test-results/utilities-tenant-mobile.png", fullPage: true });
+  await tenant.setViewportSize({ width: 320, height: 800 });
+  expect(
+    await tenant.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+
+  await owner.goto("/payments");
+  await expect(owner.getByText("Коммунальные услуги", { exact: true }).last()).toBeVisible();
+  await expect(owner.getByRole("link", { name: "Посмотреть показания и расчёт" })).toBeVisible();
+  await tenant.goto("/cabinet");
+  await expect(tenant.getByText("Коммунальные услуги ·", { exact: false })).toBeVisible();
+  await expect(tenant.getByRole("button", { name: "Сообщить об оплате", exact: true })).toHaveCount(
+    2,
+  );
+  expect(errors).toEqual([]);
+  await ownerContext.close();
+  await tenantContext.close();
+});

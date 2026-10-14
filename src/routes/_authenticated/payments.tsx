@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -721,6 +722,7 @@ function PaymentsPage() {
         "Помещение",
         "Арендатор",
         "Комментарий",
+        "Вид начисления",
       ],
       [
         ...visibleCharges.map((charge) => [
@@ -738,6 +740,7 @@ function PaymentsPage() {
           unitFor(charge)?.name ?? "",
           tenantFor(charge)?.name ?? "",
           charge.payment_note ?? "",
+          charge.charge_type === "utilities" ? "Коммунальные услуги" : "Аренда",
         ]),
         [],
         ["Итого начислено", "", "", "", "", "", filteredSummary.accrued],
@@ -1156,6 +1159,9 @@ function PaymentsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold capitalize">{formatMonth(charge.period_start)}</p>
                       <PaymentStatusBadge status={status} />
+                      <Badge variant="outline">
+                        {charge.charge_type === "utilities" ? "Коммунальные услуги" : "Аренда"}
+                      </Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {property?.name ?? "Объект"}
@@ -1166,6 +1172,15 @@ function PaymentsPage() {
                       Срок оплаты: {formatDate(charge.due_date)}
                       {charge.paid_at ? ` · Оплачено ${formatDate(charge.paid_at)}` : ""}
                     </p>
+                    {charge.charge_type === "utilities" && (
+                      <Link
+                        to="/utilities"
+                        search={{ agreement: charge.agreement_id }}
+                        className="mt-1 inline-block text-sm text-primary underline-offset-4 hover:underline"
+                      >
+                        Посмотреть показания и расчёт
+                      </Link>
+                    )}
                     {charge.payment_note && (
                       <p className="mt-1 text-xs text-muted-foreground">{charge.payment_note}</p>
                     )}
@@ -1243,15 +1258,17 @@ function PaymentsPage() {
                     </div>
                     {role !== "tenant" && (
                       <div className="flex flex-wrap justify-end gap-2">
-                        {paidAmount === 0 && adjustmentFeatureAvailable && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openAdjustmentDialog(charge)}
-                          >
-                            <PencilLine className="h-4 w-4" /> Корректировать
-                          </Button>
-                        )}
+                        {paidAmount === 0 &&
+                          adjustmentFeatureAvailable &&
+                          charge.charge_type !== "utilities" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openAdjustmentDialog(charge)}
+                            >
+                              <PencilLine className="h-4 w-4" /> Корректировать
+                            </Button>
+                          )}
                         <Button
                           variant="outline"
                           size="sm"

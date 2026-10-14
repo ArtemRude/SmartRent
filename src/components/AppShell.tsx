@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Building2,
   CreditCard,
+  Gauge,
   FileText,
   Home,
   Inbox,
@@ -31,6 +32,7 @@ const ownerNav: NavItem[] = [
   { to: "/tenants", label: "Арендаторы", icon: Users },
   { to: "/agreements", label: "Договоры", icon: FileText },
   { to: "/payments", label: "Платежи", icon: CreditCard },
+  { to: "/utilities", label: "Коммунальные услуги", icon: Gauge },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },
@@ -39,6 +41,7 @@ const ownerNav: NavItem[] = [
 const tenantNav: NavItem[] = [
   { to: "/cabinet", label: "Мой кабинет", icon: Home },
   { to: "/payments", label: "Платежи", icon: CreditCard },
+  { to: "/utilities", label: "Коммунальные услуги", icon: Gauge },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },

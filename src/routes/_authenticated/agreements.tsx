@@ -558,6 +558,11 @@ function AgreementsPage() {
                     <Button variant="outline" size="sm" onClick={() => openEdit(agreement)}>
                       <Pencil className="mr-2 h-4 w-4" /> Изменить
                     </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/utilities" search={{ agreement: agreement.id }}>
+                        Коммунальные услуги
+                      </Link>
+                    </Button>
                     {(agreement.status === "active" || agreement.status === "completed") && (
                       <Button variant="outline" size="sm" onClick={() => openRenewal(agreement)}>
                         <CalendarPlus className="mr-2 h-4 w-4" /> Продлить

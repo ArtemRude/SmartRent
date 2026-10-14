@@ -17,8 +17,11 @@ export type NotificationKind =
   | "payment_overdue"
   | "payment_reminder"
   | "payment_reported"
-  | "payment_report_status";
-export type NotificationHref = "/requests" | "/payments" | "/agreements" | "/cabinet";
+  | "payment_report_status"
+  | "utility_submitted"
+  | "utility_reviewed";
+export type NotificationHref =
+  "/requests" | "/payments" | "/agreements" | "/cabinet" | "/utilities";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   apartment: "Квартира / апартаменты",
@@ -74,6 +77,8 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   payment_reminder: "Напоминание об оплате",
   payment_reported: "Сообщение об оплате",
   payment_report_status: "Статус оплаты",
+  utility_submitted: "Коммунальные показания",
+  utility_reviewed: "Коммунальный расчёт",
 };
 
 export function formatMoney(value: number | null | undefined) {
@@ -81,7 +86,8 @@ export function formatMoney(value: number | null | undefined) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: "RUB",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 

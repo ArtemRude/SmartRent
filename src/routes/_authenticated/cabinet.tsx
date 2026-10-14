@@ -480,6 +480,13 @@ function CabinetPage() {
                         </div>
                       </div>
                     )}
+                    {agreement.status === "active" && (
+                      <Button variant="outline" size="sm" asChild className="mt-4">
+                        <Link to="/utilities" search={{ agreement: agreement.id }}>
+                          Передать показания счётчиков
+                        </Link>
+                      </Button>
+                    )}
                     {agreement.status === "pending_signature" && !currentAcceptance && (
                       <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
                         <p className="text-sm font-medium text-amber-900">
@@ -798,7 +805,8 @@ function CabinetPage() {
                         <div>
                           <p className="font-medium">{property?.name ?? "Объект аренды"}</p>
                           <p className="text-xs text-muted-foreground">
-                            Оплатить до {formatDate(charge.due_date)}
+                            {charge.charge_type === "utilities" ? "Коммунальные услуги" : "Аренда"}{" "}
+                            · Оплатить до {formatDate(charge.due_date)}
                           </p>
                         </div>
                         <div className="text-right">
@@ -807,6 +815,15 @@ function CabinetPage() {
                         </div>
                       </div>
                       <div className="mt-3 border-t pt-3">
+                        {charge.charge_type === "utilities" && (
+                          <Link
+                            to="/utilities"
+                            search={{ agreement: charge.agreement_id }}
+                            className="mb-2 block text-xs text-primary hover:underline"
+                          >
+                            Посмотреть показания и расчёт
+                          </Link>
+                        )}
                         {pendingReportByCharge.has(charge.id) ? (
                           <p className="text-xs font-medium text-amber-700">
                             Оплата отправлена собственнику и ожидает подтверждения

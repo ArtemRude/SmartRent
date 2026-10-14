@@ -8,6 +8,7 @@ export function FileUploadField({
   onFileChange,
   accept,
   description,
+  buttonLabel = "Выбрать PDF",
   disabled = false,
   className,
 }: {
@@ -16,6 +17,7 @@ export function FileUploadField({
   onFileChange: (file: File | null) => void;
   accept: string;
   description: string;
+  buttonLabel?: string;
   disabled?: boolean;
   className?: string;
 }) {
@@ -59,7 +61,7 @@ export function FileUploadField({
         <Button type="button" variant="outline" size="sm" disabled={disabled} asChild>
           <label htmlFor={id} className="cursor-pointer">
             <Upload className="mr-2 h-4 w-4" />
-            {file ? "Заменить" : "Выбрать PDF"}
+            {file ? "Заменить" : buttonLabel}
           </label>
         </Button>
         <input

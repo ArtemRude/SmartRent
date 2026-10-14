@@ -1,4 +1,5 @@
 import type { AgreementStatus } from "@/lib/domain"
+import type { UtilityService, UtilityBill, UtilityBillItem } from "@/lib/utilities"
 
 export type Json =
   | string
@@ -16,6 +17,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      utility_services: {
+        Row: UtilityService
+        Insert: Omit<UtilityService, "id" | "created_at"> & { id?: string; created_at?: string }
+        Update: Partial<UtilityService>
+        Relationships: [{ foreignKeyName: "utility_services_agreement_id_fkey"; columns: ["agreement_id"]; isOneToOne: false; referencedRelation: "lease_agreements"; referencedColumns: ["id"] }]
+      }
+      utility_bills: {
+        Row: UtilityBill
+        Insert: Omit<UtilityBill, "id" | "created_at"> & { id?: string; created_at?: string }
+        Update: Partial<UtilityBill>
+        Relationships: [{ foreignKeyName: "utility_bills_agreement_id_fkey"; columns: ["agreement_id"]; isOneToOne: false; referencedRelation: "lease_agreements"; referencedColumns: ["id"] }]
+      }
+      utility_bill_items: {
+        Row: UtilityBillItem
+        Insert: Omit<UtilityBillItem, "id"> & { id?: string }
+        Update: Partial<UtilityBillItem>
+        Relationships: [{ foreignKeyName: "utility_bill_items_bill_id_fkey"; columns: ["bill_id"]; isOneToOne: false; referencedRelation: "utility_bills"; referencedColumns: ["id"] }]
+      }
       agreement_acceptances: {
         Row: {
           accepted_at: string
@@ -607,6 +626,7 @@ export type Database = {
           adjustment_reason: string | null
           agreement_id: string
           amount: number
+          charge_type: "rent" | "utilities"
           created_at: string
           due_date: string
           id: string
@@ -624,6 +644,7 @@ export type Database = {
           adjustment_reason?: string | null
           agreement_id: string
           amount: number
+          charge_type?: "rent" | "utilities"
           created_at?: string
           due_date: string
           id?: string
@@ -641,6 +662,7 @@ export type Database = {
           adjustment_reason?: string | null
           agreement_id?: string
           amount?: number
+          charge_type?: "rent" | "utilities"
           created_at?: string
           due_date?: string
           id?: string
@@ -851,6 +873,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      save_utility_service: { Args: { p_agreement_id: string; p_service: Json }; Returns: string }
+      submit_utility_readings: { Args: { p_agreement_id: string; p_period: string; p_readings: Json }; Returns: string }
+      review_utility_bill: { Args: { p_bill_id: string; p_approve: boolean; p_note: string | null; p_due_date: string }; Returns: string }
       cancel_payment_report: {
         Args: { p_report_id: string }
         Returns: string

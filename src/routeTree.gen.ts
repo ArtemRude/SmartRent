@@ -22,6 +22,7 @@ import { Route as AuthenticatedPropertiesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTenantsRouteImport } from './routes/_authenticated/tenants'
+import { Route as AuthenticatedUtilitiesRouteImport } from './routes/_authenticated/utilities'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties.$propertyId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const AuthenticatedTenantsRoute = AuthenticatedTenantsRouteImport.update({
   path: '/tenants',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedUtilitiesRoute = AuthenticatedUtilitiesRouteImport.update({
+  id: '/utilities',
+  path: '/utilities',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPropertiesPropertyIdRoute =
   AuthenticatedPropertiesPropertyIdRouteImport.update({
     id: '/$propertyId',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/requests': typeof AuthenticatedRequestsRoute
   '/support': typeof AuthenticatedSupportRoute
   '/tenants': typeof AuthenticatedTenantsRoute
+  '/utilities': typeof AuthenticatedUtilitiesRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
 export interface FileRoutesByTo {
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/requests': typeof AuthenticatedRequestsRoute
   '/support': typeof AuthenticatedSupportRoute
   '/tenants': typeof AuthenticatedTenantsRoute
+  '/utilities': typeof AuthenticatedUtilitiesRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
 export interface FileRoutesById {
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/_authenticated/requests': typeof AuthenticatedRequestsRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/tenants': typeof AuthenticatedTenantsRoute
+  '/_authenticated/utilities': typeof AuthenticatedUtilitiesRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
 export interface FileRouteTypes {
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/support'
     | '/tenants'
+    | '/utilities'
     | '/properties/$propertyId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/support'
     | '/tenants'
+    | '/utilities'
     | '/properties/$propertyId'
   id:
     | '__root__'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/_authenticated/requests'
     | '/_authenticated/support'
     | '/_authenticated/tenants'
+    | '/_authenticated/utilities'
     | '/_authenticated/properties/$propertyId'
   fileRoutesById: FileRoutesById
 }
@@ -291,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTenantsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/utilities': {
+      id: '/_authenticated/utilities'
+      path: '/utilities'
+      fullPath: '/utilities'
+      preLoaderRoute: typeof AuthenticatedUtilitiesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/properties/$propertyId': {
       id: '/_authenticated/properties/$propertyId'
       path: '/$propertyId'
@@ -327,6 +346,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedTenantsRoute: typeof AuthenticatedTenantsRoute
+  AuthenticatedUtilitiesRoute: typeof AuthenticatedUtilitiesRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -340,6 +360,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedTenantsRoute: AuthenticatedTenantsRoute,
+  AuthenticatedUtilitiesRoute: AuthenticatedUtilitiesRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

@@ -5,6 +5,7 @@ export const REQUEST_PHOTOS = "request-photos";
 export const AGREEMENT_INVENTORY_PHOTOS = "agreement-inventory-photos";
 export const LEASE_DOCUMENTS = "lease-documents";
 export const PAYMENT_RECEIPTS = "payment-receipts";
+export const UTILITY_READING_PHOTOS = "utility-reading-photos";
 
 function randomName(file: File) {
   const ext = file.name.split(".").pop() ?? "bin";
@@ -12,7 +13,12 @@ function randomName(file: File) {
 }
 
 function validateFile(bucket: string, file: File) {
-  const imageBuckets = new Set([PROPERTY_PHOTOS, REQUEST_PHOTOS, AGREEMENT_INVENTORY_PHOTOS]);
+  const imageBuckets = new Set([
+    PROPERTY_PHOTOS,
+    REQUEST_PHOTOS,
+    AGREEMENT_INVENTORY_PHOTOS,
+    UTILITY_READING_PHOTOS,
+  ]);
   if (imageBuckets.has(bucket)) {
     if (!file.type.startsWith("image/")) throw new Error("Можно загружать только изображения");
     if (file.size > 8 * 1024 * 1024) throw new Error("Размер изображения не должен превышать 8 МБ");
@@ -20,6 +26,12 @@ function validateFile(bucket: string, file: File) {
   if (bucket === LEASE_DOCUMENTS) {
     if (file.type !== "application/pdf") throw new Error("Договор должен быть в формате PDF");
     if (file.size > 20 * 1024 * 1024) throw new Error("Размер договора не должен превышать 20 МБ");
+  }
+  if (
+    bucket === UTILITY_READING_PHOTOS &&
+    !["image/jpeg", "image/png", "image/webp"].includes(file.type)
+  ) {
+    throw new Error("Фото счётчика должно быть в формате JPG, PNG или WebP");
   }
   if (bucket === PAYMENT_RECEIPTS) {
     const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
