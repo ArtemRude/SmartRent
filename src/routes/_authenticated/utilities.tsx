@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ArrowRight,
   Droplets,
+  Download,
   Gauge,
   History,
   Plus,
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { UtilityBillCard } from "@/components/UtilityBillCard";
 import { UtilityServiceDialog } from "@/components/UtilityServiceDialog";
+import { UtilityMonthlySummary } from "@/components/UtilityMonthlySummary";
 import { FileUploadField } from "@/components/FileUploadField";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,9 @@ import {
   type UtilityService,
 } from "@/lib/utilities";
 import { removeFile, uploadFile, UTILITY_READING_PHOTOS } from "@/lib/storage";
+import { buildUtilityMonthlySummary } from "@/lib/utility-summary";
+import { buildUtilityHistoryCsv } from "@/lib/utility-report";
+import { downloadCsv } from "@/lib/csv";
 
 export const Route = createFileRoute("/_authenticated/utilities")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -90,6 +95,8 @@ function Utilities() {
     null,
   );
   const [formError, setFormError] = useState("");
+  const [historyPeriod, setHistoryPeriod] = useState("all");
+  const [historyStatus, setHistoryStatus] = useState("all");
   const allAgreements = (agreements.data ?? []).filter(
     (agreement) => canManage || ["active", "completed"].includes(agreement.status),
   );
@@ -147,6 +154,42 @@ function Utilities() {
     preview.length > 0 &&
     previewTotal < 1_000_000_000_000 &&
     preview.every((line) => !line.invalid);
+  const summaryPeriod =
+    pendingBill?.period_start.slice(0, 7) ??
+    (/^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : localDateKey().slice(0, 7));
+  const summary = buildUtilityMonthlySummary({
+    agreementId: agreement?.id ?? "",
+    period: summaryPeriod,
+    charges: charges.data ?? [],
+    bills,
+    previewAmount:
+      canSubmit && periodValid && !periodAlreadyBilled && previewComplete ? previewTotal : null,
+  });
+  const historyBills = bills.filter(
+    (bill) =>
+      bill.status !== "pending" &&
+      (historyPeriod === "all" || bill.period_start.slice(0, 7) === historyPeriod) &&
+      (historyStatus === "all" || bill.status === historyStatus),
+  );
+  const historyPeriods = Array.from(
+    new Set(
+      bills
+        .filter((bill) => bill.status !== "pending")
+        .map((bill) => bill.period_start.slice(0, 7)),
+    ),
+  )
+    .sort()
+    .reverse();
+  const reportContext = {
+    propertyName:
+      properties.data?.find((property) => property.id === agreement?.property_id)?.name ?? "Объект",
+    propertyAddress:
+      properties.data?.find((property) => property.id === agreement?.property_id)?.address ?? "",
+    tenantName:
+      tenants.data?.find((tenant) => tenant.id === agreement?.tenant_id)?.name ?? "Арендатор",
+    unitName: units.data?.find((unit) => unit.id === agreement?.unit_id)?.name ?? null,
+  };
+  const allPendingBills = (utilities.data?.bills ?? []).filter((bill) => bill.status === "pending");
   const submit = useMutation({
     mutationFn: async () => {
       if (
@@ -194,6 +237,16 @@ function Utilities() {
     const tenant = tenants.data?.find((tenant) => tenant.id === item.tenant_id);
     const unit = units.data?.find((unit) => unit.id === item.unit_id);
     return `${property?.name ?? "Объект"}${unit ? ` · ${unit.name}` : ""}${canManage ? ` · ${tenant?.name ?? "Арендатор"}` : ""}`;
+  };
+
+  const selectAgreement = (value: string) => {
+    setReadings({});
+    setPhotos({});
+    setFormError("");
+    setServiceDialog(null);
+    setHistoryPeriod("all");
+    setHistoryStatus("all");
+    void navigate({ search: { agreement: value } });
   };
 
   return (
@@ -253,19 +306,47 @@ function Utilities() {
       )}
       {!loading && !failed && utilities.data?.available && agreement && (
         <>
+          {canManage && allPendingBills.some((bill) => bill.agreement_id !== agreement.id) && (
+            <Card className="mt-6 border-amber-200 bg-amber-50/40">
+              <CardContent className="space-y-3 p-5">
+                <h2 className="font-semibold">Ожидают проверки: {allPendingBills.length}</h2>
+                {allPendingBills.map((bill) => {
+                  const related = allAgreements.find((item) => item.id === bill.agreement_id);
+                  return (
+                    <div
+                      key={bill.id}
+                      className="flex flex-wrap items-center justify-between gap-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">
+                          {related ? agreementLabel(related) : "Договор аренды"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatMonth(bill.period_start)} ·{" "}
+                          {formatUtilityMoney(Number(bill.amount))}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={submit.isPending}
+                        onClick={() => selectAgreement(bill.agreement_id)}
+                      >
+                        Проверить расчёт
+                      </Button>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
             <div className="space-y-2">
               <Label>Договор и объект</Label>
               <Select
                 value={agreement.id}
                 disabled={submit.isPending}
-                onValueChange={(value) => {
-                  setReadings({});
-                  setPhotos({});
-                  setFormError("");
-                  setServiceDialog(null);
-                  void navigate({ search: { agreement: value } });
-                }}
+                onValueChange={selectAgreement}
               >
                 <SelectTrigger
                   aria-label="Договор и объект"
@@ -353,6 +434,7 @@ function Utilities() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="readings" className="mt-5 space-y-6">
+              <UtilityMonthlySummary period={summaryPeriod} summary={summary} />
               {pendingBill ? (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
@@ -365,6 +447,7 @@ function Utilities() {
                     bill={pendingBill}
                     items={items.filter((item) => item.bill_id === pendingBill.id)}
                     canReview={canManage}
+                    reportContext={reportContext}
                   />
                 </div>
               ) : canSubmit && agreementServices.some((service) => service.active) ? (
@@ -405,8 +488,9 @@ function Utilities() {
                       </div>
                       {periodAlreadyBilled ? (
                         <p className="rounded-lg bg-accent p-3 text-sm">
-                          Этот или более поздний месяц уже утверждён. Выберите следующий расчётный
-                          месяц.
+                          {latestApproved?.period_start.slice(0, 7) === localDateKey().slice(0, 7)
+                            ? "Расчёт за текущий месяц уже утверждён. Новые показания можно будет передать в следующем месяце."
+                            : "Этот или более поздний месяц уже утверждён. Выберите следующий расчётный месяц."}
                         </p>
                       ) : !periodValid ? (
                         <p role="alert" className="text-sm text-destructive">
@@ -515,6 +599,11 @@ function Utilities() {
                           {formError}
                         </p>
                       )}
+                      {previewTotal >= 1_000_000_000_000 && (
+                        <p role="alert" className="text-sm text-destructive">
+                          Сумма слишком большая. Проверьте показания и тарифы.
+                        </p>
+                      )}
                     </form>
                   </CardContent>
                 </Card>
@@ -540,11 +629,6 @@ function Utilities() {
                         Добавить услугу
                       </Button>
                     )}
-                    {previewTotal >= 1_000_000_000_000 && (
-                      <p role="alert" className="text-sm text-destructive">
-                        Сумма слишком большая. Проверьте показания и тарифы.
-                      </p>
-                    )}
                   </CardContent>
                 </Card>
               )}
@@ -553,20 +637,64 @@ function Utilities() {
                   <History className="h-4 w-4" />
                   История расчётов
                 </h2>
-                {bills
-                  .filter((bill) => bill.status !== "pending")
-                  .map((bill) => (
-                    <UtilityBillCard
-                      key={bill.id}
-                      bill={bill}
-                      items={items.filter((item) => item.bill_id === bill.id)}
-                      canReview={canManage}
-                      charge={charges.data?.find((charge) => charge.id === bill.charge_id)}
-                    />
-                  ))}
-                {!bills.some((bill) => bill.status !== "pending") && (
+                {historyPeriods.length > 0 && (
+                  <div className="flex flex-wrap gap-3">
+                    <Select value={historyPeriod} onValueChange={setHistoryPeriod}>
+                      <SelectTrigger className="w-full sm:w-52" aria-label="Месяц истории расчётов">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Все месяцы</SelectItem>
+                        {historyPeriods.map((month) => (
+                          <SelectItem key={month} value={month}>
+                            {formatMonth(`${month}-01`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={historyStatus} onValueChange={setHistoryStatus}>
+                      <SelectTrigger
+                        className="w-full sm:w-52"
+                        aria-label="Статус истории расчётов"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Все результаты</SelectItem>
+                        <SelectItem value="approved">Утверждённые</SelectItem>
+                        <SelectItem value="rejected">На исправление</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      disabled={historyBills.length === 0}
+                      onClick={() =>
+                        downloadCsv(
+                          `коммунальные-${historyPeriod === "all" ? "история" : historyPeriod}.csv`,
+                          buildUtilityHistoryCsv(historyBills, items),
+                        )
+                      }
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Скачать CSV
+                    </Button>
+                  </div>
+                )}
+                {historyBills.map((bill) => (
+                  <UtilityBillCard
+                    key={bill.id}
+                    bill={bill}
+                    items={items.filter((item) => item.bill_id === bill.id)}
+                    canReview={canManage}
+                    charge={charges.data?.find((charge) => charge.id === bill.charge_id)}
+                    reportContext={reportContext}
+                  />
+                ))}
+                {historyBills.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Здесь появятся утверждённые расчёты и показания, возвращённые на исправление.
+                    {historyPeriods.length === 0
+                      ? "Здесь появятся утверждённые расчёты и показания, возвращённые на исправление."
+                      : "Расчётов с выбранными фильтрами нет."}
                   </p>
                 )}
               </div>

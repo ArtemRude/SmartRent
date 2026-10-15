@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Camera, CalendarClock, RotateCcw } from "lucide-react";
+import { Check, Camera, CalendarClock, RotateCcw, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,17 +27,20 @@ import {
   type UtilityBillItem,
 } from "@/lib/utilities";
 import type { RentCharge } from "@/lib/queries";
+import { openUtilityReport, type UtilityReportContext } from "@/lib/utility-report";
 
 export function UtilityBillCard({
   bill,
   items,
   canReview,
   charge,
+  reportContext,
 }: {
   bill: UtilityBill;
   items: UtilityBillItem[];
   canReview: boolean;
   charge?: RentCharge | undefined;
+  reportContext: UtilityReportContext;
 }) {
   const qc = useQueryClient();
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
@@ -75,7 +78,7 @@ export function UtilityBillCard({
   };
 
   return (
-    <Card>
+    <Card data-testid={`utility-bill-${bill.id}`}>
       <CardContent className="space-y-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -84,9 +87,25 @@ export function UtilityBillCard({
               Отправлено {formatDate(bill.created_at)}
             </p>
           </div>
-          <Badge variant={bill.status === "rejected" ? "destructive" : "secondary"}>
-            {utilityStatusLabels[bill.status]}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={bill.status === "rejected" ? "destructive" : "secondary"}>
+              {utilityStatusLabels[bill.status]}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                try {
+                  openUtilityReport({ ...reportContext, bill, items, charge });
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Не удалось открыть расчёт");
+                }
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Расчёт / PDF
+            </Button>
+          </div>
         </div>
         <div className="divide-y rounded-xl border px-4">
           {items.map((item) => (

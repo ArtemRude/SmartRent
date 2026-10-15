@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 // UI contract tests use intercepted Auth/REST/Storage responses. They never
 // register users or modify any Supabase project; SQL behavior is tested separately.
@@ -264,12 +265,21 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
 
   await tenant.goto("/utilities");
   await expect(tenant.getByRole("button", { name: "Добавить услугу", exact: true })).toHaveCount(0);
+  await tenant.getByLabel("Расчётный месяц").fill("");
+  await expect(
+    tenant.getByRole("heading", { name: "Коммунальные услуги", exact: true }),
+  ).toBeVisible();
+  await expect(
+    tenant.getByText("Выберите прошедший или текущий месяц в пределах договора."),
+  ).toBeVisible();
+  await tenant.getByLabel("Расчётный месяц").fill(period.slice(0, 7));
   const readingInput = tenant.getByLabel("Текущие показания, м³");
   await readingInput.fill("99");
   await expect(tenant.getByText("Показания не должны уменьшаться", { exact: false })).toBeVisible();
   await expect(tenant.getByRole("button", { name: "Отправить на проверку" })).toBeDisabled();
   await readingInput.fill("103,2");
-  await expect(tenant.getByText("636,80", { exact: false })).toBeVisible();
+  await expect(tenant.getByText("636,80", { exact: false }).first()).toBeVisible();
+  await expect(tenant.getByTestId("utility-monthly-summary").getByText(/30\s636,80/)).toBeVisible();
   await tenant.locator('input[type="file"]').setInputFiles({
     name: "meter.png",
     mimeType: "image/png",
@@ -303,6 +313,37 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
   await tenant.reload();
   await expect(tenant.getByText("Утверждено", { exact: true })).toBeVisible();
   await expect(tenant.getByRole("link", { name: "Открыть оплату" })).toBeVisible();
+  await expect(
+    tenant.getByTestId("utility-monthly-summary").getByText("Начислено", { exact: true }),
+  ).toBeVisible();
+  await owner.getByRole("combobox", { name: "Статус истории расчётов" }).click();
+  await owner.getByRole("option", { name: "Утверждённые", exact: true }).click();
+  await expect(owner.getByTestId("utility-bill-bill-1")).toHaveCount(0);
+  const downloadPromise = owner.waitForEvent("download");
+  await owner.getByRole("button", { name: "Скачать CSV", exact: true }).click();
+  const download = await downloadPromise;
+  const csv = await readFile((await download.path())!, "utf8");
+  expect(csv).toContain("Утверждено");
+  expect(csv).toContain("136,80");
+  expect(csv).not.toContain("Нужно исправить");
+  const popupPromise = owner.waitForEvent("popup");
+  await owner
+    .getByTestId("utility-bill-bill-2")
+    .getByRole("button", { name: "Расчёт / PDF" })
+    .click();
+  const report = await popupPromise;
+  await expect(report.getByRole("heading", { name: "Расчёт коммунальных услуг" })).toBeVisible();
+  await expect(report.getByText("636,80", { exact: false }).first()).toBeVisible();
+  await expect(report.getByRole("button", { name: "Печать / Сохранить PDF" })).toBeVisible();
+  await report.emulateMedia({ media: "print" });
+  await report.setViewportSize({ width: 658, height: 930 });
+  expect(
+    await report.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await report.screenshot({ path: "test-results/utility-print-report.png", fullPage: true });
+  await report.close();
+  await owner.getByRole("combobox", { name: "Статус истории расчётов" }).click();
+  await owner.getByRole("option", { name: "Все результаты", exact: true }).click();
   await owner.screenshot({ path: "test-results/utilities-owner.png", fullPage: true });
   await tenant.setViewportSize({ width: 390, height: 844 });
   await expect(
