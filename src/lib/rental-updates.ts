@@ -46,6 +46,8 @@ function keysForNotification(notification: RentalNotification): UpdateKey[] {
     case "agreement_status":
     case "agreement_accepted":
       return agreementKeys;
+    case "handover_status":
+      return [["handovers"], ...agreementKeys, ...paymentKeys];
     case "agreement_expiring":
       return [["agreements"]];
     case "payment_status":

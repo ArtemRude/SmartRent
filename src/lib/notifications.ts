@@ -26,4 +26,5 @@ export const notificationIcons: Record<NotificationKind, LucideIcon> = {
   payment_report_status: CreditCard,
   utility_submitted: CalendarClock,
   utility_reviewed: CreditCard,
+  handover_status: FileText,
 };

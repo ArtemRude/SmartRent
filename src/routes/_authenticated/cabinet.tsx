@@ -480,6 +480,13 @@ function CabinetPage() {
                         </div>
                       </div>
                     )}
+                    {(agreement.status === "active" || agreement.status === "completed") && (
+                      <Button variant="outline" size="sm" asChild className="mt-4 mr-2">
+                        <Link to="/handover" search={{ agreement: agreement.id }}>
+                          Заселение и выезд
+                        </Link>
+                      </Button>
+                    )}
                     {agreement.status === "active" && (
                       <Button variant="outline" size="sm" asChild className="mt-4">
                         <Link to="/utilities" search={{ agreement: agreement.id }}>

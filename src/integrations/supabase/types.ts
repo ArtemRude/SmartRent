@@ -1,5 +1,6 @@
 import type { AgreementStatus } from "@/lib/domain"
 import type { UtilityService, UtilityBill, UtilityBillItem } from "@/lib/utilities"
+import type { LeaseHandover, HandoverEvent } from "@/lib/handovers"
 
 export type Json =
   | string
@@ -17,6 +18,8 @@ export type Database = {
   }
   public: {
     Tables: {
+      lease_handovers: { Row: LeaseHandover; Insert: never; Update: never; Relationships: [] }
+      lease_handover_events: { Row: HandoverEvent; Insert: never; Update: never; Relationships: [] }
       utility_services: {
         Row: UtilityService
         Insert: Omit<UtilityService, "id" | "created_at"> & { id?: string; created_at?: string }
@@ -873,6 +876,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      save_lease_handover: { Args: { p_agreement_id: string; p_kind: string; p_report: Json; p_expected_revision: number | null }; Returns: string }
+      act_on_lease_handover: { Args: { p_handover_id: string; p_action: string; p_expected_revision: number; p_note: string | null }; Returns: string }
       save_utility_service: { Args: { p_agreement_id: string; p_service: Json }; Returns: string }
       submit_utility_readings: { Args: { p_agreement_id: string; p_period: string; p_readings: Json }; Returns: string }
       review_utility_bill: { Args: { p_bill_id: string; p_approve: boolean; p_note: string | null; p_due_date: string }; Returns: string }

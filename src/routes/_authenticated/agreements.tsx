@@ -626,15 +626,17 @@ function AgreementsPage() {
                       </>
                     )}
                     {agreement.status === "active" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          changeStatus.mutate({ id: agreement.id, status: "completed" })
-                        }
-                        disabled={changeStatus.isPending}
-                      >
-                        <CircleStop className="mr-2 h-4 w-4" /> Завершить
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to="/handover" search={{ agreement: agreement.id, kind: "move_out" }}>
+                          <CircleStop className="mr-2 h-4 w-4" /> Оформить выезд
+                        </Link>
+                      </Button>
+                    )}
+                    {agreement.status === "completed" && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to="/handover" search={{ agreement: agreement.id }}>
+                          Акты и депозит
+                        </Link>
                       </Button>
                     )}
                   </div>

@@ -19,9 +19,10 @@ export type NotificationKind =
   | "payment_reported"
   | "payment_report_status"
   | "utility_submitted"
-  | "utility_reviewed";
+  | "utility_reviewed"
+  | "handover_status";
 export type NotificationHref =
-  "/requests" | "/payments" | "/agreements" | "/cabinet" | "/utilities";
+  "/requests" | "/payments" | "/agreements" | "/cabinet" | "/utilities" | "/handover";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   apartment: "Квартира / апартаменты",
@@ -79,6 +80,7 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   payment_report_status: "Статус оплаты",
   utility_submitted: "Коммунальные показания",
   utility_reviewed: "Коммунальный расчёт",
+  handover_status: "Заселение и выезд",
 };
 
 export function formatMoney(value: number | null | undefined) {
