@@ -113,12 +113,12 @@ function HandoverPage() {
     queryKey: ["handovers", user?.id],
     queryFn: fetchHandovers,
     enabled: Boolean(user),
-    refetchInterval: 30_000,
+    // Tenant decisions notify the lease owner. Admins also need updates while managing it.
+    refetchInterval: role === "admin" ? 5_000 : 30_000,
   });
   const eligible = (agreements.data ?? []).filter(
-    (item) =>
-      (item.status === "active" || item.status === "completed") &&
-      (!owner || item.owner_id === user?.id),
+    // Visibility is enforced by lease RLS. Admins can also manage another owner's lease.
+    (item) => item.status === "active" || item.status === "completed",
   );
   const agreement = search.agreement
     ? eligible.find((item) => item.id === search.agreement)
@@ -269,7 +269,7 @@ function HandoverPage() {
               </CardContent>
             </Card>
           )}
-          {eligible.length === 0 && (
+          {eligible.length === 0 && !search.agreement && (
             <Card>
               <CardContent className="p-6 text-sm text-muted-foreground">
                 Для осмотра нужен активный или завершённый договор.
@@ -301,13 +301,31 @@ function HandoverPage() {
               </Select>
             </div>
           )}
-          {search.agreement && !agreement && eligible.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              Этот договор недоступен. Выберите договор из списка.
-            </p>
+          {search.agreement && !agreement && (
+            <Card>
+              <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
+                <p>
+                  Этот договор недоступен для осмотра. Нужен активный или завершённый договор, к
+                  которому у вас есть доступ.
+                </p>
+                {eligible.length > 0 ? (
+                  <p>Выберите другой договор из списка выше.</p>
+                ) : owner ? (
+                  <Button variant="outline" asChild>
+                    <Link to="/agreements">Открыть договоры</Link>
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
           )}
           {agreement && (
             <>
+              {role === "admin" && agreement.owner_id !== user?.id && (
+                <p className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  Вы оформляете акт как администратор. Подтвердить акт и получение депозита должен
+                  арендатор в своём кабинете.
+                </p>
+              )}
               <Tabs
                 value={kind}
                 onValueChange={(value) =>

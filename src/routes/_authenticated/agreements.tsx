@@ -626,6 +626,13 @@ function AgreementsPage() {
                       </>
                     )}
                     {agreement.status === "active" && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to="/handover" search={{ agreement: agreement.id, kind: "move_in" }}>
+                          <BadgeCheck className="mr-2 h-4 w-4" /> Оформить заселение
+                        </Link>
+                      </Button>
+                    )}
+                    {agreement.status === "active" && (
                       <Button variant="ghost" size="sm" asChild>
                         <Link to="/handover" search={{ agreement: agreement.id, kind: "move_out" }}>
                           <CircleStop className="mr-2 h-4 w-4" /> Оформить выезд

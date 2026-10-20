@@ -1,9 +1,7 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import type { HandoverEvent, LeaseHandover } from "../src/lib/handovers";
 
-test("owner and tenant agree a photographed checkout, preserve revisions and acknowledge the deposit return", async ({
-  browser,
-}) => {
+async function checkHandover(browser: Browser, managerRole: "owner" | "admin") {
   test.setTimeout(120_000);
   const apiUrl = process.env["E2E_SUPABASE_URL"];
   test.skip(!apiUrl, "Use loopback configuration for intercepted UI tests.");
@@ -67,19 +65,36 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQp0AAAAASUVORK5CYII=",
     "base64",
   );
-  const installApi = async (context: BrowserContext, role: "owner" | "tenant") => {
-    const id = role === "owner" ? ownerId : tenantId;
+  const installApi = async (context: BrowserContext, role: "owner" | "tenant" | "admin") => {
+    const id =
+      role === "admin"
+        ? "81000000-0000-0000-0000-000000000003"
+        : role === "owner"
+          ? ownerId
+          : tenantId;
     const user = {
       id,
       aud: "authenticated",
       role: "authenticated",
       email: `${role}@example.invalid`,
-      user_metadata: { role, name: role === "owner" ? "Анна Собственник" : "Иван Арендатор" },
+      user_metadata: {
+        role,
+        name:
+          role === "tenant"
+            ? "Иван Арендатор"
+            : role === "admin"
+              ? "Администратор"
+              : "Анна Собственник",
+      },
       app_metadata: { provider: "email" },
       created_at: now,
     };
     const token = Buffer.from(
-      JSON.stringify({ sub: id, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 }),
+      JSON.stringify({
+        sub: id,
+        role: "authenticated",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
     ).toString("base64url");
     const session = {
       access_token: `eyJhbGciOiJIUzI1NiJ9.${token}.fixture`,
@@ -188,7 +203,7 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
         });
         notifications.unshift({
           id: `notification-${notifications.length}`,
-          user_id: role === "owner" ? tenantId : ownerId,
+          user_id: role !== "tenant" ? tenantId : ownerId,
           kind: "handover_status",
           entity_id: agreementId,
           entity_type: "agreement",
@@ -201,7 +216,7 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
         });
         response = report.id;
       } else {
-        const visible = reports.filter((item) => role === "owner" || item.status !== "draft");
+        const visible = reports.filter((item) => role !== "tenant" || item.status !== "draft");
         const tables: Record<string, unknown> = {
           profiles: { id, name: user.user_metadata.name, email: user.email, phone: null },
           user_roles: { role },
@@ -235,7 +250,7 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
           lease_handover_events: events.filter(
             (event) =>
               visible.some((item) => item.id === event.handover_id) &&
-              (role === "owner" || event.event_type !== "draft_saved"),
+              (role !== "tenant" || event.event_type !== "draft_saved"),
           ),
           notifications: notifications.filter((item) => item["user_id"] === id),
         };
@@ -246,14 +261,25 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
   };
   const ownerContext = await browser.newContext();
   const tenantContext = await browser.newContext();
-  await installApi(ownerContext, "owner");
+  await installApi(ownerContext, managerRole);
   await installApi(tenantContext, "tenant");
   const owner = await ownerContext.newPage();
   const tenant = await tenantContext.newPage();
   const errors: string[] = [];
   for (const page of [owner, tenant]) page.on("pageerror", (error) => errors.push(error.message));
   const path = `/handover?agreement=${agreementId}&kind=move_out`;
-  await owner.goto(path);
+  await owner.goto("/agreements");
+  await owner.getByRole("link", { name: "Оформить заселение", exact: true }).click();
+  await expect(
+    owner.getByTestId("handover-current").getByText("Акт заселения", { exact: true }),
+  ).toBeVisible();
+  await expect(owner.getByRole("tab", { name: "Заселение", exact: true })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+  await owner.getByRole("link", { name: "Договоры", exact: true }).click();
+  await owner.getByRole("link", { name: "Оформить выезд", exact: true }).click();
+  await expect(owner).toHaveURL(new RegExp(`agreement=${agreementId}.*kind=move_out`));
   await tenant.goto(path);
   const current = (page: Page) => page.getByTestId("handover-current");
   const doAction = async (page: Page, name: string, note?: string) => {
@@ -300,7 +326,13 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
   ).toBeVisible();
   await owner.getByRole("button", { name: "Закрыть фотографию" }).click();
   await expect(owner.getByRole("dialog")).toHaveCount(0);
-  expect(uploads.some((url) => url.includes(`${ownerId}/${agreementId}/move_out/`))).toBe(true);
+  expect(
+    uploads.some((url) =>
+      url.includes(
+        `${managerRole === "admin" ? "81000000-0000-0000-0000-000000000003" : ownerId}/${agreementId}/move_out/`,
+      ),
+    ),
+  ).toBe(true);
   await expect(
     current(tenant).getByText("Собственник ещё не отправил акт на проверку."),
   ).toBeVisible();
@@ -365,7 +397,30 @@ test("owner and tenant agree a photographed checkout, preserve revisions and ack
   expect(events.filter((event) => event.event_type === "refund_marked")).toHaveLength(1);
   await tenant.screenshot({ path: "test-results/handover-tenant-mobile.png", fullPage: true });
   await owner.screenshot({ path: "test-results/handover-owner.png", fullPage: true });
+  await owner.goto("/handover?agreement=unavailable&kind=move_in");
+  await expect(owner.getByText(/Этот договор недоступен для осмотра/)).toBeVisible();
+  await expect(current(owner)).toHaveCount(0);
+  await owner.getByRole("combobox", { name: "Договор для осмотра" }).click();
+  await owner.getByRole("option", { name: "Квартира на Садовой · Иван Арендатор" }).click();
+  await expect(current(owner).getByText("Акт заселения", { exact: true })).toBeVisible();
+  // A selected ineligible lease must explain the problem even when the list is empty.
+  agreement.status = "draft";
+  await owner.reload();
+  await expect(owner.getByText(/Этот договор недоступен для осмотра/)).toBeVisible();
+  await expect(owner.getByRole("link", { name: "Открыть договоры", exact: true })).toBeVisible();
+  await owner.goto("/handover");
+  await expect(
+    owner.getByText("Для осмотра нужен активный или завершённый договор."),
+  ).toBeVisible();
   expect(errors).toEqual([]);
   await ownerContext.close();
   await tenantContext.close();
-});
+}
+
+for (const managerRole of ["owner", "admin"] as const) {
+  test(`${managerRole} opens checkout from agreements, agrees revisions and acknowledges the deposit return`, async ({
+    browser,
+  }) => {
+    await checkHandover(browser, managerRole);
+  });
+}
