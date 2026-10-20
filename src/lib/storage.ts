@@ -6,6 +6,7 @@ export const AGREEMENT_INVENTORY_PHOTOS = "agreement-inventory-photos";
 export const LEASE_DOCUMENTS = "lease-documents";
 export const PAYMENT_RECEIPTS = "payment-receipts";
 export const UTILITY_READING_PHOTOS = "utility-reading-photos";
+export const EXPENSE_RECEIPTS = "expense-receipts";
 export const HANDOVER_PHOTOS = "lease-handover-photos";
 
 function randomName(file: File) {
@@ -39,7 +40,7 @@ function validateFile(bucket: string, file: File) {
         : "Фото счётчика должно быть в формате JPG, PNG или WebP",
     );
   }
-  if (bucket === PAYMENT_RECEIPTS) {
+  if (bucket === PAYMENT_RECEIPTS || bucket === EXPENSE_RECEIPTS) {
     const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
     if (!allowedTypes.has(file.type)) {
       throw new Error("Чек должен быть в формате PDF, JPG, PNG или WebP");

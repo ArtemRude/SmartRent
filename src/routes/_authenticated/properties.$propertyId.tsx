@@ -173,9 +173,16 @@ function PropertyDetailsPage() {
         title={property.data.name}
         description={propertyTypeLabels[property.data.type]}
         action={
-          <Button variant="outline" onClick={openEdit}>
-            <Pencil className="mr-2 h-4 w-4" /> Изменить
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/finances" search={{ property: propertyId }}>
+                Расходы и прибыль
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={openEdit}>
+              <Pencil className="mr-2 h-4 w-4" /> Изменить
+            </Button>
+          </div>
         }
       />
 

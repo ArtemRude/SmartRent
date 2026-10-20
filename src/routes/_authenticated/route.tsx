@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated")({
     const role = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
     const tenantOnly = location.pathname === "/cabinet";
     const adminOnly = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
-    const ownerOnly = ["/dashboard", "/properties", "/tenants", "/agreements"].some(
+    const ownerOnly = ["/dashboard", "/properties", "/tenants", "/agreements", "/finances"].some(
       (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
     );
 

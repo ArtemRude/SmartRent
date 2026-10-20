@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -50,8 +50,13 @@ export const Route = createFileRoute("/_authenticated/properties")({
       { property: "og:description", content: "Управление объектами и помещениями." },
     ],
   }),
-  component: PropertiesPage,
+  component: PropertiesRoute,
 });
+
+function PropertiesRoute() {
+  const pathname = useLocation({ select: (location) => location.pathname });
+  return pathname.replace(/\/+$/, "").startsWith("/properties/") ? <Outlet /> : <PropertiesPage />;
+}
 
 function PropertiesPage() {
   const { user } = useAuth();

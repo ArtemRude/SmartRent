@@ -38,6 +38,7 @@ test("payment confirmation refreshes reports, balances, receipts and utility sum
     event("charge", "payment_status"),
   ]);
   assert.deepEqual(updates, [
+    ["property-finances"],
     ["rent-charges"],
     ["rent-payments"],
     ["payment-reports"],

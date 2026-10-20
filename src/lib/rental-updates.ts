@@ -10,6 +10,7 @@ type RentalNotification = {
 type UpdateKey = readonly string[];
 
 const agreementKeys: UpdateKey[] = [
+  ["property-finances"],
   ["agreements"],
   ["agreement-status-events"],
   ["agreement-acceptances"],
@@ -23,6 +24,7 @@ const agreementKeys: UpdateKey[] = [
   ["property-timeline"],
 ];
 const paymentKeys: UpdateKey[] = [
+  ["property-finances"],
   ["rent-charges"],
   ["rent-payments"],
   ["payment-reports"],
