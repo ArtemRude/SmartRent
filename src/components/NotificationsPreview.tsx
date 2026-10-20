@@ -75,7 +75,7 @@ export function NotificationsPreview({ className }: { className?: string }) {
 
   return (
     <Card className={className}>
-      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+      <CardHeader className="items-start gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
           <Bell className="h-4 w-4" /> Уведомления
           {unreadCount > 0 && (

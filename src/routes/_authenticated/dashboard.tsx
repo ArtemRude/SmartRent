@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   fetchAgreements,
+  fetchAgreementAcceptances,
   fetchProperties,
   fetchRentCharges,
   fetchRentPayments,
@@ -39,6 +40,7 @@ import {
   localDateKey,
 } from "@/lib/domain";
 import { sumPaymentsForMonth } from "@/lib/payment-analytics";
+import { buildRentalOnboarding } from "@/lib/rental-onboarding";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -89,10 +91,14 @@ function Dashboard() {
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
+  const acceptances = useQuery({
+    queryKey: ["agreement-acceptances"],
+    queryFn: fetchAgreementAcceptances,
+  });
   const requests = useQuery({ queryKey: ["requests"], queryFn: fetchRequests });
   const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
   const payments = useQuery({ queryKey: ["rent-payments"], queryFn: fetchRentPayments });
-  const queries = [properties, tenants, agreements, requests, charges, payments];
+  const queries = [properties, tenants, agreements, acceptances, requests, charges, payments];
 
   const openRequests = (requests.data ?? []).filter((r) => r.status !== "closed");
   const today = localDateKey();
@@ -120,35 +126,19 @@ function Dashboard() {
       return charge.paid_at == null && days >= 0 && days <= 7;
     })
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
-  const onboardingSteps = [
-    {
-      title: "Добавьте объект",
-      description: "Создайте карточку квартиры, склада или коммерческого помещения.",
-      completed: (properties.data?.length ?? 0) > 0,
-      to: "/properties" as const,
-    },
-    {
-      title: "Добавьте арендатора",
-      description: "Укажите контакты арендатора и подключите его кабинет.",
-      completed: (tenants.data?.length ?? 0) > 0,
-      to: "/tenants" as const,
-    },
-    {
-      title: "Создайте договор",
-      description: "Свяжите объект с арендатором и задайте ежемесячную плату.",
-      completed: (agreements.data?.length ?? 0) > 0,
-      to: "/agreements" as const,
-    },
-    {
-      title: "Проверьте начисление",
-      description: "Убедитесь, что первый арендный платёж появился в календаре.",
-      completed: (charges.data?.length ?? 0) > 0,
-      to: "/payments" as const,
-    },
-  ];
+  const onboardingSteps = buildRentalOnboarding({
+    properties: properties.data ?? [],
+    tenants: tenants.data ?? [],
+    agreements: agreements.data ?? [],
+    acceptances: acceptances.data ?? [],
+    charges: charges.data ?? [],
+  });
   const completedOnboardingSteps = onboardingSteps.filter((step) => step.completed).length;
   const nextOnboardingStep = onboardingSteps.find((step) => !step.completed);
   const onboardingLoaded = !queries.some((query) => query.isPending);
+  const onboardingReady = [properties, tenants, agreements, acceptances, charges].every(
+    (query) => query.isSuccess,
+  );
   const tenantName = (tenantId: string) =>
     tenants.data?.find((tenant) => tenant.id === tenantId)?.name ?? "Арендатор";
   const propertyName = (propertyId: string) =>
@@ -223,14 +213,17 @@ function Dashboard() {
 
       {onboardingLoaded && <AttentionCenter groups={attentionGroups} />}
 
-      {onboardingLoaded && nextOnboardingStep && (
-        <Card className="mb-6 overflow-hidden border-primary/20 bg-primary/[0.025]">
+      {onboardingReady && nextOnboardingStep && (
+        <Card
+          data-testid="rental-onboarding"
+          className="mb-6 overflow-hidden border-primary/20 bg-primary/[0.025]"
+        >
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-lg">Быстрый старт</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Настройте управление арендой за четыре шага
+                  От первого объекта до активного договора и начисления
                 </p>
               </div>
               <div className="min-w-40">
@@ -272,7 +265,7 @@ function Dashboard() {
             </div>
             <div className="mt-4 flex justify-end">
               <Button asChild>
-                <Link to={nextOnboardingStep.to}>
+                <Link to={nextOnboardingStep.to} search={nextOnboardingStep.search}>
                   {nextOnboardingStep.title} <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AgreementStatusBadge } from "@/components/AgreementStatusBadge";
 import { AgreementStatusHistory } from "@/components/AgreementStatusHistory";
+import { AgreementPreparation } from "@/components/AgreementPreparation";
 import { FileUploadField } from "@/components/FileUploadField";
 import { StorageImage } from "@/components/StorageImage";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ import {
   uploadFile,
 } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import { getAgreementPreparation } from "@/lib/rental-onboarding";
 
 export const Route = createFileRoute("/_authenticated/agreements")({
   validateSearch: (search: Record<string, unknown>): { agreementId?: string } =>
@@ -165,18 +167,21 @@ function AgreementsPage() {
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Agreement | null>(null);
+  const [editSection, setEditSection] = useState<"details" | "signed-document">("details");
   const [renewingFrom, setRenewingFrom] = useState<Agreement | null>(null);
   const [form, setForm] = useState<AgreementForm>(createForm);
   const [statusFilter, setStatusFilter] = useState<"all" | AgreementStatus>("all");
 
   const openCreate = () => {
+    setEditSection("details");
     setEditing(null);
     setRenewingFrom(null);
     setForm(createForm());
     setOpen(true);
   };
 
-  const openEdit = (agreement: Agreement) => {
+  const openEdit = (agreement: Agreement, section: "details" | "signed-document" = "details") => {
+    setEditSection(section);
     const details = readAgreementContractDetails(agreement.contract_details);
     setEditing(agreement);
     setRenewingFrom(null);
@@ -207,6 +212,7 @@ function AgreementsPage() {
   };
 
   const openRenewal = (agreement: Agreement) => {
+    setEditSection("details");
     const details = readAgreementContractDetails(agreement.contract_details);
     setEditing(null);
     setRenewingFrom(agreement);
@@ -353,6 +359,7 @@ function AgreementsPage() {
       void qc.invalidateQueries({ queryKey: ["agreements"] });
       void qc.invalidateQueries({ queryKey: ["agreement-status-events"] });
       void qc.invalidateQueries({ queryKey: ["notifications"] });
+      if (status === "active") void qc.invalidateQueries({ queryKey: ["rent-charges"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -436,6 +443,11 @@ function AgreementsPage() {
           const visibleAcceptance =
             agreement.status === "pending_signature" ? currentAcceptance : latestAcceptance;
           const acceptancePhotos = visibleAcceptance?.photos ?? [];
+          const preparation = getAgreementPreparation(
+            agreement,
+            tenant?.user_id,
+            acceptances.data ?? [],
+          );
           return (
             <Card
               key={agreement.id}
@@ -595,16 +607,18 @@ function AgreementsPage() {
                             changeStatus.mutate({ id: agreement.id, status: "active" })
                           }
                           disabled={
-                            changeStatus.isPending ||
-                            !agreement.signed_document_file ||
-                            !currentAcceptance
+                            changeStatus.isPending || loading || failed || !preparation.canActivate
                           }
                           title={
-                            !agreement.signed_document_file
-                              ? "Сначала загрузите подписанный PDF"
-                              : !currentAcceptance
-                                ? "Сначала дождитесь подтверждения арендатора"
-                                : undefined
+                            failed
+                              ? "Не удалось проверить готовность договора"
+                              : !tenant?.user_id
+                                ? "Сначала подключите кабинет арендатора"
+                                : !agreement.signed_document_file
+                                  ? "Сначала загрузите подписанный PDF"
+                                  : !currentAcceptance
+                                    ? "Сначала дождитесь подтверждения арендатора"
+                                    : undefined
                           }
                         >
                           <BadgeCheck className="mr-2 h-4 w-4" /> Активировать
@@ -625,6 +639,19 @@ function AgreementsPage() {
                     )}
                   </div>
                 </div>
+                {!loading &&
+                  !failed &&
+                  (agreement.status === "draft" || agreement.status === "pending_signature") && (
+                    <AgreementPreparation
+                      preparation={preparation}
+                      agreementId={agreement.id}
+                      busy={changeStatus.isPending}
+                      onSend={() =>
+                        changeStatus.mutate({ id: agreement.id, status: "pending_signature" })
+                      }
+                      onUpload={() => openEdit(agreement, "signed-document")}
+                    />
+                  )}
                 {acceptancePhotos.length > 0 && (
                   <div className="mt-4 border-t pt-4">
                     <p className="mb-2 text-sm font-medium">
@@ -672,7 +699,18 @@ function AgreementsPage() {
           if (!nextOpen) setRenewingFrom(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+          onOpenAutoFocus={(event) => {
+            if (editSection !== "signed-document") return;
+            const section = document.getElementById("signed-document-section");
+            if (section) {
+              event.preventDefault();
+              section.focus();
+              section.scrollIntoView({ block: "center" });
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {editing ? "Изменить договор" : renewingFrom ? "Продление договора" : "Новый договор"}
@@ -1071,7 +1109,11 @@ function AgreementsPage() {
                 onFileChange={(file) => setForm((current) => ({ ...current, file }))}
               />
             </div>
-            <div className="order-3 space-y-1.5">
+            <div
+              id="signed-document-section"
+              tabIndex={-1}
+              className="order-3 space-y-1.5 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            >
               <Label htmlFor="lease-signed-file">
                 Подписанный договор PDF{" "}
                 {editing?.signed_document_file ? "(необязательно заменять)" : ""}
