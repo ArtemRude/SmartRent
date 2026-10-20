@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/auth-context";
 import { formatDateTime } from "@/lib/domain";
 import { notificationIcons } from "@/lib/notifications";
-import { fetchNotifications, markNotificationRead, type NotificationRow } from "@/lib/queries";
+import { markNotificationRead, type NotificationRow } from "@/lib/queries";
+import { notificationQueryOptions } from "@/lib/notification-query";
 import { cn } from "@/lib/utils";
 
 function PreviewItem({
@@ -62,13 +63,7 @@ function PreviewItem({
 export function NotificationsPreview({ className }: { className?: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const notifications = useQuery({
-    queryKey: ["notifications", user?.id],
-    queryFn: fetchNotifications,
-    enabled: Boolean(user),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
-  });
+  const notifications = useQuery(notificationQueryOptions(user?.id));
   const allNotifications = notifications.data ?? [];
   const unreadCount = allNotifications.filter((item) => item.read_at == null).length;
   const latestNotifications = allNotifications.slice(0, 3);

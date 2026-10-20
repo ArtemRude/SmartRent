@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/auth-context";
 import { roleLabels } from "@/lib/domain";
-import { fetchNotifications } from "@/lib/queries";
+import { useRentalUpdates } from "@/hooks/use-rental-updates";
+import { notificationQueryOptions, NOTIFICATION_REFRESH_INTERVAL } from "@/lib/notification-query";
 import { cn } from "@/lib/utils";
 
 type NavItem = { to: string; label: string; icon: typeof Home };
@@ -142,12 +143,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const items = role === "tenant" ? tenantNav : role === "admin" ? adminNav : ownerNav;
   const notifications = useQuery({
-    queryKey: ["notifications", user?.id],
-    queryFn: fetchNotifications,
-    enabled: Boolean(user),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    ...notificationQueryOptions(user?.id),
+    refetchInterval: NOTIFICATION_REFRESH_INTERVAL,
   });
+  useRentalUpdates(user?.id, notifications.data);
   const unreadCount = (notifications.data ?? []).filter(
     (notification) => notification.read_at == null,
   ).length;

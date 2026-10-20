@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/auth-context";
 import { formatDateTime, notificationKindLabels } from "@/lib/domain";
 import {
-  fetchNotifications,
   fetchReminderSettings,
   markAllNotificationsRead,
   markNotificationRead,
@@ -18,6 +17,7 @@ import {
   type NotificationRow,
 } from "@/lib/queries";
 import { notificationIcons } from "@/lib/notifications";
+import { notificationQueryOptions } from "@/lib/notification-query";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/notifications")({
@@ -118,12 +118,7 @@ function NotificationsPage() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(NOTIFICATIONS_PAGE_SIZE);
-  const notifications = useQuery({
-    queryKey: ["notifications", user?.id],
-    queryFn: fetchNotifications,
-    enabled: Boolean(user),
-    refetchInterval: 30_000,
-  });
+  const notifications = useQuery(notificationQueryOptions(user?.id));
   const reminderSettings = useQuery({
     queryKey: ["reminder-settings", user?.id],
     queryFn: () => fetchReminderSettings(user!.id),

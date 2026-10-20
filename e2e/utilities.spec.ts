@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 
 // UI contract tests use intercepted Auth/REST/Storage responses. They never
 // register users or modify any Supabase project; SQL behavior is tested separately.
-test("owner configures services, tenant submits photos, owner reviews and payments show utilities", async ({
+test("utility readings and confirmed payments reach both accounts without reloading", async ({
   browser,
 }) => {
+  test.setTimeout(90_000);
   const apiUrl = process.env["E2E_SUPABASE_URL"];
   test.skip(!apiUrl, "Use the local Supabase configuration for intercepted UI tests.");
   const storageKey = `sb-${new URL(apiUrl!).hostname.split(".")[0]}-auth-token`;
@@ -56,6 +57,24 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
     },
   ];
   const submissions: Record<string, unknown>[] = [];
+  const notifications: Record<string, unknown>[] = [];
+  const reports: Record<string, unknown>[] = [];
+  const payments: Record<string, unknown>[] = [];
+  const notify = (user_id: string, kind: string, entity_id: string) => {
+    notifications.unshift({
+      id: `notification-${notifications.length + 1}`,
+      user_id,
+      kind,
+      entity_id,
+      entity_type: kind.startsWith("utility_") ? "agreement" : "rent_charge",
+      title: "Новое событие аренды",
+      body: "",
+      href: "/utilities",
+      dedupe_key: null,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    });
+  };
 
   const installApi = async (context: BrowserContext, role: "owner" | "tenant") => {
     const id = role === "owner" ? ownerId : tenantId;
@@ -162,6 +181,7 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
             },
           );
           response = bill.id;
+          notify(ownerId, "utility_submitted", agreementId);
         } else if (resource === "review_utility_bill") {
           const bill = bills.find((bill) => bill["id"] === body["p_bill_id"])!;
           const approve = body["p_approve"] === true;
@@ -181,7 +201,50 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
               due_date: body["p_due_date"],
             });
           response = bill["status"];
+          notify(tenantId, "utility_reviewed", agreementId);
+        } else if (resource === "review_payment_report") {
+          const report = reports.find((report) => report["id"] === body["p_report_id"])!;
+          const approve = body["p_approve"] === true;
+          Object.assign(report, {
+            status: approve ? "approved" : "rejected",
+            reviewed_by: ownerId,
+            reviewed_at: now,
+            payment_id: approve ? "utility-payment" : null,
+          });
+          if (approve) {
+            const charge = charges.find((charge) => charge["id"] === report["charge_id"])!;
+            Object.assign(charge, { paid_amount: report["amount"], paid_at: report["paid_at"] });
+            payments.push({
+              id: "utility-payment",
+              charge_id: charge["id"],
+              owner_id: ownerId,
+              tenant_id: "tenant-record",
+              amount: report["amount"],
+              paid_at: report["paid_at"],
+              payment_method: report["payment_method"],
+              note: null,
+              receipt_file: null,
+              created_by: ownerId,
+              created_at: now,
+            });
+          }
+          notify(tenantId, "payment_report_status", String(report["charge_id"]));
+          response = report["status"];
         }
+      } else if (resource === "payment_reports" && route.request().method() === "POST") {
+        reports.push({
+          ...body,
+          id: "payment-report",
+          reported_by: tenantId,
+          status: "pending",
+          reviewed_by: null,
+          reviewed_at: null,
+          cancelled_at: null,
+          review_note: null,
+          payment_id: null,
+          created_at: now,
+        });
+        notify(ownerId, "payment_reported", String(body["charge_id"]));
       } else {
         const tables: Record<string, unknown> = {
           profiles: { id, name: user.user_metadata.name, email: user.email, phone: null },
@@ -215,12 +278,12 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
           utility_bills: [...bills].reverse(),
           utility_bill_items: items,
           rent_charges: charges,
-          rent_payments: [],
+          rent_payments: payments,
           rent_charge_adjustment_events: [],
-          payment_reports: [],
+          payment_reports: reports,
           agreement_acceptances: [],
           agreement_status_events: [],
-          notifications: [],
+          notifications: notifications.filter((item) => item["user_id"] === id),
           requests: [],
         };
         response = tables[resource] ?? [];
@@ -263,6 +326,8 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
     .click();
   await expect(owner.getByRole("dialog")).toHaveCount(0);
 
+  await owner.getByRole("tab", { name: "Показания и расчёты" }).click();
+
   await tenant.goto("/utilities");
   await expect(tenant.getByRole("button", { name: "Добавить услугу", exact: true })).toHaveCount(0);
   await tenant.getByLabel("Расчётный месяц").fill("");
@@ -294,24 +359,28 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
     `${tenantId}/${agreementId}/`,
   );
 
-  await owner.reload();
+  await expect(owner.getByRole("button", { name: "Вернуть на исправление" })).toBeVisible({
+    timeout: 12_000,
+  });
   await owner.getByRole("button", { name: "Вернуть на исправление" }).click();
   await owner.getByLabel("Причина возврата").fill("Проверьте фотографию счётчика");
   await owner.getByRole("button", { name: "Отправить на исправление" }).click();
   await expect(owner.getByRole("dialog")).toHaveCount(0);
-  await tenant.reload();
-  await expect(tenant.getByText("Причина возврата: Проверьте фотографию счётчика")).toBeVisible();
+  await expect(tenant.getByText("Причина возврата: Проверьте фотографию счётчика")).toBeVisible({
+    timeout: 12_000,
+  });
   await tenant.getByLabel("Текущие показания, м³").fill("103,2");
   await tenant.getByRole("button", { name: "Отправить на проверку" }).click();
   await expect(tenant.getByText("На проверке", { exact: true })).toBeVisible();
 
-  await owner.reload();
+  await expect(owner.getByRole("button", { name: "Утвердить расчёт" })).toBeVisible({
+    timeout: 12_000,
+  });
   await owner.getByRole("button", { name: "Утвердить расчёт" }).click();
   await owner.getByRole("button", { name: "Утвердить", exact: true }).click();
   await expect(owner.getByRole("dialog")).toHaveCount(0);
   await expect(owner.getByText("Утверждено", { exact: true })).toBeVisible();
-  await tenant.reload();
-  await expect(tenant.getByText("Утверждено", { exact: true })).toBeVisible();
+  await expect(tenant.getByText("Утверждено", { exact: true })).toBeVisible({ timeout: 12_000 });
   await expect(tenant.getByRole("link", { name: "Открыть оплату" })).toBeVisible();
   await expect(
     tenant.getByTestId("utility-monthly-summary").getByText("Начислено", { exact: true }),
@@ -366,6 +435,33 @@ test("owner configures services, tenant submits photos, owner reviews and paymen
   await expect(tenant.getByRole("button", { name: "Сообщить об оплате", exact: true })).toHaveCount(
     2,
   );
+  await tenant.getByRole("button", { name: "Сообщить об оплате", exact: true }).last().click();
+  await expect(tenant.getByLabel("Сумма", { exact: true })).toHaveValue("636.8");
+  await tenant.getByRole("checkbox", { name: /Оплата передана наличными/ }).check();
+  await tenant.getByRole("button", { name: "Отправить собственнику" }).click();
+  await expect(tenant.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    tenant.getByText("Оплата отправлена собственнику и ожидает подтверждения"),
+  ).toBeVisible();
+  // The owner is already on /payments: the new report must arrive via the shared feed.
+  await expect(owner.getByRole("button", { name: "Подтвердить", exact: true })).toBeVisible({
+    timeout: 12_000,
+  });
+  await owner.getByRole("button", { name: "Подтвердить", exact: true }).click();
+  await owner
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Подтвердить", exact: true })
+    .click();
+  await expect(tenant.getByText("Подтверждено", { exact: true })).toBeVisible({ timeout: 12_000 });
+  await expect(tenant.getByRole("button", { name: "Сообщить об оплате", exact: true })).toHaveCount(
+    1,
+  );
+  expect(payments).toHaveLength(1);
+  expect(charges.find((charge) => charge["id"] === "utility-charge")!["paid_amount"]).toBe(636.8);
+  await tenant.goto("/utilities");
+  const summary = tenant.getByTestId("utility-monthly-summary");
+  await expect(summary.getByText(/30\s000,00/).last()).toBeVisible();
+  await expect(summary.getByText(/636,80/).last()).toBeVisible();
   expect(errors).toEqual([]);
   await ownerContext.close();
   await tenantContext.close();
