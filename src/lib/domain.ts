@@ -20,9 +20,16 @@ export type NotificationKind =
   | "payment_report_status"
   | "utility_submitted"
   | "utility_reviewed"
-  | "handover_status";
+  | "handover_status"
+  | "agreement_amendment";
 export type NotificationHref =
-  "/requests" | "/payments" | "/agreements" | "/cabinet" | "/utilities" | "/handover";
+  | "/requests"
+  | "/payments"
+  | "/agreements"
+  | "/cabinet"
+  | "/utilities"
+  | "/handover"
+  | "/lease-changes";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   apartment: "Квартира / апартаменты",
@@ -70,6 +77,7 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   request_status: "Статус заявки",
   agreement_created: "Договор",
   agreement_status: "Статус договора",
+  agreement_amendment: "Изменение условий",
   agreement_accepted: "Подтверждение договора",
   agreement_expiring: "Срок договора",
   payment_status: "Оплата",

@@ -1,3 +1,4 @@
+import { rentAt } from "@/lib/lease-changes";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -48,6 +49,7 @@ import {
   readAgreementContractDetails,
 } from "@/lib/agreement-document";
 import {
+  localDateKey,
   agreementStatusLabels,
   formatDate,
   formatDateTime,
@@ -221,7 +223,7 @@ function AgreementsPage() {
       unitId: agreement.unit_id ?? "",
       tenantId: agreement.tenant_id,
       ...getRenewalLeaseDates(agreement.end_date),
-      monthlyPayment: String(agreement.monthly_payment),
+      monthlyPayment: String(rentAt(agreement, getRenewalLeaseDates(agreement.end_date).startDate)),
       agreementNumber: "",
       contractCity: details.contractCity ?? "",
       signedDate: "",
@@ -480,7 +482,7 @@ function AgreementsPage() {
                     </p>
                     <p className="mt-1 text-sm">
                       {formatDate(agreement.start_date)} — {formatDate(agreement.end_date)} ·{" "}
-                      {formatMoney(agreement.monthly_payment)}/мес.
+                      {formatMoney(rentAt(agreement, localDateKey()))}/мес.
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {agreement.payment_due_day
@@ -520,7 +522,7 @@ function AgreementsPage() {
                             ownerEmail: profile?.email ?? user?.email ?? "",
                             ownerPhone: profile?.phone ?? null,
                             startDate: agreement.start_date,
-                            endDate: agreement.end_date,
+                            endDate: agreement.original_end_date ?? agreement.end_date,
                             monthlyPayment: agreement.monthly_payment,
                             contractDetails: readAgreementContractDetails(
                               agreement.contract_details,
@@ -567,7 +569,17 @@ function AgreementsPage() {
                         <Download className="mr-2 h-4 w-4" /> Подписанный PDF
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => openEdit(agreement)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={agreement.terms_locked}
+                      title={
+                        agreement.terms_locked
+                          ? "Условия закреплены соглашением. Используйте изменение условий."
+                          : undefined
+                      }
+                      onClick={() => openEdit(agreement)}
+                    >
                       <Pencil className="mr-2 h-4 w-4" /> Изменить
                     </Button>
                     <Button variant="outline" size="sm" asChild>
@@ -575,9 +587,17 @@ function AgreementsPage() {
                         Коммунальные услуги
                       </Link>
                     </Button>
-                    {(agreement.status === "active" || agreement.status === "completed") && (
+                    {agreement.status === "active" && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to="/lease-changes" search={{ agreement: agreement.id }}>
+                          <CalendarPlus className="mr-2 h-4 w-4" />
+                          Продлить / изменить условия
+                        </Link>
+                      </Button>
+                    )}
+                    {agreement.status === "completed" && (
                       <Button variant="outline" size="sm" onClick={() => openRenewal(agreement)}>
-                        <CalendarPlus className="mr-2 h-4 w-4" /> Продлить
+                        <CalendarPlus className="mr-2 h-4 w-4" /> Новый договор
                       </Button>
                     )}
                     {agreement.status === "draft" && (
@@ -636,6 +656,13 @@ function AgreementsPage() {
                       <Button variant="ghost" size="sm" asChild>
                         <Link to="/handover" search={{ agreement: agreement.id, kind: "move_out" }}>
                           <CircleStop className="mr-2 h-4 w-4" /> Оформить выезд
+                        </Link>
+                      </Button>
+                    )}
+                    {agreement.status === "completed" && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to="/lease-changes" search={{ agreement: agreement.id }}>
+                          История условий
                         </Link>
                       </Button>
                     )}

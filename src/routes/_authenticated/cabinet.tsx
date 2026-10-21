@@ -1,3 +1,4 @@
+import { rentAt } from "@/lib/lease-changes";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -443,8 +444,13 @@ function CabinetPage() {
                         <CalendarDays className="h-4 w-4 text-muted-foreground" />
                         {formatDate(agreement.start_date)} — {formatDate(agreement.end_date)}
                       </p>
+                      <Button asChild variant="outline" size="sm">
+                        <Link to="/lease-changes" search={{ agreement: agreement.id }}>
+                          Изменения условий
+                        </Link>
+                      </Button>
                       <p className="font-medium sm:text-right">
-                        {formatMoney(agreement.monthly_payment)}/мес.
+                        {formatMoney(rentAt(agreement, localDateKey()))}/мес.
                       </p>
                       <p className="text-xs text-muted-foreground sm:col-span-2">
                         {agreement.payment_due_day

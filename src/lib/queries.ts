@@ -1,3 +1,5 @@
+import { withAgreementTerms } from "./lease-change-queries";
+import type { RentTerm } from "./lease-changes";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { AgreementStatus, NotificationHref, NotificationKind } from "@/lib/domain";
@@ -33,6 +35,9 @@ export type Tenant = {
 };
 
 export type Agreement = {
+  rent_schedule?: RentTerm[];
+  original_end_date?: string;
+  terms_locked?: boolean;
   id: string;
   created_at: string;
   owner_id: string;
@@ -255,18 +260,22 @@ export const fetchUnitsForProperty = (propertyId: string) =>
 export const fetchTenants = () =>
   unwrap<Tenant[]>(supabase.from("tenants").select("*").order("created_at", { ascending: false }));
 
-export const fetchAgreements = () =>
-  unwrap<Agreement[]>(
-    supabase.from("lease_agreements").select("*").order("end_date", { ascending: true }),
+export const fetchAgreements = async () =>
+  withAgreementTerms(
+    await unwrap<Agreement[]>(
+      supabase.from("lease_agreements").select("*").order("end_date", { ascending: true }),
+    ),
   );
 
-export const fetchAgreementsForProperty = (propertyId: string) =>
-  unwrap<Agreement[]>(
-    supabase
-      .from("lease_agreements")
-      .select("*")
-      .eq("property_id", propertyId)
-      .order("end_date", { ascending: true }),
+export const fetchAgreementsForProperty = async (propertyId: string) =>
+  withAgreementTerms(
+    await unwrap<Agreement[]>(
+      supabase
+        .from("lease_agreements")
+        .select("*")
+        .eq("property_id", propertyId)
+        .order("end_date", { ascending: true }),
+    ),
   );
 
 export const fetchAgreementStatusEvents = () =>

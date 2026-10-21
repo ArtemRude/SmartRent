@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate, formatMoney } from "@/lib/domain";
 import type { ForecastAgreement, ForecastMonth } from "@/lib/rent-forecast";
+import { rentAt } from "@/lib/lease-changes";
 
 const chartConfig = {
   expected: { label: "Плановый доход", color: "var(--chart-1)" },
@@ -159,13 +160,25 @@ export function RentForecastPanel({
                       </p>
                     </div>
                     <p className="shrink-0 text-sm font-medium">
-                      {formatMoney(contract.monthlyPayment)}/мес.
+                      {formatMoney(
+                        rentAt(
+                          {
+                            monthly_payment: contract.monthlyPayment,
+                            ...(contract.rentSchedule
+                              ? { rent_schedule: contract.rentSchedule }
+                              : {}),
+                          },
+                          months[0]?.period ?? contract.startDate,
+                        ),
+                      )}
+                      /мес.
                     </p>
                   </div>
                 ))}
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                Неполный месяц учитывается по полной месячной ставке договора.
+                Неполный месяц учитывается по полной месячной ставке договора. Ставка в списке
+                указана на начало прогноза; график учитывает согласованные изменения по месяцам.
               </p>
             </div>
           </>

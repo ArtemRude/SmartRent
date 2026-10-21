@@ -1,9 +1,11 @@
+import { rentAt, type RentTerm } from "./lease-changes.ts";
 export type ForecastAgreement = {
   id: string;
   status: string;
   startDate: string;
   endDate: string;
   monthlyPayment: number;
+  rentSchedule?: RentTerm[] | undefined;
   propertyId: string;
   propertyName: string;
   tenantId: string;
@@ -60,7 +62,18 @@ export function buildRentForecast({
 
     return {
       period,
-      expected: active.reduce((sum, agreement) => sum + agreement.monthlyPayment, 0),
+      expected: active.reduce(
+        (sum, agreement) =>
+          sum +
+          rentAt(
+            {
+              monthly_payment: agreement.monthlyPayment,
+              ...(agreement.rentSchedule ? { rent_schedule: agreement.rentSchedule } : {}),
+            },
+            period,
+          ),
+        0,
+      ),
       activeContracts: active.length,
     };
   });

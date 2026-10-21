@@ -346,6 +346,7 @@ function PaymentsPage() {
         startDate: agreement.start_date,
         endDate: agreement.end_date,
         monthlyPayment: Number(agreement.monthly_payment),
+        rentSchedule: agreement.rent_schedule,
         propertyId: agreement.property_id,
         propertyName: propertyById.get(agreement.property_id)?.name ?? "Без объекта",
         tenantId: agreement.tenant_id,

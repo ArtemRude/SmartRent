@@ -1,3 +1,4 @@
+import { rentAt } from "@/lib/lease-changes";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  localDateKey,
   formatDate,
   formatDateTime,
   formatMoney,
@@ -301,7 +303,7 @@ function PropertyDetailsPage() {
                         до {formatDate(agreement.end_date)}
                       </p>
                     </div>
-                    <p className="text-sm">{formatMoney(agreement.monthly_payment)}/мес.</p>
+                    <p className="text-sm">{formatMoney(rentAt(agreement, localDateKey()))}/мес.</p>
                   </div>
                 );
               })}

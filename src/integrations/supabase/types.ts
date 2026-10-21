@@ -4,6 +4,8 @@ import type { LeaseHandover, HandoverEvent } from "@/lib/handovers"
 
 import type { PropertyExpense, ExpenseEvent } from "@/lib/property-finances"
 
+import type { LeaseAmendment, AmendmentEvent } from "@/lib/lease-changes"
+
 export type Json =
   | string
   | number
@@ -20,6 +22,8 @@ export type Database = {
   }
   public: {
     Tables: {
+      lease_amendments: { Row: LeaseAmendment; Insert: never; Update: never; Relationships: [] }
+      lease_amendment_events: { Row: AmendmentEvent; Insert: never; Update: never; Relationships: [] }
       property_expenses: { Row: PropertyExpense; Insert: never; Update: never; Relationships: [] }
       property_expense_events: { Row: ExpenseEvent; Insert: never; Update: never; Relationships: [] }
       lease_handovers: { Row: LeaseHandover; Insert: never; Update: never; Relationships: [] }
@@ -880,6 +884,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      save_lease_amendment: { Args: { p_agreement_id: string; p_values: Json; p_id: string | null; p_revision: number | null }; Returns: string }
+      act_on_lease_amendment: { Args: { p_id: string; p_action: string; p_revision: number; p_note: string | null }; Returns: string }
       save_property_expense: { Args: { p_property_id: string; p_values: Json; p_expense_id: string | null; p_expected_revision: number | null; p_reason: string | null }; Returns: string }
       save_lease_handover: { Args: { p_agreement_id: string; p_kind: string; p_report: Json; p_expected_revision: number | null }; Returns: string }
       act_on_lease_handover: { Args: { p_handover_id: string; p_action: string; p_expected_revision: number; p_note: string | null }; Returns: string }

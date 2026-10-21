@@ -44,6 +44,8 @@ function keysForNotification(notification: RentalNotification): UpdateKey[] {
         ["request-status-events", notification.entity_id],
         ["property-timeline"],
       ];
+    case "agreement_amendment":
+      return [["lease-changes"], ...agreementKeys, ...paymentKeys];
     case "agreement_created":
     case "agreement_status":
     case "agreement_accepted":

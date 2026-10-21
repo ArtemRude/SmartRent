@@ -1,3 +1,4 @@
+import { rentAt } from "@/lib/lease-changes";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -108,7 +109,7 @@ function Dashboard() {
   });
   const income = (agreements.data ?? [])
     .filter((a) => a.status === "active")
-    .reduce((s, a) => s + Number(a.monthly_payment ?? 0), 0);
+    .reduce((s, a) => s + rentAt(a, today), 0);
   const debt = (charges.data ?? [])
     .filter((charge) => charge.paid_at == null && charge.due_date < today)
     .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
