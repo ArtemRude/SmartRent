@@ -884,6 +884,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      team_overview: { Args: Record<string, never>; Returns: Json }
+      team_workspace: { Args: { p_property_id: string }; Returns: Json }
+      invite_team_member: { Args: { p_email: string; p_role: string; p_property_ids: string[] }; Returns: Json }
+      accept_team_invitation: { Args: { p_token: string }; Returns: string }
+      manage_team_member: { Args: { p_membership_id: string; p_revision: number; p_role: string; p_property_ids: string[]; p_revoke?: boolean }; Returns: string }
+      set_team_responsible: { Args: { p_property_id: string; p_membership_id: string | null }; Returns: string }
+      act_on_team_property: { Args: { p_property_id: string; p_action: string; p_values: Json }; Returns: string }
       save_lease_amendment: { Args: { p_agreement_id: string; p_values: Json; p_id: string | null; p_revision: number | null }; Returns: string }
       act_on_lease_amendment: { Args: { p_id: string; p_action: string; p_revision: number; p_note: string | null }; Returns: string }
       save_property_expense: { Args: { p_property_id: string; p_values: Json; p_expense_id: string | null; p_expected_revision: number | null; p_reason: string | null }; Returns: string }

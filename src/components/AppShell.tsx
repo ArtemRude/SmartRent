@@ -18,6 +18,7 @@ import {
   Menu,
   ShieldCheck,
   Users,
+  UsersRound,
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ const ownerNav: NavItem[] = [
   { to: "/utilities", label: "Коммунальные услуги", icon: Gauge },
   { to: "/handover", label: "Заселение и выезд", icon: KeyRound },
   { to: "/lease-changes", label: "Изменения условий", icon: CalendarClock },
+  { to: "/team", label: "Команда", icon: UsersRound },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },
@@ -51,6 +53,7 @@ const tenantNav: NavItem[] = [
   { to: "/utilities", label: "Коммунальные услуги", icon: Gauge },
   { to: "/handover", label: "Заселение и выезд", icon: KeyRound },
   { to: "/lease-changes", label: "Изменения условий", icon: CalendarClock },
+  { to: "/team", label: "Команда", icon: UsersRound },
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },

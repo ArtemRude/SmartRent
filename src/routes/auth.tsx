@@ -4,6 +4,7 @@ import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/auth-context";
+import { hasPendingTeamInvitation } from "@/lib/team-invitation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,7 +67,13 @@ function AuthPage() {
   useEffect(() => {
     if (!busy && !loading && session && role) {
       navigate({
-        to: role === "tenant" ? "/cabinet" : role === "admin" ? "/admin" : "/dashboard",
+        to: hasPendingTeamInvitation()
+          ? "/team"
+          : role === "tenant"
+            ? "/cabinet"
+            : role === "admin"
+              ? "/admin"
+              : "/dashboard",
         replace: true,
       });
     }
@@ -82,7 +89,7 @@ function AuthPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/`,
+            emailRedirectTo: `${window.location.origin}/${hasPendingTeamInvitation() ? "join-team" : ""}`,
             data: { name, phone, role: signupRole },
           },
         });
@@ -95,7 +102,11 @@ function AuthPage() {
 
         toast.success("Аккаунт создан");
         await navigate({
-          to: signupRole === "tenant" ? "/cabinet" : "/dashboard",
+          to: hasPendingTeamInvitation()
+            ? "/team"
+            : signupRole === "tenant"
+              ? "/cabinet"
+              : "/dashboard",
           replace: true,
         });
         return;
@@ -112,8 +123,9 @@ function AuthPage() {
         const metadataRole = data.user.user_metadata["role"];
         const resolvedRole = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
         await navigate({
-          to:
-            resolvedRole === "tenant"
+          to: hasPendingTeamInvitation()
+            ? "/team"
+            : resolvedRole === "tenant"
               ? "/cabinet"
               : resolvedRole === "admin"
                 ? "/admin"

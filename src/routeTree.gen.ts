@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as JoinTeamRouteImport } from './routes/join-team'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAgreementsRouteImport } from './routes/_authenticated/agreements'
 import { Route as AuthenticatedCabinetRouteImport } from './routes/_authenticated/cabinet'
@@ -24,6 +25,7 @@ import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPropertiesRouteImport } from './routes/_authenticated/properties'
 import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
+import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedTenantsRouteImport } from './routes/_authenticated/tenants'
 import { Route as AuthenticatedUtilitiesRouteImport } from './routes/_authenticated/utilities'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties.$propertyId'
@@ -40,6 +42,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinTeamRoute = JoinTeamRouteImport.update({
+  id: '/join-team',
+  path: '/join-team',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -104,6 +111,11 @@ const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
   path: '/support',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTenantsRoute = AuthenticatedTenantsRouteImport.update({
   id: '/tenants',
   path: '/tenants',
@@ -124,6 +136,7 @@ const AuthenticatedPropertiesPropertyIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
   '/cabinet': typeof AuthenticatedCabinetRoute
@@ -136,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
   '/requests': typeof AuthenticatedRequestsRoute
   '/support': typeof AuthenticatedSupportRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/utilities': typeof AuthenticatedUtilitiesRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
@@ -143,6 +157,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
   '/cabinet': typeof AuthenticatedCabinetRoute
@@ -155,6 +170,7 @@ export interface FileRoutesByTo {
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
   '/requests': typeof AuthenticatedRequestsRoute
   '/support': typeof AuthenticatedSupportRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/utilities': typeof AuthenticatedUtilitiesRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
@@ -164,6 +180,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/join-team': typeof JoinTeamRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agreements': typeof AuthenticatedAgreementsRoute
   '/_authenticated/cabinet': typeof AuthenticatedCabinetRoute
@@ -176,6 +193,7 @@ export interface FileRoutesById {
   '/_authenticated/properties': typeof AuthenticatedPropertiesRouteWithChildren
   '/_authenticated/requests': typeof AuthenticatedRequestsRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
+  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/tenants': typeof AuthenticatedTenantsRoute
   '/_authenticated/utilities': typeof AuthenticatedUtilitiesRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
@@ -185,6 +203,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/join-team'
     | '/admin'
     | '/agreements'
     | '/cabinet'
@@ -197,6 +216,7 @@ export interface FileRouteTypes {
     | '/properties'
     | '/requests'
     | '/support'
+    | '/team'
     | '/tenants'
     | '/utilities'
     | '/properties/$propertyId'
@@ -204,6 +224,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/join-team'
     | '/admin'
     | '/agreements'
     | '/cabinet'
@@ -216,6 +237,7 @@ export interface FileRouteTypes {
     | '/properties'
     | '/requests'
     | '/support'
+    | '/team'
     | '/tenants'
     | '/utilities'
     | '/properties/$propertyId'
@@ -224,6 +246,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/join-team'
     | '/_authenticated/admin'
     | '/_authenticated/agreements'
     | '/_authenticated/cabinet'
@@ -236,6 +259,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties'
     | '/_authenticated/requests'
     | '/_authenticated/support'
+    | '/_authenticated/team'
     | '/_authenticated/tenants'
     | '/_authenticated/utilities'
     | '/_authenticated/properties/$propertyId'
@@ -245,6 +269,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  JoinTeamRoute: typeof JoinTeamRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -268,6 +293,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join-team': {
+      id: '/join-team'
+      path: '/join-team'
+      fullPath: '/join-team'
+      preLoaderRoute: typeof JoinTeamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -354,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSupportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tenants': {
       id: '/_authenticated/tenants'
       path: '/tenants'
@@ -406,6 +445,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPropertiesRoute: typeof AuthenticatedPropertiesRouteWithChildren
   AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
+  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedTenantsRoute: typeof AuthenticatedTenantsRoute
   AuthenticatedUtilitiesRoute: typeof AuthenticatedUtilitiesRoute
 }
@@ -423,6 +463,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPropertiesRoute: AuthenticatedPropertiesRouteWithChildren,
   AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
+  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedTenantsRoute: AuthenticatedTenantsRoute,
   AuthenticatedUtilitiesRoute: AuthenticatedUtilitiesRoute,
 }
@@ -434,6 +475,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  JoinTeamRoute: JoinTeamRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

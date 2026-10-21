@@ -216,6 +216,15 @@ function RequestsPage() {
     units.data?.find((unit) => unit.id === request.unit_id)?.name;
   const tenantName = (request: RequestRow) =>
     tenants.data?.find((tenant) => tenant.id === request.tenant_id)?.name ?? "Арендатор";
+  const actorName = (actorId: string | null) => {
+    if (!actorId) return "Система";
+    if (actorId === user?.id) return "Вы";
+    if (actorId === selectedRequest?.owner_id) return "Собственник";
+    return actorId ===
+      tenants.data?.find((tenant) => tenant.id === selectedRequest?.tenant_id)?.user_id
+      ? "Арендатор"
+      : "Представитель собственника";
+  };
 
   return (
     <>
@@ -506,12 +515,7 @@ function RequestsPage() {
                       <p className="text-sm text-muted-foreground">Загружаем сообщения…</p>
                     )}
                     {(comments.data ?? []).map((item) => {
-                      const author =
-                        item.user_id === user?.id
-                          ? "Вы"
-                          : item.user_id === selectedRequest.owner_id
-                            ? "Собственник"
-                            : "Арендатор";
+                      const author = actorName(item.user_id);
                       return (
                         <div key={item.id} className="rounded-xl bg-muted/70 p-3">
                           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
@@ -554,14 +558,7 @@ function RequestsPage() {
                   </h3>
                   <div className="mt-3 space-y-3 border-l pl-4">
                     {(statusEvents.data ?? []).map((event) => {
-                      const actor =
-                        event.changed_by == null
-                          ? "Система"
-                          : event.changed_by === user?.id
-                            ? "Вы"
-                            : event.changed_by === selectedRequest.owner_id
-                              ? "Собственник"
-                              : "Арендатор";
+                      const actor = actorName(event.changed_by);
                       return (
                         <div key={event.id} className="relative text-sm">
                           <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary" />
