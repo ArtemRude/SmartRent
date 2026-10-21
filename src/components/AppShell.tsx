@@ -20,6 +20,7 @@ import {
   Users,
   UsersRound,
   UserRound,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -42,19 +43,24 @@ const ownerNav: NavItem[] = [
   { to: "/handover", label: "Заселение и выезд", icon: KeyRound },
   { to: "/lease-changes", label: "Изменения условий", icon: CalendarClock },
   { to: "/team", label: "Команда", icon: UsersRound },
+  { to: "/recruitment", label: "Поиск арендаторов", icon: UsersRound },
   { to: "/requests", label: "Заявки", icon: Inbox },
+  { to: "/repairs", label: "Ремонты и подрядчики", icon: Wrench },
   { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },
 ];
 
 const tenantNav: NavItem[] = [
+  { to: "/portfolio", label: "Объекты команды", icon: Building2 },
   { to: "/cabinet", label: "Мой кабинет", icon: Home },
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/utilities", label: "Коммунальные услуги", icon: Gauge },
   { to: "/handover", label: "Заселение и выезд", icon: KeyRound },
   { to: "/lease-changes", label: "Изменения условий", icon: CalendarClock },
   { to: "/team", label: "Команда", icon: UsersRound },
+  { to: "/recruitment", label: "Поиск арендаторов", icon: UsersRound },
   { to: "/requests", label: "Заявки", icon: Inbox },
+  { to: "/repairs", label: "Ход ремонта", icon: Wrench },
   { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },
 ];
@@ -88,7 +94,12 @@ function NavList({
   return (
     <nav className="flex flex-col gap-1">
       {items.map((item) => {
-        const active = pathname === item.to || pathname.startsWith(item.to + "/");
+        const active =
+          pathname === item.to ||
+          pathname.startsWith(item.to + "/") ||
+          (pathname.startsWith("/objects/") &&
+            item.to ===
+              (items.some((entry) => entry.to === "/properties") ? "/properties" : "/team"));
         return (
           <Link
             key={item.to}

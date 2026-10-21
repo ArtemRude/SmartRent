@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Plus, RefreshCw, UsersRound } from "lucide-react";
 import { toast } from "sonner";
@@ -389,8 +389,10 @@ function TeamPage() {
                     </article>
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    Управляющий ведёт заявки и заметки. Наблюдатель только просматривает сведения.
-                    Договоры, платежи, документы и доступ сотрудников изменяет собственник.
+                    Управляющий ведёт заявки, ремонты и отбор кандидатов, видит их контакты и
+                    назначает показы. Наблюдатель просматривает общие сведения без контактов
+                    кандидатов. Публикацией, выбором арендатора, договорами и доступами управляет
+                    собственник.
                   </p>
                 </CardContent>
               </Card>
@@ -415,6 +417,9 @@ function TeamPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Доступные объекты</CardTitle>
+                <Button asChild variant="outline" className="w-fit">
+                  <Link to="/portfolio">Открыть витрину объектов</Link>
+                </Button>
               </CardHeader>
               <CardContent className="space-y-3">
                 {!overview.workspaces.length && (
@@ -424,6 +429,13 @@ function TeamPage() {
                 )}
                 {overview.workspaces.length > 0 && (
                   <>
+                    {permitted && propertyId && (
+                      <Button asChild variant="outline">
+                        <Link to="/objects/$propertyId" params={{ propertyId }}>
+                          Открыть страницу объекта
+                        </Link>
+                      </Button>
+                    )}
                     <Label htmlFor="team-property">Объект для совместной работы</Label>
                     <select
                       id="team-property"

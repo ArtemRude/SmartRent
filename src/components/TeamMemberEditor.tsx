@@ -65,7 +65,7 @@ export function TeamMemberEditor({
         <DialogHeader>
           <DialogTitle>{member ? "Изменить доступ" : "Пригласить сотрудника"}</DialogTitle>
           <DialogDescription>
-            Доступ только к выбранным объектам. Платежи, документы, персональные контакты и
+            Доступ только к выбранным объектам. Платежи, договоры, личные контакты арендаторов и
             управление командой остаются у собственника.
           </DialogDescription>
         </DialogHeader>

@@ -8,11 +8,15 @@ export function StorageImage({
   path,
   alt,
   className,
+  expiresIn = 3600,
+  refreshInterval,
 }: {
   bucket: string;
   path?: string | null | undefined;
   alt: string;
   className?: string;
+  expiresIn?: number;
+  refreshInterval?: number;
 }) {
   const [url, setUrl] = useState<string | null>(null);
 
@@ -22,13 +26,18 @@ export function StorageImage({
       setUrl(null);
       return;
     }
-    getSignedUrl(bucket, path)
-      .then((u) => active && setUrl(u))
-      .catch(() => active && setUrl(null));
+    setUrl(null);
+    const load = () =>
+      getSignedUrl(bucket, path, expiresIn)
+        .then((u) => active && setUrl(u))
+        .catch(() => active && setUrl(null));
+    void load();
+    const timer = refreshInterval ? setInterval(() => void load(), refreshInterval) : undefined;
     return () => {
       active = false;
+      if (timer) clearInterval(timer);
     };
-  }, [bucket, path]);
+  }, [bucket, path, expiresIn, refreshInterval]);
 
   if (!url) {
     return (
@@ -41,5 +50,13 @@ export function StorageImage({
     );
   }
 
-  return <img src={url} alt={alt} loading="lazy" className={cn("object-cover", className)} />;
+  return (
+    <img
+      src={url}
+      alt={alt}
+      loading="lazy"
+      onError={() => setUrl(null)}
+      className={cn("object-cover", className)}
+    />
+  );
 }

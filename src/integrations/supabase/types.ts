@@ -884,6 +884,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      property_catalog: { Args: { p_filters: Json; p_cursor: Json }; Returns: Json }
+      public_property_catalog: { Args: { p_filters: Json; p_cursor: Json }; Returns: Json }
+      set_catalog_property_status: { Args: { p_id: string; p_expected: string; p_status: string }; Returns: string }
+      public_listing: { Args: { p_public_id: string }; Returns: Json }
+      property_hub: { Args: { p_property_id: string }; Returns: Json }
+      recruitment_overview: { Args: Record<string, never>; Returns: Json }
+      save_property_listing: { Args: { p_property_id: string; p_id: string | null; p_unit_id: string | null; p_values: Json; p_revision: number | null }; Returns: string }
+      act_on_property_listing: { Args: { p_id: string; p_action: string; p_revision: number }; Returns: string }
+      apply_to_listing: { Args: { p_public_id: string; p_values: Json }; Returns: string }
+      act_on_rental_application: { Args: { p_id: string; p_action: string; p_revision: number; p_values: Json }; Returns: string }
+      repairs_overview: { Args: Record<string, never>; Returns: Json }
+      save_repair_contractor: { Args: { p_owner_id: string; p_id: string | null; p_values: Json; p_revision: number | null }; Returns: string }
+      save_repair_job: { Args: { p_property_id: string; p_id: string | null; p_values: Json; p_revision: number | null }; Returns: string }
+      act_on_repair_job: { Args: { p_id: string; p_action: string; p_revision: number; p_values: Json }; Returns: string }
       team_overview: { Args: Record<string, never>; Returns: Json }
       team_workspace: { Args: { p_property_id: string }; Returns: Json }
       invite_team_member: { Args: { p_email: string; p_role: string; p_property_ids: string[] }; Returns: Json }

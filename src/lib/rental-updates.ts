@@ -15,6 +15,7 @@ const agreementKeys: UpdateKey[] = [
   ["agreement-status-events"],
   ["agreement-acceptances"],
   ["properties"],
+  ["property-catalog"],
   ["property"],
   ["units"],
   ["tenants"],
@@ -35,6 +36,25 @@ const paymentKeys: UpdateKey[] = [
 
 function keysForNotification(notification: RentalNotification): UpdateKey[] {
   switch (notification.kind) {
+    case "rental_application":
+      return [
+        ["property-catalog"],
+        ["recruitment"],
+        ["property-hub"],
+        ["public-listing"],
+        ...agreementKeys,
+      ];
+    case "repair_status":
+      return [
+        ["repairs"],
+        ["property-hub"],
+        ["requests"],
+        ["request-status-events"],
+        ["team-workspace"],
+        ["team-overview"],
+        ["property-expenses"],
+        ["property-finances"],
+      ];
     case "request_created":
     case "request_comment":
     case "request_status":

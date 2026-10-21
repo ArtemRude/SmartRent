@@ -28,4 +28,6 @@ export const notificationIcons: Record<NotificationKind, LucideIcon> = {
   utility_submitted: CalendarClock,
   utility_reviewed: CreditCard,
   handover_status: FileText,
+  repair_status: Inbox,
+  rental_application: Inbox,
 };

@@ -124,6 +124,8 @@ function PropertyDetailsPage() {
       setEditOpen(false);
       void qc.invalidateQueries({ queryKey: ["property", propertyId] });
       void qc.invalidateQueries({ queryKey: ["properties"] });
+      void qc.invalidateQueries({ queryKey: ["property-catalog"] });
+      void qc.invalidateQueries({ queryKey: ["property-hub"] });
       void qc.invalidateQueries({ queryKey: ["property-timeline", propertyId] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -176,6 +178,11 @@ function PropertyDetailsPage() {
         description={propertyTypeLabels[property.data.type]}
         action={
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/repairs" search={{ property: propertyId }}>
+                Ремонты и обслуживание
+              </Link>
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/finances" search={{ property: propertyId }}>
                 Расходы и прибыль

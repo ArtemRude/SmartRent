@@ -100,3 +100,34 @@ test("reminders refresh their domain without invalidating unrelated content", ()
     ["agreements"],
   ]);
 });
+
+test("repair notifications refresh work, canonical requests and linked expenses", () => {
+  const keys = tracker()
+    .consume("owner", [event("repair", "repair_status")])
+    .map((key) => key[0]);
+  for (const expected of [
+    "repairs",
+    "requests",
+    "request-status-events",
+    "team-workspace",
+    "property-expenses",
+    "property-finances",
+  ])
+    assert.ok(keys.includes(expected));
+  assert.equal(keys.includes("rent-payments"), false);
+});
+
+test("rental application refreshes recruitment, the property hub and new draft contracts", () => {
+  const tracker = new RentalUpdateTracker();
+  tracker.consume("owner", []);
+  const keys = tracker.consume("owner", [
+    {
+      id: "new-application",
+      user_id: "owner",
+      kind: "rental_application",
+      entity_id: "application",
+    },
+  ]);
+  for (const key of ["recruitment", "property-hub", "public-listing", "agreements", "tenants"])
+    assert.ok(keys.some((item) => item[0] === key));
+});

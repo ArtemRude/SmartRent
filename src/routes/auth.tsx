@@ -1,3 +1,4 @@
+import { pendingListing, listingUrl } from "@/lib/recruitment";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react-router";
 import { Building2, Loader2 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Вход и регистрация — SmartRent" },
@@ -65,7 +67,20 @@ function AuthPage() {
   }, [mode, isTenantInvite, invitedEmail, invitedName]);
 
   useEffect(() => {
+    if (hydrated && !isTenantInvite && !hasPendingTeamInvitation() && pendingListing())
+      setAccountRole("tenant");
+  }, [hydrated, isTenantInvite]);
+
+  useEffect(() => {
     if (!busy && !loading && session && role) {
+      if (!hasPendingTeamInvitation() && pendingListing()) {
+        void navigate({
+          to: "/listing/$listingId",
+          params: { listingId: pendingListing()! },
+          replace: true,
+        });
+        return;
+      }
       navigate({
         to: hasPendingTeamInvitation()
           ? "/team"
@@ -89,7 +104,7 @@ function AuthPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/${hasPendingTeamInvitation() ? "join-team" : ""}`,
+            emailRedirectTo: `${window.location.origin}${hasPendingTeamInvitation() ? "/join-team" : pendingListing() ? listingUrl(pendingListing()!) : "/"}`,
             data: { name, phone, role: signupRole },
           },
         });
@@ -101,6 +116,14 @@ function AuthPage() {
         }
 
         toast.success("Аккаунт создан");
+        if (!hasPendingTeamInvitation() && pendingListing()) {
+          await navigate({
+            to: "/listing/$listingId",
+            params: { listingId: pendingListing()! },
+            replace: true,
+          });
+          return;
+        }
         await navigate({
           to: hasPendingTeamInvitation()
             ? "/team"
@@ -122,6 +145,14 @@ function AuthPage() {
           .maybeSingle();
         const metadataRole = data.user.user_metadata["role"];
         const resolvedRole = roleRow?.role ?? (metadataRole === "tenant" ? "tenant" : "owner");
+        if (!hasPendingTeamInvitation() && pendingListing()) {
+          await navigate({
+            to: "/listing/$listingId",
+            params: { listingId: pendingListing()! },
+            replace: true,
+          });
+          return;
+        }
         await navigate({
           to: hasPendingTeamInvitation()
             ? "/team"
@@ -153,7 +184,9 @@ function AuthPage() {
       const { error } = await supabase.auth.resend({
         type: "signup",
         email,
-        options: { emailRedirectTo: `${window.location.origin}/auth?mode=signin` },
+        options: {
+          emailRedirectTo: `${window.location.origin}${hasPendingTeamInvitation() ? "/join-team" : pendingListing() ? listingUrl(pendingListing()!) : "/auth?mode=signin"}`,
+        },
       });
       if (error) throw error;
       toast.success("Новое письмо отправлено");

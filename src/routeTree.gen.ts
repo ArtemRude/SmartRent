@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as JoinTeamRouteImport } from './routes/join-team'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAgreementsRouteImport } from './routes/_authenticated/agreements'
@@ -22,12 +23,17 @@ import { Route as AuthenticatedHandoverRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedLeaseChangesRouteImport } from './routes/_authenticated/lease-changes'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
+import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedPropertiesRouteImport } from './routes/_authenticated/properties'
+import { Route as AuthenticatedRecruitmentRouteImport } from './routes/_authenticated/recruitment'
+import { Route as AuthenticatedRepairsRouteImport } from './routes/_authenticated/repairs'
 import { Route as AuthenticatedRequestsRouteImport } from './routes/_authenticated/requests'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedTenantsRouteImport } from './routes/_authenticated/tenants'
 import { Route as AuthenticatedUtilitiesRouteImport } from './routes/_authenticated/utilities'
+import { Route as ListingListingIdRouteImport } from './routes/listing.$listingId'
+import { Route as AuthenticatedObjectsPropertyIdRouteImport } from './routes/_authenticated/objects.$propertyId'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties.$propertyId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -42,6 +48,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogRoute = CatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JoinTeamRoute = JoinTeamRouteImport.update({
@@ -96,9 +107,25 @@ const AuthenticatedPaymentsRoute = AuthenticatedPaymentsRouteImport.update({
   path: '/payments',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPropertiesRoute = AuthenticatedPropertiesRouteImport.update({
   id: '/properties',
   path: '/properties',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRecruitmentRoute =
+  AuthenticatedRecruitmentRouteImport.update({
+    id: '/recruitment',
+    path: '/recruitment',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedRepairsRoute = AuthenticatedRepairsRouteImport.update({
+  id: '/repairs',
+  path: '/repairs',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedRequestsRoute = AuthenticatedRequestsRouteImport.update({
@@ -126,6 +153,17 @@ const AuthenticatedUtilitiesRoute = AuthenticatedUtilitiesRouteImport.update({
   path: '/utilities',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ListingListingIdRoute = ListingListingIdRouteImport.update({
+  id: '/listing/$listingId',
+  path: '/listing/$listingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedObjectsPropertyIdRoute =
+  AuthenticatedObjectsPropertyIdRouteImport.update({
+    id: '/objects/$propertyId',
+    path: '/objects/$propertyId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdRoute =
   AuthenticatedPropertiesPropertyIdRouteImport.update({
     id: '/$propertyId',
@@ -136,6 +174,7 @@ const AuthenticatedPropertiesPropertyIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/catalog': typeof CatalogRoute
   '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
@@ -146,17 +185,23 @@ export interface FileRoutesByFullPath {
   '/lease-changes': typeof AuthenticatedLeaseChangesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/payments': typeof AuthenticatedPaymentsRoute
+  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
+  '/recruitment': typeof AuthenticatedRecruitmentRoute
+  '/repairs': typeof AuthenticatedRepairsRoute
   '/requests': typeof AuthenticatedRequestsRoute
   '/support': typeof AuthenticatedSupportRoute
   '/team': typeof AuthenticatedTeamRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/utilities': typeof AuthenticatedUtilitiesRoute
+  '/listing/$listingId': typeof ListingListingIdRoute
+  '/objects/$propertyId': typeof AuthenticatedObjectsPropertyIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/catalog': typeof CatalogRoute
   '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
@@ -167,12 +212,17 @@ export interface FileRoutesByTo {
   '/lease-changes': typeof AuthenticatedLeaseChangesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/payments': typeof AuthenticatedPaymentsRoute
+  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/properties': typeof AuthenticatedPropertiesRouteWithChildren
+  '/recruitment': typeof AuthenticatedRecruitmentRoute
+  '/repairs': typeof AuthenticatedRepairsRoute
   '/requests': typeof AuthenticatedRequestsRoute
   '/support': typeof AuthenticatedSupportRoute
   '/team': typeof AuthenticatedTeamRoute
   '/tenants': typeof AuthenticatedTenantsRoute
   '/utilities': typeof AuthenticatedUtilitiesRoute
+  '/listing/$listingId': typeof ListingListingIdRoute
+  '/objects/$propertyId': typeof AuthenticatedObjectsPropertyIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
 export interface FileRoutesById {
@@ -180,6 +230,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/catalog': typeof CatalogRoute
   '/join-team': typeof JoinTeamRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agreements': typeof AuthenticatedAgreementsRoute
@@ -190,12 +241,17 @@ export interface FileRoutesById {
   '/_authenticated/lease-changes': typeof AuthenticatedLeaseChangesRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
+  '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/properties': typeof AuthenticatedPropertiesRouteWithChildren
+  '/_authenticated/recruitment': typeof AuthenticatedRecruitmentRoute
+  '/_authenticated/repairs': typeof AuthenticatedRepairsRoute
   '/_authenticated/requests': typeof AuthenticatedRequestsRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/tenants': typeof AuthenticatedTenantsRoute
   '/_authenticated/utilities': typeof AuthenticatedUtilitiesRoute
+  '/listing/$listingId': typeof ListingListingIdRoute
+  '/_authenticated/objects/$propertyId': typeof AuthenticatedObjectsPropertyIdRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRoute
 }
 export interface FileRouteTypes {
@@ -203,6 +259,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/catalog'
     | '/join-team'
     | '/admin'
     | '/agreements'
@@ -213,17 +270,23 @@ export interface FileRouteTypes {
     | '/lease-changes'
     | '/notifications'
     | '/payments'
+    | '/portfolio'
     | '/properties'
+    | '/recruitment'
+    | '/repairs'
     | '/requests'
     | '/support'
     | '/team'
     | '/tenants'
     | '/utilities'
+    | '/listing/$listingId'
+    | '/objects/$propertyId'
     | '/properties/$propertyId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/catalog'
     | '/join-team'
     | '/admin'
     | '/agreements'
@@ -234,18 +297,24 @@ export interface FileRouteTypes {
     | '/lease-changes'
     | '/notifications'
     | '/payments'
+    | '/portfolio'
     | '/properties'
+    | '/recruitment'
+    | '/repairs'
     | '/requests'
     | '/support'
     | '/team'
     | '/tenants'
     | '/utilities'
+    | '/listing/$listingId'
+    | '/objects/$propertyId'
     | '/properties/$propertyId'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/catalog'
     | '/join-team'
     | '/_authenticated/admin'
     | '/_authenticated/agreements'
@@ -256,12 +325,17 @@ export interface FileRouteTypes {
     | '/_authenticated/lease-changes'
     | '/_authenticated/notifications'
     | '/_authenticated/payments'
+    | '/_authenticated/portfolio'
     | '/_authenticated/properties'
+    | '/_authenticated/recruitment'
+    | '/_authenticated/repairs'
     | '/_authenticated/requests'
     | '/_authenticated/support'
     | '/_authenticated/team'
     | '/_authenticated/tenants'
     | '/_authenticated/utilities'
+    | '/listing/$listingId'
+    | '/_authenticated/objects/$propertyId'
     | '/_authenticated/properties/$propertyId'
   fileRoutesById: FileRoutesById
 }
@@ -269,7 +343,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  CatalogRoute: typeof CatalogRoute
   JoinTeamRoute: typeof JoinTeamRoute
+  ListingListingIdRoute: typeof ListingListingIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -293,6 +369,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catalog': {
+      id: '/catalog'
+      path: '/catalog'
+      fullPath: '/catalog'
+      preLoaderRoute: typeof CatalogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/join-team': {
@@ -365,11 +448,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPaymentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/portfolio': {
+      id: '/_authenticated/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/properties': {
       id: '/_authenticated/properties'
       path: '/properties'
       fullPath: '/properties'
       preLoaderRoute: typeof AuthenticatedPropertiesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/recruitment': {
+      id: '/_authenticated/recruitment'
+      path: '/recruitment'
+      fullPath: '/recruitment'
+      preLoaderRoute: typeof AuthenticatedRecruitmentRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/repairs': {
+      id: '/_authenticated/repairs'
+      path: '/repairs'
+      fullPath: '/repairs'
+      preLoaderRoute: typeof AuthenticatedRepairsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/requests': {
@@ -407,6 +511,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUtilitiesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/listing/$listingId': {
+      id: '/listing/$listingId'
+      path: '/listing/$listingId'
+      fullPath: '/listing/$listingId'
+      preLoaderRoute: typeof ListingListingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/objects/$propertyId': {
+      id: '/_authenticated/objects/$propertyId'
+      path: '/objects/$propertyId'
+      fullPath: '/objects/$propertyId'
+      preLoaderRoute: typeof AuthenticatedObjectsPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/properties/$propertyId': {
       id: '/_authenticated/properties/$propertyId'
       path: '/$propertyId'
@@ -442,12 +560,16 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeaseChangesRoute: typeof AuthenticatedLeaseChangesRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
+  AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedPropertiesRoute: typeof AuthenticatedPropertiesRouteWithChildren
+  AuthenticatedRecruitmentRoute: typeof AuthenticatedRecruitmentRoute
+  AuthenticatedRepairsRoute: typeof AuthenticatedRepairsRoute
   AuthenticatedRequestsRoute: typeof AuthenticatedRequestsRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedTenantsRoute: typeof AuthenticatedTenantsRoute
   AuthenticatedUtilitiesRoute: typeof AuthenticatedUtilitiesRoute
+  AuthenticatedObjectsPropertyIdRoute: typeof AuthenticatedObjectsPropertyIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -460,12 +582,16 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeaseChangesRoute: AuthenticatedLeaseChangesRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
+  AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedPropertiesRoute: AuthenticatedPropertiesRouteWithChildren,
+  AuthenticatedRecruitmentRoute: AuthenticatedRecruitmentRoute,
+  AuthenticatedRepairsRoute: AuthenticatedRepairsRoute,
   AuthenticatedRequestsRoute: AuthenticatedRequestsRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedTenantsRoute: AuthenticatedTenantsRoute,
   AuthenticatedUtilitiesRoute: AuthenticatedUtilitiesRoute,
+  AuthenticatedObjectsPropertyIdRoute: AuthenticatedObjectsPropertyIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -475,7 +601,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  CatalogRoute: CatalogRoute,
   JoinTeamRoute: JoinTeamRoute,
+  ListingListingIdRoute: ListingListingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

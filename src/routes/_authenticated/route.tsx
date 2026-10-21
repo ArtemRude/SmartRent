@@ -11,6 +11,10 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({
         to: "/auth",
         search: { mode: "signin", role: undefined, email: "", name: "" },
+        // This guard reads browser storage. Start a fresh document when it redirects
+        // during hydration, so the target route matches its server-rendered shell.
+        reloadDocument: true,
+        replace: true,
       });
     }
 
@@ -28,11 +32,17 @@ export const Route = createFileRoute("/_authenticated")({
       (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
     );
 
-    if (role === "tenant" && ownerOnly) throw redirect({ to: "/cabinet" });
+    if (role === "tenant" && ownerOnly)
+      throw redirect({ to: "/cabinet", reloadDocument: true, replace: true });
     if (adminOnly && role !== "admin") {
-      throw redirect({ to: role === "tenant" ? "/cabinet" : "/dashboard" });
+      throw redirect({
+        to: role === "tenant" ? "/cabinet" : "/dashboard",
+        reloadDocument: true,
+        replace: true,
+      });
     }
-    if (role !== "tenant" && tenantOnly) throw redirect({ to: "/dashboard" });
+    if (role !== "tenant" && tenantOnly)
+      throw redirect({ to: "/dashboard", reloadDocument: true, replace: true });
     return { user: session.user, role };
   },
   component: () => (

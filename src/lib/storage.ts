@@ -8,6 +8,8 @@ export const PAYMENT_RECEIPTS = "payment-receipts";
 export const UTILITY_READING_PHOTOS = "utility-reading-photos";
 export const EXPENSE_RECEIPTS = "expense-receipts";
 export const HANDOVER_PHOTOS = "lease-handover-photos";
+export const LISTING_PHOTOS = "listing-photos";
+export const REPAIR_PHOTOS = "repair-result-photos";
 
 function randomName(file: File) {
   const ext = file.name.split(".").pop() ?? "bin";
@@ -21,6 +23,8 @@ function validateFile(bucket: string, file: File) {
     AGREEMENT_INVENTORY_PHOTOS,
     UTILITY_READING_PHOTOS,
     HANDOVER_PHOTOS,
+    REPAIR_PHOTOS,
+    LISTING_PHOTOS,
   ]);
   if (imageBuckets.has(bucket)) {
     if (!file.type.startsWith("image/")) throw new Error("Можно загружать только изображения");
@@ -31,13 +35,20 @@ function validateFile(bucket: string, file: File) {
     if (file.size > 20 * 1024 * 1024) throw new Error("Размер договора не должен превышать 20 МБ");
   }
   if (
-    (bucket === UTILITY_READING_PHOTOS || bucket === HANDOVER_PHOTOS) &&
+    (bucket === LISTING_PHOTOS ||
+      bucket === UTILITY_READING_PHOTOS ||
+      bucket === HANDOVER_PHOTOS ||
+      bucket === REPAIR_PHOTOS) &&
     !["image/jpeg", "image/png", "image/webp"].includes(file.type)
   ) {
     throw new Error(
-      bucket === HANDOVER_PHOTOS
-        ? "Фото осмотра должно быть в формате JPG, PNG или WebP"
-        : "Фото счётчика должно быть в формате JPG, PNG или WebP",
+      bucket === LISTING_PHOTOS
+        ? "Фото объявления должно быть в формате JPG, PNG или WebP"
+        : bucket === REPAIR_PHOTOS
+          ? "Фото результата должно быть в формате JPG, PNG или WebP"
+          : bucket === HANDOVER_PHOTOS
+            ? "Фото осмотра должно быть в формате JPG, PNG или WebP"
+            : "Фото счётчика должно быть в формате JPG, PNG или WebP",
     );
   }
   if (bucket === PAYMENT_RECEIPTS || bucket === EXPENSE_RECEIPTS) {

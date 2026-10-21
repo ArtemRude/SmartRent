@@ -236,7 +236,10 @@ function Landing() {
           <a href="#top" aria-label="SmartRent — на главную">
             <BrandMark />
           </a>
-          <nav className="hidden items-center gap-8 text-sm font-semibold md:flex">
+          <nav className="hidden items-center gap-5 text-sm font-semibold xl:flex">
+            <Link className="transition-colors hover:text-[#318f94]" to="/catalog">
+              Каталог аренды
+            </Link>
             <a className="transition-colors hover:text-[#318f94]" href="#product">
               Возможности
             </a>
@@ -278,6 +281,14 @@ function Landing() {
               </Button>
             </div>
           )}
+        </div>
+        <div className="border-t border-black/8 px-4 py-2 xl:hidden">
+          <Link
+            to="/catalog"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[#318f94]"
+          >
+            Каталог аренды <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </header>
 

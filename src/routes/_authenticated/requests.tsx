@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, ChevronRight, Clock3, Inbox, MessageCircle, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -456,6 +456,19 @@ function RequestsPage() {
               </DialogHeader>
 
               <div className="space-y-6">
+                {selectedRequest.category === "repair" && selectedRequest.property_id && (
+                  <Button asChild variant="outline">
+                    <Link
+                      to="/repairs"
+                      search={{
+                        property: selectedRequest.property_id,
+                        request: selectedRequest.id,
+                      }}
+                    >
+                      {role === "tenant" ? "Ход ремонта по заявке" : "Оформить / открыть ремонт"}
+                    </Link>
+                  </Button>
+                )}
                 <section>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {requestCategoryLabels[selectedRequest.category]}

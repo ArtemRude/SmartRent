@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,13 @@ function RequestCard({
       </div>
       <p className="whitespace-pre-wrap break-words text-sm">{request.description}</p>
       <p className="text-xs text-muted-foreground">{requestCategoryLabels[request.category]}</p>
+      {request.category === "repair" && (
+        <Button asChild variant="outline" size="sm">
+          <Link to="/repairs" search={{ property: workspace.property.id, request: request.id }}>
+            Ремонт по заявке
+          </Link>
+        </Button>
+      )}
       {editable && (
         <div className="space-y-2">
           <Label htmlFor={`team-status-${request.id}`}>Статус заявки</Label>

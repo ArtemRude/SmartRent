@@ -205,7 +205,7 @@ export type NotificationRow = {
   title: string;
   body: string;
   href: NotificationHref;
-  entity_type: "request" | "agreement" | "rent_charge";
+  entity_type: "request" | "agreement" | "rent_charge" | "repair";
   entity_id: string;
   read_at: string | null;
   created_at: string;
