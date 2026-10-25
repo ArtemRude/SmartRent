@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, ShieldCheck, UserRound, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { BillingAdminControls, BillingSubscriptionEditor } from "@/components/BillingAdminControls";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -111,6 +112,8 @@ function AdminPage() {
         description="Пользователи платформы и их уровень доступа"
       />
 
+      <BillingAdminControls />
+
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "Всего пользователей", value: users.length, icon: Users },
@@ -176,6 +179,9 @@ function AdminPage() {
                     Зарегистрирован {formatDate(item.created_at)}
                   </p>
                 </div>
+                {item.role === "owner" && (
+                  <BillingSubscriptionEditor ownerId={item.id} name={item.name || item.email} />
+                )}
                 <Select
                   value={item.role}
                   disabled={isCurrentUser || updateRole.isPending}

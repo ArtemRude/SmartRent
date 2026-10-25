@@ -7,6 +7,7 @@ import {
   Building2,
   CreditCard,
   CalendarClock,
+  WalletCards,
   Gauge,
   ChartNoAxesCombined,
   KeyRound,
@@ -29,6 +30,7 @@ import { roleLabels } from "@/lib/domain";
 import { useRentalUpdates } from "@/hooks/use-rental-updates";
 import { notificationQueryOptions, NOTIFICATION_REFRESH_INTERVAL } from "@/lib/notification-query";
 import { cn } from "@/lib/utils";
+import { BillingSummaryCard } from "@/components/BillingSummaryCard";
 
 type NavItem = { to: string; label: string; icon: typeof Home };
 
@@ -47,6 +49,7 @@ const ownerNav: NavItem[] = [
   { to: "/requests", label: "Заявки", icon: Inbox },
   { to: "/repairs", label: "Ремонты и подрядчики", icon: Wrench },
   { to: "/notifications", label: "Уведомления", icon: Bell },
+  { to: "/billing", label: "Тариф и доступ", icon: WalletCards },
   { to: "/support", label: "Поддержка", icon: LifeBuoy },
 ];
 
@@ -161,6 +164,7 @@ function ScrollToTopButton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, profile, role, signOut } = useAuth();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const items = role === "tenant" ? tenantNav : role === "admin" ? adminNav : ownerNav;
@@ -236,6 +240,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-10">
+          {role !== "tenant" && role !== null && pathname !== "/billing" && <BillingSummaryCard />}
           {children}
         </main>
         <ScrollToTopButton />

@@ -16,6 +16,7 @@ import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as JoinTeamRouteImport } from './routes/join-team'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAgreementsRouteImport } from './routes/_authenticated/agreements'
+import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedCabinetRouteImport } from './routes/_authenticated/cabinet'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFinancesRouteImport } from './routes/_authenticated/finances'
@@ -68,6 +69,11 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
 const AuthenticatedAgreementsRoute = AuthenticatedAgreementsRouteImport.update({
   id: '/agreements',
   path: '/agreements',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedCabinetRoute = AuthenticatedCabinetRouteImport.update({
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
+  '/billing': typeof AuthenticatedBillingRoute
   '/cabinet': typeof AuthenticatedCabinetRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/finances': typeof AuthenticatedFinancesRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
+  '/billing': typeof AuthenticatedBillingRoute
   '/cabinet': typeof AuthenticatedCabinetRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/finances': typeof AuthenticatedFinancesRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/join-team': typeof JoinTeamRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agreements': typeof AuthenticatedAgreementsRoute
+  '/_authenticated/billing': typeof AuthenticatedBillingRoute
   '/_authenticated/cabinet': typeof AuthenticatedCabinetRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/finances': typeof AuthenticatedFinancesRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/join-team'
     | '/admin'
     | '/agreements'
+    | '/billing'
     | '/cabinet'
     | '/dashboard'
     | '/finances'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
     | '/join-team'
     | '/admin'
     | '/agreements'
+    | '/billing'
     | '/cabinet'
     | '/dashboard'
     | '/finances'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/join-team'
     | '/_authenticated/admin'
     | '/_authenticated/agreements'
+    | '/_authenticated/billing'
     | '/_authenticated/cabinet'
     | '/_authenticated/dashboard'
     | '/_authenticated/finances'
@@ -397,6 +409,13 @@ declare module '@tanstack/react-router' {
       path: '/agreements'
       fullPath: '/agreements'
       preLoaderRoute: typeof AuthenticatedAgreementsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/billing': {
+      id: '/_authenticated/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedBillingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cabinet': {
@@ -553,6 +572,7 @@ const AuthenticatedPropertiesRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAgreementsRoute: typeof AuthenticatedAgreementsRoute
+  AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
   AuthenticatedCabinetRoute: typeof AuthenticatedCabinetRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinancesRoute: typeof AuthenticatedFinancesRoute
@@ -575,6 +595,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAgreementsRoute: AuthenticatedAgreementsRoute,
+  AuthenticatedBillingRoute: AuthenticatedBillingRoute,
   AuthenticatedCabinetRoute: AuthenticatedCabinetRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinancesRoute: AuthenticatedFinancesRoute,
