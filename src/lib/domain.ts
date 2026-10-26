@@ -23,7 +23,8 @@ export type NotificationKind =
   | "handover_status"
   | "agreement_amendment"
   | "repair_status"
-  | "rental_application";
+  | "rental_application"
+  | "object_activity";
 export type NotificationHref =
   | "/requests"
   | "/payments"
@@ -33,7 +34,8 @@ export type NotificationHref =
   | "/handover"
   | "/lease-changes"
   | "/repairs"
-  | "/recruitment";
+  | "/recruitment"
+  | "/team";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   apartment: "Квартира / апартаменты",
@@ -95,6 +97,7 @@ export const notificationKindLabels: Record<NotificationKind, string> = {
   handover_status: "Заселение и выезд",
   repair_status: "Ремонт и обслуживание",
   rental_application: "Поиск арендаторов",
+  object_activity: "Действия по объекту",
 };
 
 export function formatMoney(value: number | null | undefined) {

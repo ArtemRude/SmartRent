@@ -36,6 +36,17 @@ const paymentKeys: UpdateKey[] = [
 
 function keysForNotification(notification: RentalNotification): UpdateKey[] {
   switch (notification.kind) {
+    case "object_activity":
+      return [
+        ["property-catalog"],
+        ["property-hub"],
+        ["properties"],
+        ["property"],
+        ["units"],
+        ["team-workspace"],
+        ["team-overview"],
+        ["property-timeline"],
+      ];
     case "rental_application":
       return [
         ["property-catalog"],

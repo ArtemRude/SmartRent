@@ -30,4 +30,5 @@ export const notificationIcons: Record<NotificationKind, LucideIcon> = {
   handover_status: FileText,
   repair_status: Inbox,
   rental_application: Inbox,
+  object_activity: Inbox,
 };

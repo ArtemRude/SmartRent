@@ -884,6 +884,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      telegram_overview: { Args: Record<string, never>; Returns: Json }
+      begin_telegram_link: { Args: Record<string, never>; Returns: Json }
+      confirm_telegram_link: { Args: { p_id: string }; Returns: undefined }
+      disconnect_telegram: { Args: Record<string, never>; Returns: undefined }
+      save_telegram_preferences: { Args: { p_enabled: boolean; p_topics: string[] }; Returns: undefined }
+      test_telegram_delivery: { Args: Record<string, never>; Returns: string }
       property_catalog: { Args: { p_filters: Json; p_cursor: Json }; Returns: Json }
       public_property_catalog: { Args: { p_filters: Json; p_cursor: Json }; Returns: Json }
       set_catalog_property_status: { Args: { p_id: string; p_expected: string; p_status: string }; Returns: string }

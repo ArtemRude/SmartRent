@@ -5,6 +5,7 @@ import { Bell, Check, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { ReminderSettingsCard } from "@/components/ReminderSettingsCard";
+import { TelegramSettingsCard } from "@/components/TelegramSettingsCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/auth-context";
@@ -199,6 +200,8 @@ function NotificationsPage() {
         }
       />
 
+      <TelegramSettingsCard />
+
       {role === "owner" && reminderSettings.data && (
         <ReminderSettingsCard
           settings={reminderSettings.data}
@@ -218,7 +221,7 @@ function NotificationsPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant={filter === "all" ? "default" : "outline"}

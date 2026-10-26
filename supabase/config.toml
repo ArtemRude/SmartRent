@@ -8,3 +8,10 @@ enable_signup = true
 [auth.email]
 enable_signup = true
 enable_confirmations = false
+
+# Each endpoint validates its own distinct secret before any privileged RPC call.
+[functions.telegram-webhook]
+verify_jwt = false
+
+[functions.telegram-dispatch]
+verify_jwt = false
