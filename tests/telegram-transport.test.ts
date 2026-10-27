@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   createTelegramHandler,
   telegramDestination,
+  telegramEventTexts,
+  notificationEventContent,
 } from "../supabase/functions/_shared/telegram.ts";
 
 const env = {
@@ -23,6 +25,7 @@ function fixture(
   const calls: Call[] = [];
   let actionLabel: string | undefined;
   let actionHref = "/team";
+  let eventKind = "object_activity";
   let claimed = false;
   let ackFails = false;
   const fetcher: typeof fetch = async (input, init) => {
@@ -40,7 +43,7 @@ function fixture(
           id,
           claim_token: claim,
           chat_id: "12345678",
-          kind: "object_activity",
+          kind: eventKind,
           href: actionHref,
           event_label: actionLabel,
         },
@@ -56,6 +59,10 @@ function fixture(
   return {
     setAction: (label: string, href: string) => {
       actionLabel = label;
+      actionHref = href;
+    },
+    setEvent: (kind: string, href: string) => {
+      eventKind = kind;
       actionHref = href;
     },
     calls,
@@ -115,6 +122,8 @@ test("private start and stop forward only validated identity to service RPC, opa
   assert.equal(response.status, 200);
   const setup = await response.json();
   assert.equal(setup.method, "sendMessage");
+  assert.equal(setup.parse_mode, "HTML");
+  assert.match(setup.text, /<b>Осталось подтвердить подключение<\/b>/);
   assert.match(setup.text, /До подтверждения/);
   assert.equal(setup.chat_id, "12345678");
   assert.equal(JSON.stringify(setup).includes("a".repeat(64)), false);
@@ -151,17 +160,19 @@ test("webhook bounds request size and retries server RPC failures without exposi
   assert.equal(response.status, 503);
   assert.doesNotMatch(await response.text(), /secret|12345678/);
 });
-test("dispatcher claims one item, sends generic message and safe cabinet link, then acknowledges with fenced token", async () => {
+test("dispatcher sends a structured HTML message and contextual safe link, then acknowledges with fenced token", async () => {
   const f = fixture();
   const response = await createTelegramHandler("dispatch", env, f.fetcher)(request("dispatch"));
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true, processed: 1 });
   const send = f.calls.find((c) => c.url.includes("api.telegram.org"))!;
   assert.match(String(send.body["text"]), /Новое действие по объекту/);
-  assert.equal(send.body["parse_mode"], undefined);
+  assert.equal(send.body["parse_mode"], "HTML");
+  assert.match(String(send.body["text"]), /^<b>SmartRent<\/b>\n\n🏠 <b>Действие по объекту<\/b>\n/);
+  assert.match(String(send.body["text"]), /<i>Подробности и действия — в кабинете\.<\/i>$/);
   assert.equal(JSON.stringify(send.body).includes("secret"), false);
   assert.deepEqual(send.body["reply_markup"], {
-    inline_keyboard: [[{ text: "Открыть в кабинете", url: "https://smartrent.example/team" }]],
+    inline_keyboard: [[{ text: "Открыть команду", url: "https://smartrent.example/team" }]],
   });
   const ack = f.calls.find((c) => c.url.endsWith("/finish_telegram_delivery"))!;
   assert.equal(ack.body["p_outcome"], "sent");
@@ -227,7 +238,9 @@ test("object action carries only allowlisted label and links to the exact access
   await createTelegramHandler("dispatch", env, f.fetcher)(request("dispatch"));
   const send = f.calls.find((c) => c.url.includes("api.telegram.org"))!;
   assert.match(String(send.body["text"]), /Добавлена заметка по объекту/);
-  assert.equal(JSON.stringify(send.body["reply_markup"]).includes(`/objects/${id}`), true);
+  assert.deepEqual(send.body["reply_markup"], {
+    inline_keyboard: [[{ text: "Открыть объект", url: `https://smartrent.example/objects/${id}` }]],
+  });
   const bad = fixture();
   bad.setAction("PRIVATE CONTACT +70000000000", "/team");
   await createTelegramHandler("dispatch", env, bad.fetcher)(request("dispatch"));
@@ -316,5 +329,77 @@ test("missing server keys fail safely before any privileged request", async () =
     assert.equal(response.status, 503);
     assert.equal(f.calls.length, 0);
     assert.doesNotMatch(await response.text(), /sb_secret|legacy\.jwt|TELEGRAM_BOT_TOKEN/);
+  }
+});
+
+test("event headings cover every supported kind and test message explains notification settings", async () => {
+  for (const kind of Object.keys(telegramEventTexts)) {
+    const content = notificationEventContent({ kind });
+    assert.notEqual(content.title, "Новое уведомление", kind);
+    assert.ok(content.icon.length > 0, kind);
+    assert.equal(content.body, telegramEventTexts[kind]);
+  }
+  const f = fixture();
+  f.setEvent("test", "/notifications");
+  await createTelegramHandler("dispatch", env, f.fetcher)(request("dispatch"));
+  const send = f.calls.find((c) => c.url.includes("api.telegram.org"))!;
+  assert.match(String(send.body["text"]), /✅ <b>Telegram подключён<\/b>/);
+  assert.match(String(send.body["text"]), /Темы и отправку можно изменить/);
+  assert.deepEqual(send.body["reply_markup"], {
+    inline_keyboard: [
+      [{ text: "Открыть уведомления", url: "https://smartrent.example/notifications" }],
+    ],
+  });
+});
+
+test("notification HTML never interpolates untrusted event kinds, titles or action markup", async () => {
+  for (const kind of [
+    "object_activity",
+    "<b>PRIVATE CONTACT</b>",
+    "__proto__",
+    "constructor",
+    "toString",
+  ]) {
+    const f = fixture();
+    f.setAction('<a href="https://evil.example">PRIVATE & CONTACT</a>', "/requests?private=token");
+    f.setEvent(kind, "/requests?private=token");
+    await createTelegramHandler("dispatch", env, f.fetcher)(request("dispatch"));
+    const send = f.calls.find((c) => c.url.includes("api.telegram.org"))!;
+    const text = String(send.body["text"]);
+    assert.equal(send.body["parse_mode"], "HTML");
+    assert.doesNotMatch(
+      JSON.stringify(send.body),
+      /PRIVATE|CONTACT|evil|private=token|__proto__|constructor|toString/,
+    );
+    assert.equal((text.match(/<b>/g) ?? []).length, 2);
+    assert.equal((text.match(/<\/b>/g) ?? []).length, 2);
+    assert.deepEqual(send.body["reply_markup"], {
+      inline_keyboard: [
+        [{ text: "Открыть уведомления", url: "https://smartrent.example/notifications" }],
+      ],
+    });
+  }
+});
+
+test("call to action follows the actual safe destination for each notification", async () => {
+  for (const [kind, href, label] of [
+    ["request_comment", "/requests", "Открыть заявки"],
+    ["agreement_status", "/agreements", "Открыть договоры"],
+    ["payment_report_status", "/payments", "Открыть платежи"],
+    ["payment_due", "/cabinet", "Открыть мой кабинет"],
+    ["agreement_amendment", "/lease-changes", "Открыть изменения договора"],
+    ["handover_status", "/handover", "Открыть акты"],
+    ["repair_status", "/repairs", "Открыть ремонты"],
+    ["rental_application", "/recruitment", "Открыть кандидатов"],
+    ["utility_reviewed", "/utilities", "Открыть коммунальные услуги"],
+  ]) {
+    const f = fixture();
+    f.setEvent(kind!, href!);
+    await createTelegramHandler("dispatch", env, f.fetcher)(request("dispatch"));
+    const send = f.calls.find((c) => c.url.includes("api.telegram.org"))!;
+    assert.deepEqual(send.body["reply_markup"], {
+      inline_keyboard: [[{ text: label, url: `https://smartrent.example${href}` }]],
+    });
+    assert.equal(send.body["parse_mode"], "HTML");
   }
 });

@@ -80,7 +80,11 @@ function NotificationCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold">{notification.title}</p>
-            {unread && <span className="h-2 w-2 rounded-full bg-primary" aria-label="Новое" />}
+            {unread && (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+                Новое
+              </span>
+            )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{notification.body}</p>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -188,7 +192,7 @@ function NotificationsPage() {
     <>
       <PageHeader
         title="Уведомления"
-        description="Заявки, комментарии, договоры и изменения платежей"
+        description="События по аренде, каналы доставки и настройки напоминаний"
         action={
           <Button
             variant="outline"
@@ -220,7 +224,27 @@ function NotificationsPage() {
         </Card>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 mt-8 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Лента событий</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {notifications.isPending
+              ? "Загружаем события…"
+              : notifications.isError
+                ? "Лента временно недоступна"
+                : unreadCount > 0
+                  ? `Ожидают прочтения: ${unreadCount}`
+                  : allNotifications.length === 0
+                    ? "Здесь собираются события по вашим объектам и аренде"
+                    : "Вы прочитали все загруженные уведомления"}
+          </p>
+        </div>
+        <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+          Обновляются автоматически
+        </p>
+      </div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -244,7 +268,6 @@ function NotificationsPage() {
             Напоминания · {reminderNotifications.length}
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground">Обновляются автоматически</p>
       </div>
 
       {notifications.isPending && (

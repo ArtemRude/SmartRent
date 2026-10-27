@@ -292,10 +292,18 @@ test("Telegram settings and history fit 320px and failed or cancelled delivery r
     connected_at: new Date().toISOString(),
   };
   state.overview.enabled = true;
-  state.overview.deliveries = ["failed", "cancelled", "retry"].map((status, index) => ({
+  state.overview.deliveries = [
+    "failed",
+    "cancelled",
+    "retry",
+    "pending",
+    "processing",
+    "sent",
+    "uncertain",
+  ].map((status, index) => ({
     id: `d${index}`,
     kind: "property_action",
-    status: status as "failed" | "cancelled" | "retry",
+    status: status as TelegramOverview["deliveries"][number]["status"],
     attempts: index + 1,
     created_at: new Date().toISOString(),
     sent_at: null,
@@ -309,7 +317,21 @@ test("Telegram settings and history fit 320px and failed or cancelled delivery r
   await expect(card.getByText("Отменено", { exact: true })).toBeVisible();
   await expect(card.getByText("Ожидает повторной попытки", { exact: true })).toBeVisible();
   await expect(card.getByText("Показаны последние отправки.", { exact: true })).toBeVisible();
+  const introduction = card.getByText("Важное по объектам и аренде — даже когда кабинет закрыт.", {
+    exact: true,
+  });
+  const introductionBounds = await introduction.boundingBox();
+  const cardBounds = await card.boundingBox();
+  // A status badge must not squeeze the introduction into a column one word wide.
+  expect(introductionBounds!.width).toBeGreaterThan(cardBounds!.width / 2);
+  const history = card.getByRole("region", { name: "История отправок Telegram" });
+  await expect(history.getByRole("listitem")).toHaveCount(5);
+  await card.getByRole("button", { name: "Показать всю историю · 7", exact: true }).click();
+  await expect(history.getByRole("listitem")).toHaveCount(7);
+  await expect(history.getByText("Результат неизвестен", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  await card.getByRole("button", { name: "Свернуть историю", exact: true }).click();
+  await expect(history.getByRole("listitem")).toHaveCount(5);
 });

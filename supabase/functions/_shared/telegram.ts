@@ -41,16 +41,6 @@ const objectActionLabels = new Set([
   "Предложение аренды снято с публикации",
 ]);
 
-function deliveryText(delivery: Delivery) {
-  if (
-    delivery.kind === "object_activity" &&
-    delivery.event_label &&
-    objectActionLabels.has(delivery.event_label)
-  )
-    return `${delivery.event_label}. Подробности доступны в кабинете.`;
-  return telegramEventTexts[delivery.kind] ?? "Новое событие. Подробности доступны в кабинете.";
-}
-
 export const telegramEventTexts: Readonly<Record<string, string>> = {
   request_created: "Поступила новая заявка по объекту.",
   request_comment: "В заявке появился новый комментарий.",
@@ -74,6 +64,98 @@ export const telegramEventTexts: Readonly<Record<string, string>> = {
   object_activity: "Новое действие по объекту. Подробности доступны в кабинете.",
   test: "Проверка подключения: Telegram-уведомления SmartRent работают.",
 };
+
+const telegramEventHeadings: Readonly<Record<string, readonly [string, string]>> = {
+  request_created: ["📩", "Новая заявка"],
+  request_comment: ["💬", "Комментарий в заявке"],
+  request_status: ["📋", "Статус заявки изменён"],
+  agreement_created: ["📄", "Новый договор"],
+  agreement_status: ["📄", "Статус договора изменён"],
+  agreement_accepted: ["✅", "Условия договора подтверждены"],
+  agreement_amendment: ["✍️", "Изменение условий аренды"],
+  agreement_expiring: ["📅", "Аренда подходит к концу"],
+  payment_status: ["💳", "Обновление оплаты"],
+  payment_due: ["📅", "Скоро срок оплаты"],
+  payment_overdue: ["⏰", "Просроченная оплата"],
+  payment_reminder: ["🔔", "Напоминание об оплате"],
+  payment_reported: ["💳", "Оплата ожидает проверки"],
+  payment_report_status: ["💳", "Результат проверки оплаты"],
+  utility_submitted: ["🔢", "Получены показания счётчиков"],
+  utility_reviewed: ["🔢", "Коммунальный расчёт обновлён"],
+  handover_status: ["🔑", "Заселение и выезд"],
+  repair_status: ["🛠", "Обновление ремонта"],
+  rental_application: ["🏡", "Обновление по кандидату"],
+  object_activity: ["🏠", "Действие по объекту"],
+  test: ["✅", "Telegram подключён"],
+};
+
+// Only static copy and the closed action dictionary enter the message. Escape every
+// text fragment as well, so future copy changes cannot accidentally create HTML.
+function telegramHtml(text: string): string {
+  return text.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]!,
+  );
+}
+
+export function notificationEventContent(delivery: { kind: string; event_label?: string }): {
+  icon: string;
+  title: string;
+  body: string;
+} {
+  const [icon, defaultHeading] = Object.hasOwn(telegramEventHeadings, delivery.kind)
+    ? telegramEventHeadings[delivery.kind]!
+    : (["🔔", "Новое уведомление"] as const);
+  const actionLabel =
+    delivery.kind === "object_activity" &&
+    typeof delivery.event_label === "string" &&
+    objectActionLabels.has(delivery.event_label)
+      ? delivery.event_label
+      : null;
+  const heading = actionLabel ?? defaultHeading;
+  const body = actionLabel
+    ? "В вашем объекте появилось новое событие."
+    : Object.hasOwn(telegramEventTexts, delivery.kind)
+      ? telegramEventTexts[delivery.kind]!
+      : "Новое событие. Подробности доступны в кабинете.";
+  return { icon, title: heading, body };
+}
+
+function deliveryText(delivery: Delivery): string {
+  const { icon, title, body } = notificationEventContent(delivery);
+  const footer =
+    delivery.kind === "test"
+      ? "Темы и отправку можно изменить в разделе «Уведомления»."
+      : "Подробности и действия — в кабинете.";
+  return `<b>SmartRent</b>\n\n${icon} <b>${telegramHtml(title)}</b>\n${telegramHtml(body)}\n\n<i>${telegramHtml(footer)}</i>`;
+}
+
+export function notificationActionLabel(destination: string): string {
+  const path = new URL(destination).pathname;
+  if (/^\/objects\/[0-9a-f-]{36}$/i.test(path)) return "Открыть объект";
+  const labels: Readonly<Record<string, string>> = {
+    "/requests": "Открыть заявки",
+    "/agreements": "Открыть договоры",
+    "/payments": "Открыть платежи",
+    "/cabinet": "Открыть мой кабинет",
+    "/utilities": "Открыть коммунальные услуги",
+    "/handover": "Открыть акты",
+    "/lease-changes": "Открыть изменения договора",
+    "/repairs": "Открыть ремонты",
+    "/recruitment": "Открыть кандидатов",
+    "/team": "Открыть команду",
+    "/portfolio": "Открыть портфель",
+    "/notifications": "Открыть уведомления",
+  };
+  return Object.hasOwn(labels, path) ? labels[path]! : "Открыть в кабинете";
+}
 
 export function telegramDestination(appUrl: string, href: string): string {
   const base = new URL(appUrl);
@@ -254,10 +336,11 @@ export function createTelegramHandler(
           return json({
             method: "sendMessage",
             chat_id: String(chat["id"]),
+            parse_mode: "HTML",
             text:
               received["result"] === "pending"
-                ? "SmartRent: запрос получен. Вернитесь в кабинет → Уведомления и подтвердите свой Telegram-аккаунт. До подтверждения уведомления не отправляются."
-                : "SmartRent: Telegram-уведомления отключены. Для подключения создайте новую ссылку в кабинете.",
+                ? "<b>SmartRent</b>\n\n🔗 <b>Осталось подтвердить подключение</b>\nВернитесь в кабинет → Уведомления и подтвердите свой Telegram-аккаунт.\n\n<i>До подтверждения уведомления не отправляются.</i>"
+                : "<b>SmartRent</b>\n\n🔕 <b>Telegram-уведомления отключены</b>\nНовые события больше не будут приходить в этот чат.\n\n<i>Для подключения создайте новую ссылку в разделе «Уведомления» в кабинете.</i>",
           });
         }
         // Never return the token, RPC internals or business data, or log requests.
@@ -280,19 +363,21 @@ export function createTelegramHandler(
         let retryAfter: number | null = null;
         let messageId: number | null = null;
         try {
+          const destination = telegramDestination(env.APP_URL, delivery.href);
           const response = await fetcher(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: delivery.chat_id,
-              text: `SmartRent\n\n${deliveryText(delivery)}`,
+              text: deliveryText(delivery),
+              parse_mode: "HTML",
               link_preview_options: { is_disabled: true },
               reply_markup: {
                 inline_keyboard: [
                   [
                     {
-                      text: "Открыть в кабинете",
-                      url: telegramDestination(env.APP_URL, delivery.href),
+                      text: notificationActionLabel(destination),
+                      url: destination,
                     },
                   ],
                 ],
