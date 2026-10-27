@@ -33,6 +33,8 @@ async function installScenario(page: Page) {
   };
   const state = {
     acceptanceError: false,
+    errorResources: new Set<string>(),
+    missingPayments: false,
     agreement: {
       id: "lease",
       owner_id: ownerId,
@@ -88,7 +90,17 @@ async function installScenario(page: Page) {
   );
   await page.route("**/rest/v1/**", async (route) => {
     const resource = new URL(route.request().url()).pathname.split("/").at(-1)!;
-    if (resource === "agreement_acceptances" && state.acceptanceError) {
+    if (resource === "rent_payments" && state.missingPayments) {
+      await route.fulfill({
+        status: 404,
+        json: { code: "PGRST205", message: "Fixture: missing payment history" },
+      });
+      return;
+    }
+    if (
+      state.errorResources.has(resource) ||
+      (resource === "agreement_acceptances" && state.acceptanceError)
+    ) {
       await route.fulfill({ status: 500, json: { message: "Fixture: unavailable" } });
       return;
     }
@@ -261,4 +273,91 @@ test("missing acceptance data does not present setup as complete or unlock activ
   });
   await expect(page.getByRole("button", { name: "Активировать", exact: true })).toBeDisabled();
   await expect(page.getByTestId("agreement-preparation-lease")).toHaveCount(0);
+});
+
+test("dashboard errors never look like zero debt, zero income or an all-clear", async ({
+  page,
+}) => {
+  const state = await installScenario(page);
+  for (const resource of ["lease_agreements", "rent_charges", "requests"])
+    state.errorResources.add(resource);
+  await page.goto("/dashboard");
+  await expect(page.getByText("Часть данных не загрузилась.", { exact: false })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText("Всё в порядке", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("На сегодня срочных задач нет", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Задолженность/ })).toContainText("Недоступно");
+  await expect(page.getByRole("link", { name: /Открытые заявки/ })).toContainText("Недоступно");
+  const income = page
+    .getByText("Ожидаемый доход в месяц", { exact: true })
+    .locator("..")
+    .locator("..");
+  await expect(income).toContainText("Недоступно");
+  await expect(page.getByText("Заявок пока нет.", { exact: true })).toHaveCount(0);
+});
+
+test("dashboard does not replace failed payment history with charge totals", async ({ page }) => {
+  const state = await installScenario(page);
+  state.errorResources.add("rent_payments");
+  state.charges.push({
+    id: "paid",
+    agreement_id: "lease",
+    tenant_id: "tenant",
+    amount: 12345,
+    adjustment_amount: 0,
+    paid_amount: 12345,
+    paid_at: new Date().toISOString(),
+    charge_type: "rent",
+  });
+  await page.goto("/dashboard");
+  await expect(page.getByText("Часть данных не загрузилась.", { exact: false })).toBeVisible({
+    timeout: 15_000,
+  });
+  const received = page
+    .getByText("Получено в этом месяце", { exact: true })
+    .locator("..")
+    .locator("..");
+  await expect(received).toContainText("Недоступно");
+  await expect(received).not.toContainText("12 345");
+});
+
+test("dashboard keeps debt unknown while charges load and preserves the missing-history compatibility fallback", async ({
+  page,
+}) => {
+  const state = await installScenario(page);
+  state.missingPayments = true;
+  state.charges.push({
+    id: "paid",
+    agreement_id: "lease",
+    tenant_id: "tenant",
+    amount: 12345,
+    adjustment_amount: 0,
+    paid_amount: 12345,
+    paid_at: new Date().toISOString(),
+    charge_type: "rent",
+  });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/rest\/v1\/rent_charges(?:\?|$)/, async (route) => {
+    await gate;
+    await route.fulfill({ json: state.charges });
+  });
+  try {
+    await page.goto("/dashboard");
+    await expect(page.getByText("Загружаем сводку…")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Задолженность/ })).toContainText("Загрузка");
+    await expect(page.getByText("Всё в порядке", { exact: true })).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(page.getByText("Загружаем сводку…")).toHaveCount(0);
+  const received = page
+    .getByText("Получено в этом месяце", { exact: true })
+    .locator("..")
+    .locator("..");
+  await expect(received).toContainText(/12\s345/);
+  await expect(received).not.toContainText("Недоступно");
 });

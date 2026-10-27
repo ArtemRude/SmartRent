@@ -5,6 +5,7 @@ import {
   type RepairEvent,
   type RepairContractor,
   type RepairRole,
+  type RepairProperty,
 } from "../src/lib/repairs";
 import type { PropertyExpense, ExpenseEvent } from "../src/lib/property-finances";
 const ownerId = "f1000000-0000-0000-0000-000000000001",
@@ -27,6 +28,8 @@ function fixture() {
     expenseEvents: [] as ExpenseEvent[],
     requestStatus: "new",
     uploads: [] as string[],
+    extraProperties: [] as RepairProperty[],
+    savedPropertyIds: [] as string[],
   };
 }
 type State = ReturnType<typeof fixture>;
@@ -115,7 +118,10 @@ async function install(
         return route.fulfill({ status: 404, json: { code: "PGRST202", message: "Unavailable" } });
       return route.fulfill({
         json: {
-          properties: identity === "manager" && !state.managerActive ? [] : [property],
+          properties:
+            identity === "manager" && !state.managerActive
+              ? []
+              : [...state.extraProperties, property],
           contractors: workspaceRole === "owner" ? state.contractors : [],
           requests:
             manager && !state.jobs.some((j) => j.status !== "cancelled")
@@ -164,6 +170,7 @@ async function install(
       return route.fulfill({ json: c.id });
     }
     if (resource === "save_repair_job") {
+      state.savedPropertyIds.push(body.p_property_id);
       const values = body.p_values;
       const calculated = buildRepairEstimate(
         values.estimate_items.map((i: { name: string; quantity: number; unit_price: number }) => ({
@@ -472,3 +479,48 @@ for (const role of ["owner", "admin"] as const) {
     for (const context of [ownerContext, managerContext, tenantContext]) await context.close();
   });
 }
+
+function addReadOnlyProperty(state: State) {
+  const id = "f2000000-0000-0000-0000-000000000002";
+  state.extraProperties.push({
+    id,
+    owner_id: "f1000000-0000-0000-0000-000000000009",
+    name: "А. Объект только для просмотра",
+    address: "Тестовый адрес наблюдателя",
+    role: "viewer",
+  });
+  return id;
+}
+
+test("repairs hides creation for a selected read-only property in a mixed portfolio", async ({
+  context,
+  page,
+}) => {
+  const state = fixture();
+  const readOnlyId = addReadOnlyProperty(state);
+  await install(context, "manager", state);
+  await page.goto(`/repairs?property=${readOnlyId}`);
+  await expect(page.getByLabel("Объект", { exact: true })).toHaveValue(readOnlyId);
+  await expect(page.getByRole("button", { name: "Новая работа", exact: true })).toHaveCount(0);
+  await page.getByLabel("Объект", { exact: true }).selectOption(propertyId);
+  await page.getByRole("button", { name: "Новая работа", exact: true }).click();
+  await expect(page.getByLabel("Объект ремонта", { exact: true })).toHaveValue(propertyId);
+});
+
+test("repairs defaults a new job to a writable property when the first property is read-only", async ({
+  context,
+  page,
+}) => {
+  const state = fixture();
+  addReadOnlyProperty(state);
+  await install(context, "manager", state);
+  await page.goto("/repairs");
+  await page.getByRole("button", { name: "Новая работа", exact: true }).click();
+  await expect(page.getByLabel("Объект ремонта", { exact: true })).toHaveValue(propertyId);
+  await page.getByLabel("Название работы", { exact: true }).fill("Плановая проверка отопления");
+  await page.getByLabel("Строка 1: работа или материал").fill("Проверка");
+  await page.getByLabel("Цена 1, ₽", { exact: true }).fill("100");
+  await page.getByRole("button", { name: "Сохранить смету", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.savedPropertyIds).toEqual([propertyId]);
+});

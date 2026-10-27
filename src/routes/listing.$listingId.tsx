@@ -29,8 +29,8 @@ function PublicListingPage() {
   const { listingId } = Route.useParams();
   const { user, profile, loading } = useAuth();
   const client = useQueryClient();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -63,8 +63,8 @@ function PublicListingPage() {
   const mutation = useMutation({
     mutationFn: () =>
       applyToListing(listingId, {
-        name: name || profile?.name || "",
-        phone: phone || profile?.phone || "",
+        name: name ?? profile?.name ?? "",
+        phone: phone ?? profile?.phone ?? "",
         message,
         consent,
       }),
@@ -234,7 +234,7 @@ function PublicListingPage() {
                         <Label htmlFor="applicant-name">Ваше имя</Label>
                         <Input
                           id="applicant-name"
-                          value={name || profile?.name || ""}
+                          value={name ?? profile?.name ?? ""}
                           onChange={(e) => setName(e.target.value)}
                           maxLength={200}
                           required
@@ -245,7 +245,7 @@ function PublicListingPage() {
                         <Input
                           id="applicant-phone"
                           type="tel"
-                          value={phone || profile?.phone || ""}
+                          value={phone ?? profile?.phone ?? ""}
                           onChange={(e) => setPhone(e.target.value)}
                           minLength={5}
                           maxLength={40}

@@ -46,9 +46,13 @@ function RepairsPage() {
     retry: false,
   });
   const data = query.isError ? null : query.data?.overview;
+  const writableProperties =
+    data?.properties.filter((p) => ["owner", "manager"].includes(p.role)) ?? [];
   const selected = search.property
     ? data?.properties.find((p) => p.id === search.property)
-    : (data?.properties.find((p) => p.role === "owner") ?? data?.properties[0]);
+    : (writableProperties.find((p) => p.role === "owner") ??
+      writableProperties[0] ??
+      data?.properties[0]);
   const [status, setStatus] = useState<RepairStatus | "all">("all"),
     [editor, setEditor] = useState<{
       initial: RepairJob | null;
@@ -78,8 +82,12 @@ function RepairsPage() {
       (!search.request || j.request_id === search.request) &&
       (status === "all" || j.status === status),
   );
-  const readyRequest = data?.requests.find((r) => r.id === search.request);
-  const canCreate = data?.properties.some((p) => ["owner", "manager"].includes(p.role));
+  const readyRequest = data?.requests.find(
+    (r) => r.id === search.request && (!search.property || r.property_id === search.property),
+  );
+  const canCreate = search.property
+    ? Boolean(selected && ["owner", "manager"].includes(selected.role))
+    : writableProperties.length > 0;
   const tenantView = Boolean(
     data?.properties.length && data.properties.every((p) => p.role === "tenant"),
   );

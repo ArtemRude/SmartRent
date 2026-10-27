@@ -300,6 +300,15 @@ test("utility readings and confirmed payments reach both accounts without reload
   const errors: string[] = [];
   for (const page of [owner, tenant]) page.on("pageerror", (error) => errors.push(error.message));
 
+  // A stale or forbidden deep link must not silently switch to another lease.
+  for (const account of [owner, tenant]) {
+    await account.goto("/utilities?agreement=94000000-0000-0000-0000-000000009999");
+    await expect(account.getByText("Договор из ссылки недоступен", { exact: true })).toBeVisible();
+    await expect(account.getByRole("tab", { name: "Показания и расчёты" })).toHaveCount(0);
+    await account.getByRole("button", { name: "Выбрать другой договор", exact: true }).click();
+    await expect(account.getByRole("tab", { name: "Показания и расчёты" })).toBeVisible();
+  }
+
   await owner.goto("/utilities");
   await expect(
     owner.getByRole("heading", { name: "Коммунальные услуги", exact: true }),

@@ -16,6 +16,8 @@ function fixture() {
     revoked: false,
     stale: false,
     leaseCount: 0,
+    profileName: null as string | null,
+    profilePhone: null as string | null,
   };
 }
 type State = ReturnType<typeof fixture>;
@@ -230,7 +232,12 @@ async function install(context: BrowserContext, state: State, identity: Identity
       return route.fulfill({ json: a.agreement_id ?? a.id });
     }
     const tables: Record<string, unknown> = {
-      profiles: { id, name: identity, email: user.email, phone: null },
+      profiles: {
+        id,
+        name: state.profileName ?? identity,
+        email: user.email,
+        phone: state.profilePhone,
+      },
       user_roles: { role },
       notifications: [],
     };
@@ -388,4 +395,56 @@ test("hub and public listing handle an unapplied migration and denied access", a
   await p.goto(`/objects/${propertyId}`);
   await expect(p.getByRole("alert")).toContainText("Требуется обновление базы данных");
   await c.close();
+});
+
+test("candidate can clear profile contact defaults and submit only the edited values", async ({
+  context,
+  page,
+}) => {
+  const state = fixture();
+  state.profileName = "Имя из профиля";
+  state.profilePhone = "+7 900 111-22-33";
+  const details = {
+    title: "Тестовая квартира",
+    location: "Москва",
+    description: "Проверка редактирования контактов",
+    monthly_rent: 45000,
+    deposit: 45000,
+    area: 42,
+    available_from: "2026-10-25",
+    contact_name: "Собственник",
+    photos: [],
+  };
+  state.listing = {
+    id: listingId,
+    public_id: publicId,
+    property_id: propertyId,
+    unit_id: null,
+    status: "published",
+    draft: details,
+    published_snapshot: details,
+    revision: 1,
+    has_changes: false,
+    available: true,
+  };
+  await install(context, state, "candidate");
+  await page.goto(`/listing/${publicId}`);
+  const name = page.getByLabel("Ваше имя", { exact: true });
+  const phone = page.getByLabel("Телефон", { exact: true });
+  await expect(name).toHaveValue(state.profileName);
+  await expect(phone).toHaveValue(state.profilePhone);
+  await name.fill("");
+  await phone.fill("");
+  await expect(name).toHaveValue("");
+  await expect(phone).toHaveValue("");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Отправить заявку", exact: true }).click();
+  expect(state.applications).toHaveLength(0);
+  await name.fill("Анна Кандидат");
+  await phone.fill("+7 900 555-66-77");
+  await page.getByRole("button", { name: "Отправить заявку", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ваш отклик", exact: true })).toBeVisible();
+  expect(state.applications).toHaveLength(1);
+  expect(state.applications[0]!.name).toBe("Анна Кандидат");
+  expect(state.applications[0]!.phone).toBe("+7 900 555-66-77");
 });

@@ -161,8 +161,12 @@ export function RepairJobEditor({
   onSaved: () => void;
 }) {
   const properties = overview.properties.filter((p) => ["owner", "manager"].includes(p.role));
+  const preferredProperty =
+    properties.find((p) => p.id === propertyId) ??
+    properties.find((p) => p.role === "owner") ??
+    properties[0];
   const [property, setProperty] = useState(
-    initial?.property_id ?? request?.property_id ?? propertyId ?? properties[0]?.id ?? "",
+    initial?.property_id ?? request?.property_id ?? preferredProperty?.id ?? "",
   );
   const selected = properties.find((p) => p.id === property);
   const [title, setTitle] = useState(initial?.title ?? request?.title ?? ""),

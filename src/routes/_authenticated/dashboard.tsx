@@ -60,11 +60,15 @@ function Stat({
   label,
   value,
   to,
+  loading = false,
+  error = false,
 }: {
   icon: typeof Building2;
   label: string;
   value: string | number;
   to?: string;
+  loading?: boolean;
+  error?: boolean;
 }) {
   const card = (
     <Card className={to ? "h-full transition-shadow hover:shadow-md" : "h-full"}>
@@ -74,7 +78,15 @@ function Stat({
         </span>
         <div>
           <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold">{value}</p>
+          <p
+            className={
+              loading || error
+                ? "text-sm font-medium text-muted-foreground"
+                : "text-2xl font-semibold"
+            }
+          >
+            {error ? "Недоступно" : loading ? "Загрузка…" : value}
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -113,6 +125,11 @@ function Dashboard() {
   const debt = (charges.data ?? [])
     .filter((charge) => charge.paid_at == null && charge.due_date < today)
     .reduce((sum, charge) => sum + getRentChargeBalance(charge), 0);
+  // A missing legacy history API may use valid charge data, but an API error
+  // must never masquerade as a complete sum of received payments.
+  const receivedSources = payments.data?.available === false ? [payments, charges] : [payments];
+  const receivedReady = receivedSources.every((query) => query.isSuccess);
+  const receivedFailed = receivedSources.some((query) => query.isError);
   const receivedThisMonth = payments.data?.available
     ? sumPaymentsForMonth(payments.data.payments, today.slice(0, 7))
     : (charges.data ?? [])
@@ -136,7 +153,9 @@ function Dashboard() {
   });
   const completedOnboardingSteps = onboardingSteps.filter((step) => step.completed).length;
   const nextOnboardingStep = onboardingSteps.find((step) => !step.completed);
-  const onboardingLoaded = !queries.some((query) => query.isPending);
+  const attentionReady = [properties, tenants, agreements, requests, charges].every(
+    (query) => query.isSuccess,
+  );
   const onboardingReady = [properties, tenants, agreements, acceptances, charges].every(
     (query) => query.isSuccess,
   );
@@ -212,7 +231,7 @@ function Dashboard() {
         </p>
       )}
 
-      {onboardingLoaded && <AttentionCenter groups={attentionGroups} />}
+      {attentionReady && <AttentionCenter groups={attentionGroups} />}
 
       {onboardingReady && nextOnboardingStep && (
         <Card
@@ -280,17 +299,42 @@ function Dashboard() {
           icon={Building2}
           label="Объекты"
           value={properties.data?.length ?? 0}
+          loading={properties.isPending}
+          error={properties.isError}
           to="/properties"
         />
-        <Stat icon={Users} label="Арендаторы" value={tenants.data?.length ?? 0} to="/tenants" />
+        <Stat
+          icon={Users}
+          label="Арендаторы"
+          value={tenants.data?.length ?? 0}
+          loading={tenants.isPending}
+          error={tenants.isError}
+          to="/tenants"
+        />
         <Stat
           icon={FileText}
           label="Договоры"
           value={agreements.data?.length ?? 0}
+          loading={agreements.isPending}
+          error={agreements.isError}
           to="/agreements"
         />
-        <Stat icon={Inbox} label="Открытые заявки" value={openRequests.length} to="/requests" />
-        <Stat icon={CreditCard} label="Задолженность" value={formatMoney(debt)} to="/payments" />
+        <Stat
+          icon={Inbox}
+          label="Открытые заявки"
+          value={openRequests.length}
+          loading={requests.isPending}
+          error={requests.isError}
+          to="/requests"
+        />
+        <Stat
+          icon={CreditCard}
+          label="Задолженность"
+          value={formatMoney(debt)}
+          loading={charges.isPending}
+          error={charges.isError}
+          to="/payments"
+        />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -299,7 +343,19 @@ function Dashboard() {
             <CardTitle className="text-base">Ожидаемый доход в месяц</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">{formatMoney(income)}</p>
+            <p
+              className={
+                agreements.isSuccess
+                  ? "text-3xl font-semibold"
+                  : "text-base font-medium text-muted-foreground"
+              }
+            >
+              {agreements.isError
+                ? "Недоступно"
+                : agreements.isPending
+                  ? "Загрузка…"
+                  : formatMoney(income)}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">По активным договорам</p>
           </CardContent>
         </Card>
@@ -311,7 +367,19 @@ function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">{formatMoney(receivedThisMonth)}</p>
+            <p
+              className={
+                receivedReady
+                  ? "text-3xl font-semibold"
+                  : "text-base font-medium text-muted-foreground"
+              }
+            >
+              {receivedFailed
+                ? "Недоступно"
+                : !receivedReady
+                  ? "Загрузка…"
+                  : formatMoney(receivedThisMonth)}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">По отмеченным оплатам</p>
           </CardContent>
         </Card>
@@ -322,20 +390,25 @@ function Dashboard() {
           <CardTitle className="text-base">Последние заявки</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {(requests.data ?? []).slice(0, 5).map((r) => (
-            <Link
-              key={r.id}
-              to="/requests"
-              className="flex items-center justify-between gap-3 rounded-lg p-1 transition-colors hover:bg-muted/60"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{r.title}</p>
-                <p className="text-xs text-muted-foreground">{formatDate(r.created_at)}</p>
-              </div>
-              <StatusBadge status={r.status} />
-            </Link>
-          ))}
-          {(requests.data ?? []).length === 0 && (
+          {requests.isSuccess &&
+            (requests.data ?? []).slice(0, 5).map((r) => (
+              <Link
+                key={r.id}
+                to="/requests"
+                className="flex items-center justify-between gap-3 rounded-lg p-1 transition-colors hover:bg-muted/60"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(r.created_at)}</p>
+                </div>
+                <StatusBadge status={r.status} />
+              </Link>
+            ))}
+          {requests.isPending && <p className="text-sm text-muted-foreground">Загружаем заявки…</p>}
+          {requests.isError && (
+            <p className="text-sm text-muted-foreground">Заявки временно недоступны.</p>
+          )}
+          {requests.isSuccess && (requests.data ?? []).length === 0 && (
             <p className="text-sm text-muted-foreground">Заявок пока нет.</p>
           )}
         </CardContent>

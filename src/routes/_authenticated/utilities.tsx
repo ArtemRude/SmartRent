@@ -100,10 +100,9 @@ function Utilities() {
   const allAgreements = (agreements.data ?? []).filter(
     (agreement) => canManage || ["active", "completed"].includes(agreement.status),
   );
-  const agreement =
-    allAgreements.find((item) => item.id === search.agreement) ??
-    allAgreements.find((item) => item.status === "active") ??
-    allAgreements[0];
+  const agreement = search.agreement
+    ? allAgreements.find((item) => item.id === search.agreement)
+    : (allAgreements.find((item) => item.status === "active") ?? allAgreements[0]);
   const agreementServices = (utilities.data?.services ?? []).filter(
     (service) => service.agreement_id === agreement?.id,
   );
@@ -290,12 +289,21 @@ function Utilities() {
         <Card className="mt-6">
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <Gauge className="h-10 w-10 text-muted-foreground" />
-            <p className="font-medium">Сначала подключите договор аренды</p>
-            <p className="max-w-md text-sm text-muted-foreground">
-              {canManage
-                ? "Счётчики и коммунальные услуги настраиваются отдельно для каждого договора."
-                : "Здесь появятся счётчики и расчёты, когда собственник активирует ваш договор."}
+            <p className="font-medium">
+              {search.agreement
+                ? "Договор из ссылки недоступен"
+                : "Сначала подключите договор аренды"}
             </p>
+            <p className="max-w-md text-sm text-muted-foreground">
+              {search.agreement
+                ? "Договор не найден или у вас нет доступа к нему. Другой договор не выбран автоматически."
+                : canManage
+                  ? "Счётчики и коммунальные услуги настраиваются отдельно для каждого договора."
+                  : "Здесь появятся счётчики и расчёты, когда собственник активирует ваш договор."}
+            </p>
+            {search.agreement && allAgreements.length > 0 && (
+              <Button onClick={() => selectAgreement("")}>Выбрать другой договор</Button>
+            )}
             {canManage && (
               <Button asChild>
                 <Link to="/agreements">Перейти к договорам</Link>
