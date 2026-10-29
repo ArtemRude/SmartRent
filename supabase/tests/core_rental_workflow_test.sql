@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(122);
+SELECT plan(125);
 
 -- Stable IDs keep the assertions readable. The enclosing transaction makes the
 -- suite safe to run repeatedly: users and rental data are always rolled back.
@@ -1689,6 +1689,64 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
+SELECT throws_ok(
+  $$
+    INSERT INTO storage.objects (bucket_id, name, owner)
+    VALUES (
+      'lease-documents',
+      '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000009999/foreign.pdf',
+      '10000000-0000-0000-0000-000000000002'
+    )
+  $$,
+  '42501',
+  'new row violates row-level security policy for table "objects"',
+  'tenant cannot upload a document for a missing agreement'
+);
+
+SELECT throws_ok(
+  $$
+    INSERT INTO storage.objects (bucket_id, name, owner)
+    VALUES (
+      'lease-documents',
+      '10000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000004/foreign-folder.pdf',
+      '10000000-0000-0000-0000-000000000002'
+    )
+  $$,
+  '42501',
+  'new row violates row-level security policy for table "objects"',
+  'tenant cannot upload their agreement into another user folder'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    INSERT INTO storage.objects (bucket_id, name, owner)
+    VALUES (
+      'lease-documents',
+      '10000000-0000-0000-0000-000000000003/50000000-0000-0000-0000-000000000004/other-tenants-agreement.pdf',
+      '10000000-0000-0000-0000-000000000003'
+    )
+  $$,
+  '42501',
+  'new row violates row-level security policy for table "objects"',
+  'another tenant cannot upload to an existing pending agreement from their own folder'
+);
+
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     INSERT INTO storage.objects (bucket_id, name, owner)
@@ -1834,11 +1892,11 @@ SELECT results_eq(
     FROM public.agreement_acceptances
     WHERE agreement_id = '50000000-0000-0000-0000-000000000005'
   $$,
-  ARRAY[
-    ARRAY[
+  $$
+    SELECT ARRAY[
       '10000000-0000-0000-0000-000000000002/50000000-0000-0000-0000-000000000005/fridge.webp'
     ]::text[]
-  ],
+  $$,
   'agreement acceptance stores the attached inventory photos'
 );
 
