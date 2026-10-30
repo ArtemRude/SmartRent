@@ -84,6 +84,9 @@ import {
   fetchPaymentReports,
   fetchRentChargeAdjustmentEvents,
   fetchRentCharges,
+  fetchCalendarCharge,
+  fetchCalendarPayments,
+  fetchCalendarAdjustments,
   fetchRentPayments,
   fetchTenants,
   fetchUnits,
@@ -94,6 +97,9 @@ import {
 } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/payments")({
+  validateSearch: (search: Record<string, unknown>): { charge?: string } => ({
+    ...(typeof search["charge"] === "string" ? { charge: search["charge"] } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Платежи — SmartRent" },
@@ -142,18 +148,26 @@ function SummaryCard({
 
 function PaymentsPage() {
   const { role, user } = useAuth();
+  const search = Route.useSearch();
   const canReviewPaymentReports = role === "owner" || role === "admin";
   const qc = useQueryClient();
-  const charges = useQuery({ queryKey: ["rent-charges"], queryFn: fetchRentCharges });
-  const payments = useQuery({ queryKey: ["rent-payments"], queryFn: fetchRentPayments });
+  const charges = useQuery({
+    queryKey: ["rent-charges", user?.id, search.charge ?? "all"],
+    queryFn: () => (search.charge ? fetchCalendarCharge(search.charge) : fetchRentCharges()),
+  });
+  const payments = useQuery({
+    queryKey: ["rent-payments", user?.id, search.charge ?? "all"],
+    queryFn: () => (search.charge ? fetchCalendarPayments(search.charge) : fetchRentPayments()),
+  });
   const paymentReports = useQuery({
     queryKey: ["payment-reports"],
     queryFn: fetchPaymentReports,
     enabled: canReviewPaymentReports,
   });
   const adjustmentEvents = useQuery({
-    queryKey: ["rent-charge-adjustment-events"],
-    queryFn: fetchRentChargeAdjustmentEvents,
+    queryKey: ["rent-charge-adjustment-events", user?.id, search.charge ?? "all"],
+    queryFn: () =>
+      search.charge ? fetchCalendarAdjustments(search.charge) : fetchRentChargeAdjustmentEvents(),
   });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
@@ -247,6 +261,7 @@ function PaymentsPage() {
         const status = getPaymentStatus(charge);
         const chargePeriod = charge.period_start.slice(0, 7);
         return (
+          (!search.charge || charge.id === search.charge) &&
           (statusFilter === "all" ||
             status === statusFilter ||
             (statusFilter === "overdue" &&
@@ -275,6 +290,7 @@ function PaymentsPage() {
     propertyFilters,
     statusFilter,
     tenantFilter,
+    search.charge,
   ]);
 
   const filteredSummary = useMemo(() => {
@@ -757,7 +773,7 @@ function PaymentsPage() {
   const hasNoBillingData =
     !loading && !failed && (agreements.data?.length ?? 0) === 0 && allCharges.length === 0;
 
-  if (hasNoBillingData) {
+  if (hasNoBillingData && !search.charge) {
     const isTenant = role === "tenant";
     return (
       <>
@@ -1123,6 +1139,22 @@ function PaymentsPage() {
         )}
       </div>
 
+      {search.charge && !loading && !failed && (
+        <Card className="mt-4">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <p role={allCharges.some((c) => c.id === search.charge) ? undefined : "alert"}>
+              {allCharges.some((c) => c.id === search.charge)
+                ? "Начисление, выбранное в календаре."
+                : "Начисление из ссылки недоступно. Оно могло быть удалено или доступ изменился."}
+            </p>
+            <Button asChild variant="outline">
+              <Link to="/payments" search={{}}>
+                Все начисления
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       {loading && <p className="mt-4 text-sm text-muted-foreground">Загружаем платежи…</p>}
       {failed && (
         <p className="mt-4 text-sm text-destructive">

@@ -1,6 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import type { PropertyHub, PublicListing, RecruitmentOverview } from "./recruitment";
+import type {
+  PropertyHub,
+  PublicListing,
+  RecruitmentOverview,
+  RentalApplication,
+} from "./recruitment";
 export class RecruitmentError extends Error {
   constructor(
     message: string,
@@ -11,6 +16,26 @@ export class RecruitmentError extends Error {
 }
 function fail(error: { message: string; code: string }) {
   throw new RecruitmentError(error.message, error.code);
+}
+export async function fetchCalendarApplication(id: string, signal?: AbortSignal) {
+  let query = supabase.rpc("rental_calendar_application", { p_id: id });
+  if (signal) query = query.abortSignal(signal);
+  const { data, error } = await query;
+  if (error) fail(error);
+  if (!data) return null;
+  const result = data as unknown as {
+    application: RentalApplication;
+    operator: boolean;
+    owner: boolean;
+  };
+  if (
+    !result.application ||
+    result.application.id !== id ||
+    typeof result.operator !== "boolean" ||
+    typeof result.owner !== "boolean"
+  )
+    throw new Error("Не удалось прочитать выбранный отклик");
+  return result;
 }
 export async function fetchPublicListing(id: string, signal?: AbortSignal) {
   let q = supabase.rpc("public_listing", { p_public_id: id });

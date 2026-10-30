@@ -124,7 +124,30 @@ export class RentalUpdateTracker {
 
     const keys = ownNotifications
       .filter((item) => !previous.has(item.id))
-      .flatMap(keysForNotification);
+      .flatMap((notification) => {
+        const keys = keysForNotification(notification);
+        const calendarEvents: NotificationKind[] = [
+          "object_activity",
+          "rental_application",
+          "repair_status",
+          "agreement_amendment",
+          "agreement_created",
+          "agreement_status",
+          "agreement_accepted",
+          "handover_status",
+          "payment_status",
+          "payment_report_status",
+          "utility_reviewed",
+        ];
+        const applicationChanged = ["object_activity", "rental_application"].includes(
+          notification.kind,
+        );
+        return [
+          ...keys,
+          ...(calendarEvents.includes(notification.kind) ? [["rental-calendar"]] : []),
+          ...(applicationChanged ? [["calendar-application"]] : []),
+        ];
+      });
     return [...new Map(keys.map((key) => [JSON.stringify(key), key])).values()];
   }
 }

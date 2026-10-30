@@ -29,6 +29,7 @@ test("utility review refreshes billing and both accounts' monthly charge variant
     ["utilities"],
     ["rent-charges"],
     ["property-timeline"],
+    ["rental-calendar"],
   ]);
 });
 
@@ -45,6 +46,7 @@ test("payment confirmation refreshes reports, balances, receipts and utility sum
     ["rent-charge-adjustment-events"],
     ["utilities"],
     ["property-timeline"],
+    ["rental-calendar"],
   ]);
   assert.equal(
     updates.some((key) => key[0] === "notifications"),
@@ -79,6 +81,7 @@ test("agreement events refresh tenant linkage, acceptance and newly generated ch
     "my-tenant-records",
     "units",
     "rent-charges",
+    "rental-calendar",
   ]) {
     assert.ok(keys.includes(expected));
   }
@@ -112,6 +115,7 @@ test("repair notifications refresh work, canonical requests and linked expenses"
     "team-workspace",
     "property-expenses",
     "property-finances",
+    "rental-calendar",
   ])
     assert.ok(keys.includes(expected));
   assert.equal(keys.includes("rent-payments"), false);
@@ -128,6 +132,14 @@ test("rental application refreshes recruitment, the property hub and new draft c
       entity_id: "application",
     },
   ]);
-  for (const key of ["recruitment", "property-hub", "public-listing", "agreements", "tenants"])
+  for (const key of [
+    "recruitment",
+    "property-hub",
+    "public-listing",
+    "agreements",
+    "tenants",
+    "rental-calendar",
+    "calendar-application",
+  ])
     assert.ok(keys.some((item) => item[0] === key));
 });

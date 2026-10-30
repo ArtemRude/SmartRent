@@ -26,9 +26,12 @@ import {
   type RepairStatus,
 } from "@/lib/repairs";
 export const Route = createFileRoute("/_authenticated/repairs")({
-  validateSearch: (search: Record<string, unknown>): { property?: string; request?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { property?: string; request?: string; job?: string } => ({
     ...(typeof search["property"] === "string" ? { property: search["property"] } : {}),
     ...(typeof search["request"] === "string" ? { request: search["request"] } : {}),
+    ...(typeof search["job"] === "string" ? { job: search["job"] } : {}),
   }),
   head: () => ({ meta: [{ title: "Ремонты и подрядчики — SmartRent" }] }),
   component: RepairsPage,
@@ -39,8 +42,8 @@ function RepairsPage() {
     search = Route.useSearch(),
     navigate = Route.useNavigate();
   const query = useQuery({
-    queryKey: ["repairs", user?.id],
-    queryFn: ({ signal }) => fetchRepairs(signal),
+    queryKey: ["repairs", user?.id, search.job ?? "all"],
+    queryFn: ({ signal }) => fetchRepairs(signal, search.job),
     enabled: Boolean(user),
     refetchInterval: 5000,
     retry: false,
@@ -80,6 +83,7 @@ function RepairsPage() {
     (j) =>
       (!search.property || j.property_id === search.property) &&
       (!search.request || j.request_id === search.request) &&
+      (!search.job || j.id === search.job) &&
       (status === "all" || j.status === status),
   );
   const readyRequest = data?.requests.find(
@@ -147,6 +151,22 @@ function RepairsPage() {
       )}
       {data && (
         <div className="space-y-5">
+          {search.job && (
+            <Card>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+                <p role={jobs.length ? undefined : "alert"}>
+                  {jobs.length
+                    ? "Работа, выбранная в календаре."
+                    : "Работа из ссылки недоступна. Обновите список или проверьте доступ к объекту."}
+                </p>
+                <Button asChild variant="outline">
+                  <Link to="/repairs" search={search.property ? { property: search.property } : {}}>
+                    Все работы объекта
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           {search.request && (
             <Card>
               <CardContent className="space-y-3 p-5">

@@ -884,6 +884,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      rental_calendar: { Args: { p_from: string; p_to: string; p_timezone?: string; p_property_id?: string | null; p_responsible_id?: string | null }; Returns: Json }
+      rental_calendar_application: { Args: { p_id: string }; Returns: Json }
+      rental_calendar_repair: { Args: { p_id: string }; Returns: Json }
       telegram_overview: { Args: Record<string, never>; Returns: Json }
       begin_telegram_link: { Args: Record<string, never>; Returns: Json }
       confirm_telegram_link: { Args: { p_id: string }; Returns: undefined }

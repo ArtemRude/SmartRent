@@ -1,8 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { RepairContractor, RepairJob, RepairsOverview } from "./repairs";
-export async function fetchRepairs(signal?: AbortSignal) {
-  let query = supabase.rpc("repairs_overview");
+export async function fetchRepairs(signal?: AbortSignal, jobId?: string) {
+  let query = jobId
+    ? supabase.rpc("rental_calendar_repair", { p_id: jobId })
+    : supabase.rpc("repairs_overview");
   if (signal) query = query.abortSignal(signal);
   const { data, error } = await query;
   if (error?.code === "PGRST202") return { available: false, overview: null };

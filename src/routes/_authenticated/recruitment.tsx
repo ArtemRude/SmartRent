@@ -4,17 +4,34 @@ import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RentalApplicationCard } from "@/components/RentalApplicationCard";
-import { fetchRecruitment, RecruitmentError } from "@/lib/recruitment-queries";
+import {
+  fetchRecruitment,
+  fetchCalendarApplication,
+  RecruitmentError,
+} from "@/lib/recruitment-queries";
 import { teamRoleLabels } from "@/lib/team";
 import { useAuth } from "@/hooks/auth-context";
-export const Route = createFileRoute("/_authenticated/recruitment")({ component: RecruitmentPage });
+export const Route = createFileRoute("/_authenticated/recruitment")({
+  validateSearch: (search: Record<string, unknown>): { application?: string } => ({
+    ...(typeof search["application"] === "string" ? { application: search["application"] } : {}),
+  }),
+  component: RecruitmentPage,
+});
 function RecruitmentPage() {
   const { user } = useAuth();
   const client = useQueryClient();
+  const search = Route.useSearch();
   const q = useQuery({
     queryKey: ["recruitment", user?.id],
     queryFn: ({ signal }) => fetchRecruitment(signal),
-    enabled: Boolean(user),
+    enabled: Boolean(user) && !search.application,
+    refetchInterval: 5000,
+    retry: false,
+  });
+  const focused = useQuery({
+    queryKey: ["calendar-application", user?.id, search.application],
+    queryFn: ({ signal }) => fetchCalendarApplication(search.application!, signal),
+    enabled: Boolean(user && search.application),
     refetchInterval: 5000,
     retry: false,
   });
@@ -25,21 +42,58 @@ function RecruitmentPage() {
         title="Поиск арендаторов"
         description="Объявления, показы и ваши отклики на аренду"
         action={
-          <Button variant="outline" onClick={() => void q.refetch()}>
+          <Button
+            variant="outline"
+            onClick={() => void (search.application ? focused.refetch() : q.refetch())}
+          >
             Обновить
           </Button>
         }
       />
       <div className="space-y-6">
-        {q.isPending && <p>Загружаем сведения…</p>}
-        {q.isError && (
+        {search.application && (
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Отклик из календаря</h2>
+              <Button variant="outline" asChild>
+                <Link to="/recruitment" search={{}}>
+                  Все отклики и объекты
+                </Link>
+              </Button>
+            </div>
+            {focused.isPending && <p>Загружаем выбранный отклик…</p>}
+            {focused.isError && (
+              <p role="alert" className="text-sm text-destructive">
+                Не удалось открыть отклик. Обновите страницу или проверьте ссылку.
+              </p>
+            )}
+            {focused.isSuccess && !focused.data && (
+              <p role="alert">Отклик из ссылки недоступен. Доступ мог измениться.</p>
+            )}
+            {focused.data && !focused.isError && (
+              <RentalApplicationCard
+                key={`${focused.data.application.id}:${focused.data.application.revision}`}
+                application={focused.data.application}
+                operator={focused.data.operator}
+                owner={focused.data.owner}
+                onSaved={() => {
+                  void client.invalidateQueries({ queryKey: ["calendar-application"] });
+                  void client.invalidateQueries({ queryKey: ["recruitment"] });
+                  void client.invalidateQueries({ queryKey: ["rental-calendar"] });
+                }}
+              />
+            )}
+          </section>
+        )}
+        {!search.application && q.isPending && <p>Загружаем сведения…</p>}
+        {!search.application && q.isError && (
           <p role="alert" className="text-sm text-destructive">
             {q.error instanceof RecruitmentError && q.error.code === "PGRST202"
               ? "Раздел пока недоступен. Требуется обновление базы данных."
               : q.error.message}
           </p>
         )}
-        {data && (
+        {data && !search.application && (
           <>
             {data.properties.length > 0 && (
               <section className="space-y-3">

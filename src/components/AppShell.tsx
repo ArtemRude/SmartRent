@@ -7,6 +7,7 @@ import {
   Building2,
   CreditCard,
   CalendarClock,
+  CalendarDays,
   WalletCards,
   Gauge,
   ChartNoAxesCombined,
@@ -36,6 +37,7 @@ type NavItem = { to: string; label: string; icon: typeof Home };
 
 const ownerNav: NavItem[] = [
   { to: "/dashboard", label: "Мой кабинет", icon: Home },
+  { to: "/calendar", label: "Календарь", icon: CalendarDays },
   { to: "/properties", label: "Объекты", icon: Building2 },
   { to: "/tenants", label: "Арендаторы", icon: Users },
   { to: "/agreements", label: "Договоры", icon: FileText },
@@ -56,6 +58,7 @@ const ownerNav: NavItem[] = [
 const tenantNav: NavItem[] = [
   { to: "/portfolio", label: "Объекты команды", icon: Building2 },
   { to: "/cabinet", label: "Мой кабинет", icon: Home },
+  { to: "/calendar", label: "Календарь", icon: CalendarDays },
   { to: "/payments", label: "Платежи", icon: CreditCard },
   { to: "/utilities", label: "Коммунальные услуги", icon: Gauge },
   { to: "/handover", label: "Заселение и выезд", icon: KeyRound },

@@ -426,10 +426,17 @@ export const fetchRentCharges = () =>
     supabase.from("rent_charges").select("*").order("due_date", { ascending: false }),
   );
 
-export const fetchRentPayments = async (): Promise<RentPaymentState> => {
+export const fetchCalendarCharge = (id: string) =>
+  unwrap<RentCharge[]>(supabase.from("rent_charges").select("*").eq("id", id));
+
+export const fetchRentPayments = (): Promise<RentPaymentState> => fetchRentPaymentsScoped();
+export const fetchCalendarPayments = (id: string): Promise<RentPaymentState> =>
+  fetchRentPaymentsScoped(id);
+async function fetchRentPaymentsScoped(chargeId?: string): Promise<RentPaymentState> {
   const { data, error } = await supabase
     .from("rent_payments")
     .select("*, receipt_file, payment_method")
+    .match(chargeId ? { charge_id: chargeId } : {})
     .order("paid_at", { ascending: false });
   if (error?.code === "PGRST205") {
     return {
@@ -443,6 +450,7 @@ export const fetchRentPayments = async (): Promise<RentPaymentState> => {
     const receiptFallback = await supabase
       .from("rent_payments")
       .select("*, receipt_file")
+      .match(chargeId ? { charge_id: chargeId } : {})
       .order("paid_at", { ascending: false });
     if (!receiptFallback.error) {
       return {
@@ -458,6 +466,7 @@ export const fetchRentPayments = async (): Promise<RentPaymentState> => {
     const legacyFallback = await supabase
       .from("rent_payments")
       .select("*")
+      .match(chargeId ? { charge_id: chargeId } : {})
       .order("paid_at", { ascending: false });
     if (legacyFallback.error) throw new Error(error.message);
     return {
@@ -477,12 +486,17 @@ export const fetchRentPayments = async (): Promise<RentPaymentState> => {
     receiptsAvailable: true,
     paymentMethodsAvailable: true,
   };
-};
+}
 
-export const fetchRentChargeAdjustmentEvents = async (): Promise<RentChargeAdjustmentState> => {
+export const fetchRentChargeAdjustmentEvents = (): Promise<RentChargeAdjustmentState> =>
+  fetchAdjustmentEventsScoped();
+export const fetchCalendarAdjustments = (id: string): Promise<RentChargeAdjustmentState> =>
+  fetchAdjustmentEventsScoped(id);
+async function fetchAdjustmentEventsScoped(chargeId?: string): Promise<RentChargeAdjustmentState> {
   const { data, error } = await supabase
     .from("rent_charge_adjustment_events")
     .select("*")
+    .match(chargeId ? { charge_id: chargeId } : {})
     .order("created_at", { ascending: false });
 
   // Deploying the web app and its database migration is not atomic. Keep the
@@ -490,7 +504,7 @@ export const fetchRentChargeAdjustmentEvents = async (): Promise<RentChargeAdjus
   if (error?.code === "PGRST205") return { events: [], available: false };
   if (error) throw new Error(error.message);
   return { events: (data ?? []) as RentChargeAdjustmentEvent[], available: true };
-};
+}
 
 export const fetchPaymentReports = async (): Promise<PaymentReportState> => {
   const { data, error } = await supabase
