@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, Mail, Pencil, Phone, Plus, Send, Trash2 } from "lucide-react";
@@ -30,8 +30,16 @@ import { useAuth } from "@/hooks/auth-context";
 import { formatDate } from "@/lib/domain";
 import { fetchAgreements, fetchProperties, fetchTenants, type Tenant } from "@/lib/queries";
 import { normalizeTenantEmail, validateTenantDetails } from "@/lib/tenant";
+import {
+  fetchSearchTenant,
+  isSearchRecordId,
+  mergeSelectedRecord,
+  scrollToSearchRecord,
+} from "@/lib/search-record-queries";
 
 export const Route = createFileRoute("/_authenticated/tenants")({
+  validateSearch: (search: Record<string, unknown>): { tenantId?: string } =>
+    typeof search["tenantId"] === "string" ? { tenantId: search["tenantId"] } : {},
   head: () => ({
     meta: [
       { title: "Арендаторы — SmartRent" },
@@ -44,12 +52,30 @@ export const Route = createFileRoute("/_authenticated/tenants")({
 });
 
 function TenantsPage() {
+  const { tenantId } = Route.useSearch();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
+  const tenantList = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
 
+  const selectedTenant = useQuery({
+    queryKey: ["tenants", "search-record", user?.id, tenantId],
+    queryFn: ({ signal }) => fetchSearchTenant(tenantId!, signal),
+    enabled: Boolean(user && isSearchRecordId(tenantId)),
+    retry: false,
+    refetchInterval: 5000,
+  });
+  const exactTenant =
+    selectedTenant.isSuccess && !selectedTenant.isError ? selectedTenant.data : null;
+  const tenants = {
+    ...tenantList,
+    data: mergeSelectedRecord(tenantList.data, tenantId, exactTenant),
+  };
+  const exactTenantId = exactTenant?.id;
+  useEffect(() => {
+    if (tenantId && exactTenantId === tenantId) scrollToSearchRecord(`tenant-${tenantId}`);
+  }, [tenantId, exactTenantId]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -224,6 +250,18 @@ function TenantsPage() {
         </DialogContent>
       </Dialog>
 
+      {tenantId && (
+        <p
+          role={selectedTenant.isPending && isSearchRecordId(tenantId) ? "status" : "alert"}
+          className="mb-4 text-sm text-muted-foreground"
+        >
+          {selectedTenant.isPending && isSearchRecordId(tenantId)
+            ? "Загружаем выбранного арендатора…"
+            : !exactTenant
+              ? "Выбранный арендатор недоступен: он удалён или доступ изменился."
+              : "Найденный арендатор выделен ниже."}
+        </p>
+      )}
       {[tenants, agreements, properties].some((query) => query.isPending) && (
         <p className="text-sm text-muted-foreground">Загружаем арендаторов…</p>
       )}
@@ -248,7 +286,12 @@ function TenantsPage() {
             (item) => item.id === activeAgreement?.property_id,
           );
           return (
-            <Card key={t.id}>
+            <Card
+              key={t.id}
+              id={`tenant-${t.id}`}
+              data-testid="tenant-card"
+              className={tenantId === t.id ? "border-primary/50 ring-2 ring-primary/20" : undefined}
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="font-semibold">{t.name}</h2>

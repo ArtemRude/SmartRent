@@ -19,6 +19,7 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  Search,
   Users,
   UsersRound,
   UserRound,
@@ -32,6 +33,7 @@ import { useRentalUpdates } from "@/hooks/use-rental-updates";
 import { notificationQueryOptions, NOTIFICATION_REFRESH_INTERVAL } from "@/lib/notification-query";
 import { cn } from "@/lib/utils";
 import { BillingSummaryCard } from "@/components/BillingSummaryCard";
+import { WorkspaceSearch } from "@/components/WorkspaceSearch";
 
 type NavItem = { to: string; label: string; icon: typeof Home };
 
@@ -170,6 +172,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const items = role === "tenant" ? tenantNav : role === "admin" ? adminNav : ownerNav;
   const notifications = useQuery({
     ...notificationQueryOptions(user?.id),
@@ -188,9 +191,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
-        <Link to="/" className="mb-6 block">
+        <Link to="/" className="mb-4 block">
           <Brand />
         </Link>
+        <Button
+          variant="outline"
+          className="mb-4 w-full justify-start gap-2 text-muted-foreground"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Поиск по кабинету"
+        >
+          <Search className="h-4 w-4" />
+          <span>Поиск</span>
+          <kbd className="ml-auto text-[10px]">⌘ / Ctrl K</kbd>
+        </Button>
         <NavList items={items} unreadCount={unreadCount} />
         <div className="mt-auto rounded-xl border border-sidebar-border bg-card p-3">
           <div className="flex items-center gap-2">
@@ -240,6 +253,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SheetContent>
           </Sheet>
           <Brand />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto"
+            aria-label="Поиск по кабинету"
+            onClick={() => setSearchOpen(true)}
+          >
+            <Search className="h-5 w-5" />
+          </Button>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-10">
@@ -248,6 +270,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
         <ScrollToTopButton />
       </div>
+      <WorkspaceSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }

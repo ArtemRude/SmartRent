@@ -1,4 +1,10 @@
 import { rentAt } from "@/lib/lease-changes";
+import {
+  fetchSearchAgreement,
+  isSearchRecordId,
+  mergeSelectedRecord,
+  scrollToSearchRecord,
+} from "@/lib/search-record-queries";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -153,9 +159,9 @@ function optionalNumber(value: string, label: string, options: { min: number; ma
 
 function AgreementsPage() {
   const { agreementId } = Route.useSearch();
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const qc = useQueryClient();
-  const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
+  const agreementList = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
   const statusEvents = useQuery({
     queryKey: ["agreement-status-events"],
     queryFn: fetchAgreementStatusEvents,
@@ -164,9 +170,39 @@ function AgreementsPage() {
     queryKey: ["agreement-acceptances"],
     queryFn: fetchAgreementAcceptances,
   });
-  const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
-  const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
-  const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
+  const propertyList = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
+  const unitList = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
+  const tenantList = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
+  const selectedAgreement = useQuery({
+    queryKey: ["agreements", "search-record", user?.id, agreementId],
+    queryFn: ({ signal }) => fetchSearchAgreement(agreementId!, signal),
+    enabled: Boolean(user && isSearchRecordId(agreementId)),
+    retry: false,
+    refetchInterval: 5000,
+  });
+  const exact =
+    selectedAgreement.isSuccess && !selectedAgreement.isError ? selectedAgreement.data : null;
+  const agreements = {
+    ...agreementList,
+    data: mergeSelectedRecord(agreementList.data, agreementId, exact?.agreement),
+  };
+  const properties = {
+    ...propertyList,
+    data: mergeSelectedRecord(propertyList.data, exact?.property?.id, exact?.property),
+  };
+  const units = {
+    ...unitList,
+    data: mergeSelectedRecord(unitList.data, exact?.unit?.id, exact?.unit),
+  };
+  const tenants = {
+    ...tenantList,
+    data: mergeSelectedRecord(tenantList.data, exact?.tenant?.id, exact?.tenant),
+  };
+  const exactAgreementId = exact?.agreement.id;
+  useEffect(() => {
+    if (agreementId && exactAgreementId === agreementId)
+      scrollToSearchRecord(`agreement-${agreementId}`);
+  }, [agreementId, exactAgreementId]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Agreement | null>(null);
   const [editSection, setEditSection] = useState<"details" | "signed-document">("details");
@@ -374,16 +410,9 @@ function AgreementsPage() {
     (query) => query.isError,
   );
   const visibleAgreements = (agreements.data ?? []).filter(
-    (agreement) => statusFilter === "all" || agreement.status === statusFilter,
+    (agreement) =>
+      agreement.id === agreementId || statusFilter === "all" || agreement.status === statusFilter,
   );
-
-  useEffect(() => {
-    if (!agreementId || !agreements.data?.some((agreement) => agreement.id === agreementId)) return;
-    document.getElementById(`agreement-${agreementId}`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  }, [agreementId, agreements.data]);
 
   return (
     <>
@@ -397,6 +426,18 @@ function AgreementsPage() {
         }
       />
 
+      {agreementId && (
+        <p
+          role={selectedAgreement.isPending && isSearchRecordId(agreementId) ? "status" : "alert"}
+          className="mb-4 text-sm text-muted-foreground"
+        >
+          {selectedAgreement.isPending && isSearchRecordId(agreementId)
+            ? "Загружаем выбранный договор…"
+            : !exact
+              ? "Выбранный договор недоступен: он удалён или доступ изменился."
+              : "Найденный договор выделен ниже."}
+        </p>
+      )}
       {loading && <p className="text-sm text-muted-foreground">Загружаем договоры…</p>}
       {failed && <p className="text-sm text-destructive">Не удалось загрузить данные договоров.</p>}
       {!loading && (!properties.data?.length || !tenants.data?.length) && (
@@ -445,6 +486,9 @@ function AgreementsPage() {
           const visibleAcceptance =
             agreement.status === "pending_signature" ? currentAcceptance : latestAcceptance;
           const acceptancePhotos = visibleAcceptance?.photos ?? [];
+          const canManage = agreement.owner_id === user?.id || role === "admin";
+          const canGenerateDocument = canManage;
+          const ownerIsCurrentUser = agreement.owner_id === user?.id;
           const preparation = getAgreementPreparation(
             agreement,
             tenant?.user_id,
@@ -467,13 +511,17 @@ function AgreementsPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        to="/properties/$propertyId"
-                        params={{ propertyId: agreement.property_id }}
-                        className="font-semibold hover:text-primary"
-                      >
-                        {property?.name ?? "Объект"}
-                      </Link>
+                      {canManage ? (
+                        <Link
+                          to="/properties/$propertyId"
+                          params={{ propertyId: agreement.property_id }}
+                          className="font-semibold hover:text-primary"
+                        >
+                          {property?.name ?? "Объект"}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold">{property?.name ?? "Объект"}</span>
+                      )}
                       <AgreementStatusBadge status={agreement.status} />
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -502,43 +550,58 @@ function AgreementsPage() {
                       </p>
                     )}
                   </div>
+                  {!canManage && (
+                    <p className="col-span-2 text-sm text-muted-foreground">
+                      Это ваша аренда. Договор доступен для просмотра; изменениями управляет
+                      собственник.
+                    </p>
+                  )}
                   <div className="col-span-2 flex flex-wrap gap-2 border-t pt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        try {
-                          printAgreementDocument({
-                            agreementId: agreement.id,
-                            propertyType: property?.type ?? "other",
-                            propertyName: property?.name ?? "Объект",
-                            propertyAddress: property?.address ?? "",
-                            unitName: unit?.name ?? null,
-                            unitArea: unit?.area ?? null,
-                            tenantName: tenant?.name ?? "Арендатор",
-                            tenantEmail: tenant?.email ?? "",
-                            tenantPhone: tenant?.phone ?? null,
-                            ownerName: profile?.name ?? "Собственник",
-                            ownerEmail: profile?.email ?? user?.email ?? "",
-                            ownerPhone: profile?.phone ?? null,
-                            startDate: agreement.start_date,
-                            endDate: agreement.original_end_date ?? agreement.end_date,
-                            monthlyPayment: agreement.monthly_payment,
-                            contractDetails: readAgreementContractDetails(
-                              agreement.contract_details,
-                            ),
-                            tenantAcceptedAt: visibleAcceptance?.accepted_at,
-                            inventoryPhotoCount: acceptancePhotos.length,
-                          });
-                        } catch (error) {
-                          toast.error(
-                            error instanceof Error ? error.message : "Не удалось открыть PDF",
-                          );
+                    {canGenerateDocument && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title={
+                          ownerIsCurrentUser
+                            ? undefined
+                            : "Реквизиты собственника в предпросмотре не заполнены."
                         }
-                      }}
-                    >
-                      <FileDown className="mr-2 h-4 w-4" /> Предпросмотр и PDF
-                    </Button>
+                        onClick={() => {
+                          try {
+                            printAgreementDocument({
+                              agreementId: agreement.id,
+                              propertyType: property?.type ?? "other",
+                              propertyName: property?.name ?? "Объект",
+                              propertyAddress: property?.address ?? "",
+                              unitName: unit?.name ?? null,
+                              unitArea: unit?.area ?? null,
+                              tenantName: tenant?.name ?? "Арендатор",
+                              tenantEmail: tenant?.email ?? "",
+                              tenantPhone: tenant?.phone ?? null,
+                              ownerName: ownerIsCurrentUser ? (profile?.name ?? "Собственник") : "",
+                              ownerEmail: ownerIsCurrentUser
+                                ? (profile?.email ?? user?.email ?? "")
+                                : "",
+                              ownerPhone: ownerIsCurrentUser ? (profile?.phone ?? null) : null,
+                              startDate: agreement.start_date,
+                              endDate: agreement.original_end_date ?? agreement.end_date,
+                              monthlyPayment: agreement.monthly_payment,
+                              contractDetails: readAgreementContractDetails(
+                                agreement.contract_details,
+                              ),
+                              tenantAcceptedAt: visibleAcceptance?.accepted_at,
+                              inventoryPhotoCount: acceptancePhotos.length,
+                            });
+                          } catch (error) {
+                            toast.error(
+                              error instanceof Error ? error.message : "Не удалось открыть PDF",
+                            );
+                          }
+                        }}
+                      >
+                        <FileDown className="mr-2 h-4 w-4" /> Предпросмотр и PDF
+                      </Button>
+                    )}
                     {agreement.document_file && (
                       <Button
                         variant="outline"
@@ -569,113 +632,133 @@ function AgreementsPage() {
                         <Download className="mr-2 h-4 w-4" /> Подписанный PDF
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={agreement.terms_locked}
-                      title={
-                        agreement.terms_locked
-                          ? "Условия закреплены соглашением. Используйте изменение условий."
-                          : undefined
-                      }
-                      onClick={() => openEdit(agreement)}
-                    >
-                      <Pencil className="mr-2 h-4 w-4" /> Изменить
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to="/utilities" search={{ agreement: agreement.id }}>
-                        Коммунальные услуги
-                      </Link>
-                    </Button>
-                    {agreement.status === "active" && (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to="/lease-changes" search={{ agreement: agreement.id }}>
-                          <CalendarPlus className="mr-2 h-4 w-4" />
-                          Продлить / изменить условия
-                        </Link>
-                      </Button>
-                    )}
-                    {agreement.status === "completed" && (
-                      <Button variant="outline" size="sm" onClick={() => openRenewal(agreement)}>
-                        <CalendarPlus className="mr-2 h-4 w-4" /> Новый договор
-                      </Button>
-                    )}
-                    {agreement.status === "draft" && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          changeStatus.mutate({ id: agreement.id, status: "pending_signature" })
-                        }
-                        disabled={changeStatus.isPending}
-                      >
-                        <Send className="mr-2 h-4 w-4" /> На подписание
-                      </Button>
-                    )}
-                    {agreement.status === "pending_signature" && (
+                    {canManage && (
                       <>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => changeStatus.mutate({ id: agreement.id, status: "draft" })}
-                          disabled={changeStatus.isPending}
-                        >
-                          <RotateCcw className="mr-2 h-4 w-4" /> В черновик
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            changeStatus.mutate({ id: agreement.id, status: "active" })
-                          }
-                          disabled={
-                            changeStatus.isPending || loading || failed || !preparation.canActivate
-                          }
+                          disabled={agreement.terms_locked}
                           title={
-                            failed
-                              ? "Не удалось проверить готовность договора"
-                              : !tenant?.user_id
-                                ? "Сначала подключите кабинет арендатора"
-                                : !agreement.signed_document_file
-                                  ? "Сначала загрузите подписанный PDF"
-                                  : !currentAcceptance
-                                    ? "Сначала дождитесь подтверждения арендатора"
-                                    : undefined
+                            agreement.terms_locked
+                              ? "Условия закреплены соглашением. Используйте изменение условий."
+                              : undefined
                           }
+                          onClick={() => openEdit(agreement)}
                         >
-                          <BadgeCheck className="mr-2 h-4 w-4" /> Активировать
+                          <Pencil className="mr-2 h-4 w-4" /> Изменить
                         </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to="/utilities" search={{ agreement: agreement.id }}>
+                            Коммунальные услуги
+                          </Link>
+                        </Button>
+                        {agreement.status === "active" && (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to="/lease-changes" search={{ agreement: agreement.id }}>
+                              <CalendarPlus className="mr-2 h-4 w-4" />
+                              Продлить / изменить условия
+                            </Link>
+                          </Button>
+                        )}
+                        {agreement.status === "completed" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openRenewal(agreement)}
+                          >
+                            <CalendarPlus className="mr-2 h-4 w-4" /> Новый договор
+                          </Button>
+                        )}
+                        {agreement.status === "draft" && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              changeStatus.mutate({ id: agreement.id, status: "pending_signature" })
+                            }
+                            disabled={changeStatus.isPending}
+                          >
+                            <Send className="mr-2 h-4 w-4" /> На подписание
+                          </Button>
+                        )}
+                        {agreement.status === "pending_signature" && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                changeStatus.mutate({ id: agreement.id, status: "draft" })
+                              }
+                              disabled={changeStatus.isPending}
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" /> В черновик
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                changeStatus.mutate({ id: agreement.id, status: "active" })
+                              }
+                              disabled={
+                                changeStatus.isPending ||
+                                loading ||
+                                failed ||
+                                !preparation.canActivate
+                              }
+                              title={
+                                failed
+                                  ? "Не удалось проверить готовность договора"
+                                  : !tenant?.user_id
+                                    ? "Сначала подключите кабинет арендатора"
+                                    : !agreement.signed_document_file
+                                      ? "Сначала загрузите подписанный PDF"
+                                      : !currentAcceptance
+                                        ? "Сначала дождитесь подтверждения арендатора"
+                                        : undefined
+                              }
+                            >
+                              <BadgeCheck className="mr-2 h-4 w-4" /> Активировать
+                            </Button>
+                          </>
+                        )}
+                        {agreement.status === "active" && (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link
+                              to="/handover"
+                              search={{ agreement: agreement.id, kind: "move_in" }}
+                            >
+                              <BadgeCheck className="mr-2 h-4 w-4" /> Оформить заселение
+                            </Link>
+                          </Button>
+                        )}
+                        {agreement.status === "active" && (
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link
+                              to="/handover"
+                              search={{ agreement: agreement.id, kind: "move_out" }}
+                            >
+                              <CircleStop className="mr-2 h-4 w-4" /> Оформить выезд
+                            </Link>
+                          </Button>
+                        )}
+                        {agreement.status === "completed" && (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to="/lease-changes" search={{ agreement: agreement.id }}>
+                              История условий
+                            </Link>
+                          </Button>
+                        )}
+                        {agreement.status === "completed" && (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to="/handover" search={{ agreement: agreement.id }}>
+                              Акты и депозит
+                            </Link>
+                          </Button>
+                        )}
                       </>
-                    )}
-                    {agreement.status === "active" && (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to="/handover" search={{ agreement: agreement.id, kind: "move_in" }}>
-                          <BadgeCheck className="mr-2 h-4 w-4" /> Оформить заселение
-                        </Link>
-                      </Button>
-                    )}
-                    {agreement.status === "active" && (
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to="/handover" search={{ agreement: agreement.id, kind: "move_out" }}>
-                          <CircleStop className="mr-2 h-4 w-4" /> Оформить выезд
-                        </Link>
-                      </Button>
-                    )}
-                    {agreement.status === "completed" && (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to="/lease-changes" search={{ agreement: agreement.id }}>
-                          История условий
-                        </Link>
-                      </Button>
-                    )}
-                    {agreement.status === "completed" && (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to="/handover" search={{ agreement: agreement.id }}>
-                          Акты и депозит
-                        </Link>
-                      </Button>
                     )}
                   </div>
                 </div>
-                {!loading &&
+                {canManage &&
+                  !loading &&
                   !failed &&
                   (agreement.status === "draft" || agreement.status === "pending_signature") && (
                     <AgreementPreparation

@@ -1,5 +1,11 @@
 import { rentAt } from "@/lib/lease-changes";
-import { useState } from "react";
+import {
+  fetchSearchAgreement,
+  isSearchRecordId,
+  mergeSelectedRecord,
+  scrollToSearchRecord,
+} from "@/lib/search-record-queries";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -89,11 +95,14 @@ import {
 } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/cabinet")({
+  validateSearch: (search: Record<string, unknown>): { agreementId?: string } =>
+    typeof search["agreementId"] === "string" ? { agreementId: search["agreementId"] } : {},
   head: () => ({ meta: [{ title: "Мой кабинет — SmartRent" }] }),
   component: CabinetPage,
 });
 
 function CabinetPage() {
+  const { agreementId } = Route.useSearch();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [reportCharge, setReportCharge] = useState<RentCharge | null>(null);
@@ -110,7 +119,7 @@ function CabinetPage() {
     queryFn: () => fetchMyTenantRecords(user!.id),
     enabled: Boolean(user),
   });
-  const agreements = useQuery({
+  const agreementList = useQuery({
     queryKey: ["agreements", "tenant", user?.id],
     queryFn: fetchAgreements,
     enabled: Boolean(user),
@@ -125,16 +134,42 @@ function CabinetPage() {
     queryFn: fetchAgreementAcceptances,
     enabled: Boolean(user),
   });
-  const properties = useQuery({
+  const propertyList = useQuery({
     queryKey: ["properties", "tenant", user?.id],
     queryFn: fetchProperties,
     enabled: Boolean(user),
   });
-  const units = useQuery({
+  const unitList = useQuery({
     queryKey: ["units", "tenant", user?.id],
     queryFn: fetchUnits,
     enabled: Boolean(user),
   });
+  const selectedAgreement = useQuery({
+    queryKey: ["agreements", "search-record", user?.id, agreementId],
+    queryFn: ({ signal }) => fetchSearchAgreement(agreementId!, signal),
+    enabled: Boolean(user && isSearchRecordId(agreementId)),
+    retry: false,
+    refetchInterval: 5000,
+  });
+  const exact =
+    selectedAgreement.isSuccess && !selectedAgreement.isError ? selectedAgreement.data : null;
+  const agreements = {
+    ...agreementList,
+    data: mergeSelectedRecord(agreementList.data, agreementId, exact?.agreement),
+  };
+  const properties = {
+    ...propertyList,
+    data: mergeSelectedRecord(propertyList.data, exact?.property?.id, exact?.property),
+  };
+  const units = {
+    ...unitList,
+    data: mergeSelectedRecord(unitList.data, exact?.unit?.id, exact?.unit),
+  };
+  const exactAgreementId = exact?.agreement.id;
+  useEffect(() => {
+    if (agreementId && exactAgreementId === agreementId)
+      scrollToSearchRecord(`agreement-${agreementId}`);
+  }, [agreementId, exactAgreementId]);
   const charges = useQuery({
     queryKey: ["rent-charges", "tenant", user?.id],
     queryFn: fetchRentCharges,
@@ -334,6 +369,18 @@ function CabinetPage() {
   return (
     <>
       <PageHeader title="Мой кабинет" description="Данные вашей аренды в одном месте" />
+      {agreementId && (
+        <p
+          role={selectedAgreement.isPending && isSearchRecordId(agreementId) ? "status" : "alert"}
+          className="mb-4 text-sm text-muted-foreground"
+        >
+          {selectedAgreement.isPending && isSearchRecordId(agreementId)
+            ? "Загружаем выбранный договор…"
+            : !exact
+              ? "Выбранный договор недоступен: он удалён или доступ изменился."
+              : "Найденный договор выделен ниже."}
+        </p>
+      )}
       {loading && <p className="text-sm text-muted-foreground">Загружаем кабинет…</p>}
       {failed && <p className="text-sm text-destructive">Не удалось загрузить данные кабинета.</p>}
       {!loading && !failed && (tenants.data?.length ?? 0) === 0 && (
@@ -427,7 +474,12 @@ function CabinetPage() {
                   readAgreementContractDetails(agreement.contract_details).inventoryItems ?? [];
                 const selectedPhotos = inventoryPhotoFiles[agreement.id] ?? [];
                 return (
-                  <div key={agreement.id} className="rounded-xl border p-4">
+                  <div
+                    key={agreement.id}
+                    id={`agreement-${agreement.id}`}
+                    data-testid="cabinet-agreement"
+                    className={`rounded-xl border p-4 ${agreementId === agreement.id ? "border-primary/50 ring-2 ring-primary/20" : ""}`}
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-medium">{property?.name ?? "Объект аренды"}</p>

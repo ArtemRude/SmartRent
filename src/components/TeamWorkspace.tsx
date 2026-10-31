@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import {
   type RequestStatus,
 } from "@/lib/domain";
 import { actOnTeamProperty, setTeamResponsible } from "@/lib/team-queries";
+import { scrollToSearchRecord } from "@/lib/search-record-queries";
 import {
   teamRoleLabels,
   type TeamMember,
@@ -96,7 +97,9 @@ function RequestCard({
   workspace,
   editable,
   refresh,
+  selected,
 }: {
+  selected?: boolean;
   request: Workspace["requests"][number];
   workspace: Workspace;
   editable: boolean;
@@ -133,7 +136,12 @@ function RequestCard({
   });
   const comments = workspace.comments.filter((c) => c.request_id === request.id);
   return (
-    <article className="space-y-4 rounded-xl border p-4" aria-label={request.title}>
+    <article
+      id={`team-request-${request.id}`}
+      data-testid="team-request"
+      className={`space-y-4 rounded-xl border p-4 ${selected ? "border-primary/50 ring-2 ring-primary/20" : ""}`}
+      aria-label={request.title}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h4 className="break-words font-medium">{request.title}</h4>
@@ -229,11 +237,16 @@ export function TeamWorkspace({
   workspace,
   overview,
   refresh,
+  selectedRequestId,
 }: {
+  selectedRequestId?: string | undefined;
   workspace: Workspace;
   overview: TeamOverview;
   refresh: () => void;
 }) {
+  useEffect(() => {
+    if (selectedRequestId) scrollToSearchRecord(`team-request-${selectedRequestId}`);
+  }, [selectedRequestId]);
   const editable = workspace.property.role !== "viewer";
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -414,6 +427,7 @@ export function TeamWorkspace({
           )}
           {workspace.requests.map((request) => (
             <RequestCard
+              selected={request.id === selectedRequestId}
               key={request.id}
               request={request}
               workspace={workspace}

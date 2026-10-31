@@ -36,10 +36,17 @@ import {
   type TeamMember,
 } from "@/lib/team";
 import { invitationTokenFromHash } from "@/lib/team-invitation";
+import {
+  fetchSearchTeamRequest,
+  isSearchRecordId,
+  mergeSelectedRecord,
+} from "@/lib/search-record-queries";
 
 export const Route = createFileRoute("/_authenticated/team")({
-  validateSearch: (search: Record<string, unknown>): { property?: string } =>
-    typeof search["property"] === "string" ? { property: search["property"] } : {},
+  validateSearch: (search: Record<string, unknown>): { property?: string; request?: string } => ({
+    ...(typeof search["property"] === "string" ? { property: search["property"] } : {}),
+    ...(typeof search["request"] === "string" ? { request: search["request"] } : {}),
+  }),
   head: () => ({ meta: [{ title: "Команда — SmartRent" }] }),
   component: TeamPage,
 });
@@ -140,6 +147,19 @@ function TeamPage() {
     refetchInterval: 5000,
     retry: false,
   });
+  const selectedRequestQuery = useQuery({
+    queryKey: ["team-selected-request", user?.id, propertyId, search.request],
+    queryFn: ({ signal }) => fetchSearchTeamRequest(search.request!, propertyId!, signal),
+    enabled: Boolean(
+      user && permitted && isSearchRecordId(search.property) && isSearchRecordId(search.request),
+    ),
+    refetchInterval: 5000,
+    retry: false,
+  });
+  const selectedRequest =
+    selectedRequestQuery.isSuccess && !selectedRequestQuery.isError && permitted
+      ? selectedRequestQuery.data
+      : null;
   useEffect(() => {
     if (overviewQuery.isError || overviewQuery.isSuccess) {
       const allowed = new Set(overview?.workspaces.map((property) => property.id) ?? []);
@@ -168,6 +188,7 @@ function TeamPage() {
     for (const key of [
       "team-overview",
       "team-workspace",
+      "team-selected-request",
       "requests",
       "request-comments",
       "notifications",
@@ -482,15 +503,41 @@ function TeamPage() {
                   : `Сведения объекта недоступны: ${workspaceError.message}. Нажмите «Обновить».`}
               </p>
             )}
+            {search.request && permitted && (
+              <p
+                role={
+                  selectedRequestQuery.isPending &&
+                  isSearchRecordId(search.request) &&
+                  isSearchRecordId(search.property)
+                    ? "status"
+                    : "alert"
+                }
+                className="text-sm text-muted-foreground"
+              >
+                {selectedRequestQuery.isPending &&
+                isSearchRecordId(search.request) &&
+                isSearchRecordId(search.property)
+                  ? "Загружаем выбранную заявку…"
+                  : !selectedRequest
+                    ? "Выбранная заявка недоступна на этом объекте: она удалена или доступ изменился."
+                    : "Найденная заявка выделена ниже."}
+              </p>
+            )}
             {selectedSummary && !workspaceError && workspaceQuery.data && (
               <TeamWorkspace
                 key={`${workspaceQuery.data.property.id}:${selectedSummary.role}`}
                 workspace={{
                   ...workspaceQuery.data,
                   property: { ...workspaceQuery.data.property, role: selectedSummary.role },
+                  requests: mergeSelectedRecord(
+                    workspaceQuery.data.requests,
+                    search.request,
+                    selectedRequest,
+                  ),
                 }}
                 overview={overview}
                 refresh={refresh}
+                selectedRequestId={selectedRequest?.id}
               />
             )}
             {(overview.properties.length > 0 || overview.events.length > 0) && (

@@ -45,8 +45,15 @@ import {
   type RequestRow,
 } from "@/lib/queries";
 import { getSignedUrl, removeFile, REQUEST_PHOTOS, uploadFile } from "@/lib/storage";
+import {
+  fetchSearchRequest,
+  isSearchRecordId,
+  mergeSelectedRecord,
+} from "@/lib/search-record-queries";
 
 export const Route = createFileRoute("/_authenticated/requests")({
+  validateSearch: (search: Record<string, unknown>): { requestId?: string } =>
+    typeof search["requestId"] === "string" ? { requestId: search["requestId"] } : {},
   head: () => ({
     meta: [
       { title: "Заявки — SmartRent" },
@@ -78,32 +85,76 @@ const emptyForm: RequestForm = {
 type StatusFilter = "all" | RequestStatus;
 
 function RequestsPage() {
+  const { requestId } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { user, role } = useAuth();
   const qc = useQueryClient();
-  const requests = useQuery({ queryKey: ["requests"], queryFn: fetchRequests });
+  const requestList = useQuery({ queryKey: ["requests"], queryFn: fetchRequests });
   const agreements = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
-  const properties = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
-  const units = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
-  const tenants = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
+  const propertyList = useQuery({ queryKey: ["properties"], queryFn: fetchProperties });
+  const unitList = useQuery({ queryKey: ["units"], queryFn: fetchUnits });
+  const tenantList = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
   const [createOpen, setCreateOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
+  const selectedId = requestId ?? localSelectedId;
+  const setSelectedId = (id: string | null) => {
+    setLocalSelectedId(isSearchRecordId(id) ? null : id);
+    if (requestId || isSearchRecordId(id))
+      void navigate({ search: id ? { requestId: id } : {}, replace: true });
+  };
   const [form, setForm] = useState<RequestForm>(emptyForm);
   const [comment, setComment] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const selectedRequest = requests.data?.find((request) => request.id === selectedId) ?? null;
+  const selectedRequestQuery = useQuery({
+    queryKey: ["requests", "search-record", user?.id, selectedId],
+    queryFn: ({ signal }) => fetchSearchRequest(selectedId!, signal),
+    enabled: Boolean(user && isSearchRecordId(selectedId)),
+    retry: false,
+    refetchInterval: 5000,
+  });
+  const exact =
+    selectedRequestQuery.isSuccess && !selectedRequestQuery.isError
+      ? selectedRequestQuery.data
+      : null;
+  const requests = {
+    ...requestList,
+    data: mergeSelectedRecord(
+      requestList.data,
+      isSearchRecordId(selectedId) ? selectedId : undefined,
+      exact?.request,
+    ),
+  };
+  const properties = {
+    ...propertyList,
+    data: mergeSelectedRecord(propertyList.data, exact?.property?.id, exact?.property),
+  };
+  const units = {
+    ...unitList,
+    data: mergeSelectedRecord(unitList.data, exact?.unit?.id, exact?.unit),
+  };
+  const tenants = {
+    ...tenantList,
+    data: mergeSelectedRecord(tenantList.data, exact?.tenant?.id, exact?.tenant),
+  };
+  const selectedRequest = isSearchRecordId(selectedId)
+    ? (exact?.request ?? null)
+    : (requests.data.find((request) => request.id === selectedId) ?? null);
+  const canManageRequest = Boolean(
+    selectedRequest && (selectedRequest.owner_id === user?.id || role === "admin"),
+  );
   const comments = useQuery({
-    queryKey: ["request-comments", selectedId],
+    queryKey: ["request-comments", selectedId, user?.id],
     queryFn: () => fetchComments(selectedId!),
-    enabled: Boolean(selectedId),
+    enabled: Boolean(selectedRequest),
   });
   const statusEvents = useQuery({
-    queryKey: ["request-status-events", selectedId],
+    queryKey: ["request-status-events", selectedId, user?.id],
     queryFn: () => fetchRequestStatusEvents(selectedId!),
-    enabled: Boolean(selectedId),
+    enabled: Boolean(selectedRequest),
   });
   const photoUrl = useQuery({
-    queryKey: ["request-photo", selectedRequest?.photo],
+    queryKey: ["request-photo", selectedRequest?.photo, user?.id],
     queryFn: () => getSignedUrl(REQUEST_PHOTOS, selectedRequest!.photo!),
     enabled: Boolean(selectedRequest?.photo),
     staleTime: 50 * 60 * 1000,
@@ -192,7 +243,8 @@ function RequestsPage() {
 
   const changeStatus = useMutation({
     mutationFn: async (status: RequestStatus) => {
-      if (!selectedId) throw new Error("Нет активной заявки");
+      if (!selectedId || !canManageRequest)
+        throw new Error("Изменять статус может собственник заявки");
       const { error } = await supabase.from("requests").update({ status }).eq("id", selectedId);
       if (error) throw new Error(error.message);
     },
@@ -440,6 +492,20 @@ function RequestsPage() {
         }}
       >
         <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto">
+          {!selectedRequest && (
+            <DialogHeader>
+              <DialogTitle>
+                {selectedRequestQuery.isPending && isSearchRecordId(selectedId)
+                  ? "Загружаем выбранную заявку…"
+                  : "Выбранная заявка недоступна"}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedRequestQuery.isPending && isSearchRecordId(selectedId)
+                  ? "Проверяем доступ к записи."
+                  : "Она удалена или доступ изменился. Закройте окно и повторите поиск."}
+              </DialogDescription>
+            </DialogHeader>
+          )}
           {selectedRequest && (
             <>
               <DialogHeader>
@@ -465,7 +531,7 @@ function RequestsPage() {
                         request: selectedRequest.id,
                       }}
                     >
-                      {role === "tenant" ? "Ход ремонта по заявке" : "Оформить / открыть ремонт"}
+                      {canManageRequest ? "Оформить / открыть ремонт" : "Ход ремонта по заявке"}
                     </Link>
                   </Button>
                 )}
@@ -499,7 +565,7 @@ function RequestsPage() {
                   )}
                 </section>
 
-                {role !== "tenant" && (
+                {canManageRequest && (
                   <section className="rounded-xl border p-4">
                     <Label>Статус заявки</Label>
                     <Select

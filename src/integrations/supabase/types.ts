@@ -884,6 +884,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      workspace_search: { Args: { p_query: string }; Returns: Json }
+      workspace_search_team_request: { Args: { p_id: string }; Returns: Json }
       rental_calendar: { Args: { p_from: string; p_to: string; p_timezone?: string; p_property_id?: string | null; p_responsible_id?: string | null }; Returns: Json }
       rental_calendar_application: { Args: { p_id: string }; Returns: Json }
       rental_calendar_repair: { Args: { p_id: string }; Returns: Json }
