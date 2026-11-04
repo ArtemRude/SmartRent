@@ -10,8 +10,7 @@
 
 <p align="center">
   <a href="https://mysmartrent.lovable.app/"><strong>Открыть SmartRent</strong></a> ·
-  <a href="#возможности">Возможности</a> ·
-  <a href="#локальный-запуск">Локальный запуск</a>
+  <a href="#возможности">Возможности</a>
 </p>
 
 **SmartRent** связывает недвижимость, арендаторов, договоры, платежи и заявки. По каждому объекту собственник может увидеть, когда заканчивается договор, сколько денег поступило и какие обращения ещё в работе. Арендатор в своём кабинете может открыть договор, отправить заявку с фото и следить за её статусом.
@@ -39,14 +38,6 @@
 - **Данные и доступ** · Supabase Auth, PostgreSQL с Row Level Security (RLS), Supabase Storage
 - **Проверки** · Node.js test runner, pgTAP, Playwright, GitHub Actions
 
-## Локальный запуск
-
-Понадобятся Node.js 22+, Bun и Supabase с применёнными миграциями из `supabase/migrations/`.
-
-1. Из корня репозитория установите зависимости командой `bun install --frozen-lockfile`.
-2. Укажите в `.env` адрес проекта в `VITE_SUPABASE_URL` и `SUPABASE_URL`, а публичный ключ в `VITE_SUPABASE_PUBLISHABLE_KEY` и `SUPABASE_PUBLISHABLE_KEY`.
-3. Запустите `bun run dev` и откройте адрес, который выведет Vite.
-
 ## Документация
 
 - [Руководство пользователя](./docs/user-guide.md) и [сценарий демонстрации](./docs/grant-demo-script.md)
@@ -54,7 +45,15 @@
 - [Модель монетизации](./docs/monetization.md) и [порядок запуска тарифов](./docs/billing-access.md). До явного запуска администратором все возможности бесплатны, ограничения отключены.
 
 <details>
-<summary>Проверки и развёртывание</summary>
+<summary>Локальная разработка и развёртывание</summary>
+
+### Локальный запуск
+
+Понадобятся Node.js 22+, Bun и Supabase с применёнными миграциями из `supabase/migrations/`.
+
+1. Из корня репозитория установите зависимости командой `bun install --frozen-lockfile`.
+2. Укажите в `.env` адрес проекта в `VITE_SUPABASE_URL` и `SUPABASE_URL`, а публичный ключ в `VITE_SUPABASE_PUBLISHABLE_KEY` и `SUPABASE_PUBLISHABLE_KEY`.
+3. Запустите `bun run dev` и откройте адрес, который выведет Vite.
 
 ### Проверки
 
