@@ -48,6 +48,10 @@ export type TeamOverview = {
   events: TeamEvent[];
   events_truncated: boolean;
 };
+export type TeamResponsibleAssignment = {
+  membership_id: string | null;
+  candidates: { id: string; name: string }[];
+};
 export type TeamWorkspace = {
   property: TeamProperty & {
     description: string | null;
@@ -56,6 +60,7 @@ export type TeamWorkspace = {
     role: WorkspaceRole;
     responsible_name: string | null;
   };
+  responsible_assignment?: TeamResponsibleAssignment | null;
   units: { id: string; name: string; area: number | null; status: string }[];
   agreements: {
     id: string;
@@ -96,7 +101,7 @@ export const teamRoleLabels: Record<WorkspaceRole, string> = {
 };
 export const teamRoleDescriptions: Record<TeamRole, string> = {
   manager:
-    "Объекты, помещения, краткие условия аренды и заявки. Ведёт заявки и заметки, готовит сметы и отчёты о ремонте. Видит контакты кандидатов, назначает показы и ведёт отбор. Публикацию, бюджет ремонта и выбор арендатора согласует собственник.",
+    "Объекты, помещения, краткие условия аренды и заявки. Меняет ответственного по доступным объектам, ведёт заявки и заметки, готовит сметы и отчёты о ремонте. Видит контакты кандидатов, назначает показы и ведёт отбор. Публикацию, бюджет ремонта и выбор арендатора согласует собственник.",
   viewer:
     "Сведения об объекте, краткие условия аренды, заявки, заметки и ремонты — только просмотр. Контакты кандидатов скрыты.",
 };

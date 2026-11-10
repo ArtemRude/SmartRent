@@ -6,6 +6,8 @@ type Identity = "owner" | "staff" | "tenant" | "wrong";
 const ownerId = "a1000000-0000-0000-0000-000000000001";
 const staffId = "a1000000-0000-0000-0000-000000000002";
 const tenantId = "a1000000-0000-0000-0000-000000000003";
+const otherUserId = "a1000000-0000-0000-0000-000000000004";
+const newTenantId = "a3000000-0000-0000-0000-000000000002";
 const propertyId = "a2000000-0000-0000-0000-000000000001";
 const otherPropertyId = "a2000000-0000-0000-0000-000000000002";
 const invitationToken = "a1".repeat(32);
@@ -21,6 +23,18 @@ function fixture() {
     workspaceDenied: false,
     members: [] as TeamMember[],
     assignments: [] as TeamOverview["assignments"],
+    tenants: [
+      {
+        id: "tenant-record",
+        owner_id: ownerId,
+        user_id: tenantId as string | null,
+        name: "Иван Арендатор",
+        email: "tenant@example.invalid",
+        phone: null as string | null,
+        created_at: now,
+      },
+    ],
+    savedDrafts: [] as { property_id: string; tenant_id: string; status: string }[],
     events: [] as TeamEvent[],
     notes: [] as TeamWorkspace["notes"],
     comments: [] as {
@@ -95,6 +109,16 @@ function fixture() {
 }
 type State = ReturnType<typeof fixture>;
 
+function eligibleManagers(state: State, targetProperty: string) {
+  return state.members.filter(
+    (member) =>
+      member.owner_id === ownerId &&
+      member.status === "active" &&
+      member.role === "manager" &&
+      member.property_ids.includes(targetProperty),
+  );
+}
+
 function invitedMember(state: State): TeamMember {
   return {
     id: "membership-1",
@@ -137,6 +161,7 @@ async function installApi(
   state: State,
   signedIn = true,
 ) {
+  await context.route("https://fonts.googleapis.com/**", (route) => route.abort());
   const id =
     identity === "owner"
       ? ownerId
@@ -144,7 +169,7 @@ async function installApi(
         ? staffId
         : identity === "tenant"
           ? tenantId
-          : "a1000000-0000-0000-0000-000000000004";
+          : otherUserId;
   const role = identity === "owner" ? "owner" : "tenant";
   const name =
     identity === "owner"
@@ -193,6 +218,10 @@ async function installApi(
       identity === "owner" || Boolean(member?.property_ids.includes(target));
     const fail = (code: string, message: string, status = 400) =>
       route.fulfill({ status, json: { code, message } });
+    const responsible = (target: string) =>
+      state.members.find(
+        (m) => m.id === state.assignments.find((a) => a.property_id === target)?.membership_id,
+      );
     if (resource === "team_overview") {
       if (!state.available) return fail("PGRST202", "Function not found", 404);
       const properties = identity === "owner" ? state.properties : [];
@@ -207,9 +236,7 @@ async function installApi(
           owner_name: "Анна Собственник",
           membership_id: identity === "owner" ? null : member!.id,
           role: identity === "owner" ? "owner" : member!.role,
-          responsible_name: state.assignments.some((a) => a.property_id === p.id)
-            ? "Мария Управляющая"
-            : null,
+          responsible_name: responsible(p.id)?.name ?? null,
           unit_count: p.id === propertyId ? 1 : 0,
           active_agreements: p.id === propertyId ? 1 : 0,
           open_requests: p.id === propertyId && state.request.status !== "closed" ? 1 : 0,
@@ -219,7 +246,7 @@ async function installApi(
           properties,
           members:
             identity === "owner" ? state.members : state.members.filter((m) => m.user_id === id),
-          assignments: state.assignments.filter((a) => allowed(a.property_id)),
+          assignments: identity === "owner" ? state.assignments : [],
           workspaces,
           events: identity === "owner" ? state.events : [],
           events_truncated: false,
@@ -230,6 +257,7 @@ async function installApi(
       if (state.workspaceDenied || !allowed(body.p_property_id))
         return fail("42501", "Доступ к объекту отозван", 403);
       const property = state.properties.find((p) => p.id === body.p_property_id)!;
+      const assignment = responsible(property.id);
       return route.fulfill({
         json: {
           property: {
@@ -241,10 +269,18 @@ async function installApi(
             owner_id: ownerId,
             owner_name: "Анна Собственник",
             role: identity === "owner" ? "owner" : member!.role,
-            responsible_name: state.assignments.some((a) => a.property_id === property.id)
-              ? "Мария Управляющая"
-              : null,
+            responsible_name: assignment?.name ?? null,
           },
+          responsible_assignment:
+            identity === "owner" || member?.role === "manager"
+              ? {
+                  membership_id: assignment?.id ?? null,
+                  candidates: eligibleManagers(state, property.id).map((manager) => ({
+                    id: manager.id,
+                    name: manager.name ?? "Управляющий",
+                  })),
+                }
+              : null,
           units: [{ id: "unit-101", name: "Квартира 101", area: 52, status: "occupied" }],
           agreements: [
             { ...state.agreement, tenant_name: "Иван Арендатор", unit_name: "Квартира 101" },
@@ -309,14 +345,22 @@ async function installApi(
       return route.fulfill({ json: target.id });
     }
     if (resource === "set_team_responsible") {
-      state.assignments = body.p_membership_id
-        ? [{ property_id: body.p_property_id, membership_id: body.p_membership_id }]
-        : [];
+      if (!allowed(body.p_property_id) || (identity !== "owner" && member?.role !== "manager"))
+        return fail("42501", "Нет права назначать ответственного", 403);
+      const target = eligibleManagers(state, body.p_property_id).find(
+        (manager) => manager.id === body.p_membership_id,
+      );
+      if (body.p_membership_id && !target)
+        return fail("22023", "Выберите управляющего с доступом к объекту");
+      state.assignments = state.assignments.filter((a) => a.property_id !== body.p_property_id);
+      if (target) {
+        state.assignments.push({ property_id: body.p_property_id, membership_id: target.id });
+      }
       addEvent(
         state,
         "responsible_changed",
         identity,
-        { name: "Мария Управляющая" },
+        { name: target?.name ?? null },
         body.p_property_id,
       );
       return route.fulfill({ json: body.p_property_id });
@@ -364,6 +408,18 @@ async function installApi(
       );
       return route.fulfill({ json: "ok" });
     }
+    if (resource === "tenants" && url.searchParams.has("email")) {
+      const email = url.searchParams.get("email")?.replace(/^ilike\./, "");
+      return route.fulfill({ json: state.tenants.filter((tenant) => tenant.email === email) });
+    }
+    if (resource === "tenants" && route.request().method() === "POST") {
+      state.tenants.push({ id: newTenantId, user_id: null, created_at: state.now, ...body });
+      return route.fulfill({ json: { id: newTenantId } });
+    }
+    if (resource === "lease_agreements" && route.request().method() === "POST") {
+      state.savedDrafts.push(body);
+      return route.fulfill({ status: 201, body: "" });
+    }
     const tables: Record<string, unknown> = {
       profiles: { id, name, email: user.email, phone: null },
       user_roles: { role },
@@ -378,17 +434,7 @@ async function installApi(
           created_at: state.now,
         },
       ],
-      tenants: [
-        {
-          id: "tenant-record",
-          owner_id: ownerId,
-          user_id: tenantId,
-          name: "Иван Арендатор",
-          email: "tenant@example.invalid",
-          phone: null,
-          created_at: state.now,
-        },
-      ],
+      tenants: state.tenants,
       lease_agreements: [state.agreement],
       requests: [state.request],
       comments: state.comments,
@@ -554,6 +600,105 @@ test("team surfaces stale writes and hides cached details when access refresh fa
   await expect(page.getByRole("alert")).toContainText("Доступ к объекту отозван");
   expect(errors).toEqual([]);
   await context.close();
+});
+
+test("a scoped manager reassigns responsibility while a viewer only reads it", async ({
+  browser,
+}) => {
+  test.skip(!process.env["E2E_SUPABASE_URL"], "Use loopback intercepted API.");
+  const state = fixture();
+  const member = invitedMember(state);
+  state.members.push(
+    { ...member, status: "active", user_id: staffId, name: "Мария Управляющая" },
+    { ...member, id: "colleague", status: "active", user_id: tenantId, name: "Олег Управляющий" },
+    { ...member, id: "viewer", status: "active", user_id: otherUserId, role: "viewer" },
+    { ...member, id: "outside", status: "active", property_ids: [otherPropertyId] },
+  );
+  state.assignments.push({ property_id: propertyId, membership_id: member.id });
+
+  const managerContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const viewerContext = await browser.newContext();
+  await installApi(managerContext, "staff", state);
+  await installApi(viewerContext, "wrong", state);
+  const manager = await managerContext.newPage();
+  const viewer = await viewerContext.newPage();
+  await manager.goto("/team");
+
+  const picker = manager.getByLabel("Ответственный по объекту");
+  await expect(picker).toHaveValue(member.id);
+  await expect(picker.locator("option")).toHaveText([
+    "Собственник",
+    "Мария Управляющая",
+    "Олег Управляющий",
+  ]);
+  await expect(manager.getByRole("link", { name: "Добавить арендатора" })).toHaveCount(0);
+  await picker.selectOption("colleague");
+  await manager.getByRole("button", { name: "Переназначить", exact: true }).click();
+  await expect(manager.getByTestId("team-workspace")).toContainText(
+    "Ответственный: Олег Управляющий",
+  );
+  await expect(picker).toHaveValue("colleague");
+
+  await viewer.goto("/team");
+  await expect(viewer.getByTestId("team-workspace")).toContainText(
+    "Ответственный: Олег Управляющий",
+  );
+  await expect(viewer.getByLabel("Ответственный по объекту")).toHaveCount(0);
+  await expect(viewer.getByRole("link", { name: "Добавить арендатора" })).toHaveCount(0);
+
+  await picker.selectOption("");
+  await manager.getByRole("button", { name: "Переназначить", exact: true }).click();
+  await expect(manager.getByTestId("team-workspace")).toContainText(
+    "Ответственный: Анна Собственник",
+  );
+  await managerContext.close();
+  await viewerContext.close();
+});
+
+test("the owner can start a contract for a team property and add a missing tenant", async ({
+  page,
+  context,
+}) => {
+  test.skip(!process.env["E2E_SUPABASE_URL"], "Use loopback intercepted API.");
+  const state = fixture();
+  await installApi(context, "owner", state);
+
+  await page.goto(`/team?property=${otherPropertyId}`);
+  await page.getByRole("link", { name: "Добавить арендатора", exact: true }).click();
+  const agreement = page.getByRole("dialog", { name: "Новый договор" });
+  await expect(agreement.getByLabel("Объект", { exact: true })).toHaveText(
+    "Закрытый склад на Лесной",
+  );
+  await agreement.getByLabel("Арендатор", { exact: true }).click();
+  await page.getByRole("option", { name: "Иван Арендатор" }).click();
+  await expect(agreement.getByLabel("Арендатор", { exact: true })).toHaveText("Иван Арендатор");
+  await page.keyboard.press("Escape");
+  await expect(agreement).toHaveCount(0);
+
+  state.tenants = [];
+  await page.goto(`/team?property=${propertyId}`);
+  await page.getByRole("link", { name: "Добавить арендатора", exact: true }).click();
+  await expect(page).toHaveURL(/\/agreements\?/);
+  await page.getByRole("link", { name: "Добавить арендатора", exact: true }).click();
+  const tenant = page.getByRole("dialog", { name: "Новый арендатор" });
+  await tenant.getByLabel("Имя").fill("Ольга Арендатор");
+  await tenant.getByLabel("Email").fill("olga@example.invalid");
+  await tenant.getByRole("button", { name: "Добавить", exact: true }).click();
+
+  await expect(agreement.getByLabel("Объект", { exact: true })).toHaveText("Квартира на Садовой");
+  await expect(agreement.getByLabel("Арендатор", { exact: true })).toHaveText("Ольга Арендатор");
+  await agreement.getByLabel("Ежемесячная плата, ₽").fill("35000");
+  await agreement.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect(agreement).toHaveCount(0);
+  expect(state.savedDrafts).toMatchObject([
+    { property_id: propertyId, tenant_id: newTenantId, status: "draft" },
+  ]);
+
+  state.properties = [];
+  state.tenants = [];
+  await page.goto("/agreements");
+  await expect(page.getByRole("link", { name: "Добавить объект", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Добавить арендатора", exact: true })).toBeVisible();
 });
 
 test("team invitation rejects another email and missing RPC shows a friendly state", async ({

@@ -38,8 +38,15 @@ import {
 } from "@/lib/search-record-queries";
 
 export const Route = createFileRoute("/_authenticated/tenants")({
-  validateSearch: (search: Record<string, unknown>): { tenantId?: string } =>
-    typeof search["tenantId"] === "string" ? { tenantId: search["tenantId"] } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tenantId?: string; newForAgreement?: true; newForProperty?: string } => ({
+    ...(typeof search["tenantId"] === "string" ? { tenantId: search["tenantId"] } : {}),
+    ...(search["newForAgreement"] === true ? { newForAgreement: true } : {}),
+    ...(search["newForAgreement"] === true && isSearchRecordId(search["newForProperty"])
+      ? { newForProperty: search["newForProperty"] }
+      : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Арендаторы — SmartRent" },
@@ -52,7 +59,8 @@ export const Route = createFileRoute("/_authenticated/tenants")({
 });
 
 function TenantsPage() {
-  const { tenantId } = Route.useSearch();
+  const { tenantId, newForAgreement, newForProperty } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { user } = useAuth();
   const qc = useQueryClient();
   const tenantList = useQuery({ queryKey: ["tenants"], queryFn: fetchTenants });
@@ -76,7 +84,7 @@ function TenantsPage() {
   useEffect(() => {
     if (tenantId && exactTenantId === tenantId) scrollToSearchRecord(`tenant-${tenantId}`);
   }, [tenantId, exactTenantId]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(newForAgreement));
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -170,11 +178,22 @@ function TenantsPage() {
             .maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) throw new Error("Арендатор не найден или недоступен для изменения");
+      return data.id;
     },
-    onSuccess: () => {
+    onSuccess: async (savedTenantId) => {
       toast.success(editingId ? "Данные арендатора обновлены" : "Арендатор добавлен");
+      await qc.invalidateQueries({ queryKey: ["tenants"] });
       closeForm();
-      void qc.invalidateQueries({ queryKey: ["tenants"] });
+      if (newForAgreement && !editingId) {
+        await navigate({
+          to: "/agreements",
+          search: {
+            newForTenant: savedTenantId,
+            ...(newForProperty ? { newForProperty } : {}),
+          },
+          replace: true,
+        });
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -204,7 +223,18 @@ function TenantsPage() {
         }
       />
 
-      <Dialog open={open} onOpenChange={(value) => (value ? setOpen(true) : closeForm())}>
+      <Dialog
+        open={open}
+        onOpenChange={(value) => {
+          if (value) setOpen(true);
+          else if (!saveTenant.isPending) {
+            closeForm();
+            if (newForAgreement) {
+              void navigate({ search: tenantId ? { tenantId } : {}, replace: true });
+            }
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingId ? "Изменить арендатора" : "Новый арендатор"}</DialogTitle>

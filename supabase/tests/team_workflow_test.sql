@@ -14,7 +14,10 @@ VALUES
   ('d1000000-0000-0000-0000-000000000005', 'team-tenant@example.invalid', now(), '{"name":"Tenant","role":"tenant"}'),
   ('d1000000-0000-0000-0000-000000000006', 'team-admin@example.invalid', now(), '{"name":"Admin","role":"owner"}'),
   ('d1000000-0000-0000-0000-000000000007', 'team-unconfirmed@example.invalid', NULL, '{"name":"Unconfirmed","role":"owner"}'),
-  ('d1000000-0000-0000-0000-000000000008', 'team-attacker@example.invalid', now(), '{"name":"Attacker","role":"admin","email":"team-manager@example.invalid"}');
+  ('d1000000-0000-0000-0000-000000000008', 'team-attacker@example.invalid', now(), '{"name":"Attacker","role":"admin","email":"team-manager@example.invalid"}'),
+  ('d1000000-0000-0000-0000-000000000009', 'private-manager-peer@example.invalid', now(), '{"name":"","role":"owner"}'),
+  ('d1000000-0000-0000-0000-000000000010', 'private-manager-unselected@example.invalid', now(), '{"name":"Unselected manager","role":"owner"}'),
+  ('d1000000-0000-0000-0000-000000000011', 'private-manager-other-owner@example.invalid', now(), '{"name":"Foreign manager","role":"owner"}');
 UPDATE public.user_roles SET role = 'admin'
 WHERE user_id = 'd1000000-0000-0000-0000-000000000006';
 -- The profile can be edited by its user; invitation acceptance must ignore it.
@@ -26,6 +29,16 @@ INSERT INTO public.properties (id, owner_id, name, address, description) VALUES
   ('d2000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000001', 'Unselected apartment', 'Unselected address', 'UNSELECTED_PROPERTY_SECRET'),
   ('d2000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000002', 'Other owner apartment', 'Other address', 'OTHER_OWNER_PROPERTY_SECRET'),
   ('d2000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000001', 'Transfer apartment', 'Transfer address', NULL);
+INSERT INTO public.team_memberships (id, owner_id, user_id, email, role, status) VALUES
+  ('d7000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000009', 'private-manager-peer@example.invalid', 'manager', 'active'),
+  ('d7000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000010', 'private-manager-unselected@example.invalid', 'manager', 'active'),
+  ('d7000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000011', 'private-manager-other-owner@example.invalid', 'manager', 'active'),
+  ('d7000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000001', NULL, 'private-deleted-manager@example.invalid', 'manager', 'active');
+INSERT INTO public.team_property_access (membership_id, property_id) VALUES
+  ('d7000000-0000-0000-0000-000000000001', 'd2000000-0000-0000-0000-000000000001'),
+  ('d7000000-0000-0000-0000-000000000002', 'd2000000-0000-0000-0000-000000000002'),
+  ('d7000000-0000-0000-0000-000000000003', 'd2000000-0000-0000-0000-000000000003'),
+  ('d7000000-0000-0000-0000-000000000004', 'd2000000-0000-0000-0000-000000000001');
 INSERT INTO public.units (id, property_id, name, area) VALUES
   ('d2100000-0000-0000-0000-000000000001', 'd2000000-0000-0000-0000-000000000001', 'Selected unit', 42),
   ('d2100000-0000-0000-0000-000000000002', 'd2000000-0000-0000-0000-000000000002', 'UNSELECTED_UNIT_SECRET', 38);
@@ -151,7 +164,27 @@ SELECT is((SELECT count(*) FROM public.rent_charges), 0::bigint, 'membership doe
 SELECT is((SELECT count(*) FROM public.property_expenses), 0::bigint, 'membership does not grant expense access');
 SELECT throws_ok($$UPDATE public.team_memberships SET role = 'manager'$$, '42501', NULL, 'member cannot self-promote through table');
 SELECT throws_ok($$SELECT public.manage_team_member(pg_temp.team_invite_id('test.team_manager'), 3, 'manager', ARRAY['d2000000-0000-0000-0000-000000000002']::uuid[], false)$$, '42501', NULL, 'manager cannot enlarge their scope');
-SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', pg_temp.team_invite_id('test.team_manager'))$$, '42501', NULL, 'manager cannot assign responsibility');
+SELECT is(current_setting('test.team_workspace')::jsonb #>> '{responsible_assignment,membership_id}', NULL::text, 'unassigned property shows responsibility with the owner');
+SELECT is(jsonb_array_length(current_setting('test.team_workspace')::jsonb #> '{responsible_assignment,candidates}'), 2, 'assignment candidates only include active managers with access to this property and a user account');
+SELECT ok(current_setting('test.team_workspace')::jsonb #> '{responsible_assignment,candidates}' @> jsonb_build_array(
+  jsonb_build_object('id', pg_temp.team_invite_id('test.team_manager'), 'name', 'Manager'),
+  jsonb_build_object('id', 'd7000000-0000-0000-0000-000000000001', 'name', 'Управляющий')
+), 'candidate selector only discloses the scoped membership ID and display name');
+SELECT ok(current_setting('test.team_workspace') NOT LIKE '%private-manager-%', 'workspace does not expose contact information about eligible or other managers');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000002', NULL)$$, '42501', NULL, 'manager cannot assign responsibility for an unselected property');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000003', NULL)$$, '42501', NULL, 'manager cannot assign responsibility for another owner');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', 'd7000000-0000-0000-0000-000000000002')$$, '22023', NULL, 'assignee must have access to the property');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', 'd7000000-0000-0000-0000-000000000003')$$, '22023', NULL, 'assignee must belong to the same owner');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', 'd7000000-0000-0000-0000-000000000004')$$, '22023', NULL, 'deleted assignee account cannot be selected');
+SELECT lives_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', pg_temp.team_invite_id('test.team_manager'))$$, 'manager can take responsibility for a selected property');
+SELECT lives_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', pg_temp.team_invite_id('test.team_manager'))$$, 'repeating the same assignment succeeds');
+SELECT lives_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', 'd7000000-0000-0000-0000-000000000001')$$, 'manager can reassign responsibility to another scoped manager');
+SELECT is(public.team_workspace('d2000000-0000-0000-0000-000000000001') #>> '{responsible_assignment,membership_id}', 'd7000000-0000-0000-0000-000000000001', 'manager sees the updated assignment');
+SELECT is(public.team_workspace('d2000000-0000-0000-0000-000000000001') #>> '{property,responsible_name}', 'Управляющий', 'selected nameless manager gets a generic label');
+SELECT ok(public.team_overview()::text NOT LIKE '%private-manager-peer@example.invalid%', 'manager cannot use reassignment to read a peer email in the overview');
+SELECT lives_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', NULL)$$, 'manager can return responsibility to the owner');
+SELECT lives_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', NULL)$$, 'repeating the return to owner succeeds');
+SELECT is(public.team_workspace('d2000000-0000-0000-0000-000000000001') #>> '{responsible_assignment,membership_id}', NULL::text, 'manager sees the default owner assignment after reset');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000002', 'note', '{"text":"Forbidden"}')$$, '42501', NULL, 'manager cannot write unselected workspace');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'request_status', '{"request_id":"d5000000-0000-0000-0000-000000000002","status":"closed","expected_status":"new"}')$$, '42501', NULL, 'request ID must belong to supplied selected property');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'request_comment', '{"request_id":"d5000000-0000-0000-0000-000000000003","text":"Forbidden"}')$$, '42501', NULL, 'cannot comment on another owner request');
@@ -166,6 +199,9 @@ SELECT lives_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-00
 SELECT throws_ok($$DELETE FROM public.team_activity$$, '42501', NULL, 'manager cannot erase team activity');
 RESET ROLE;
 SELECT set_config('test.team_comment_id', (SELECT id::text FROM public.comments WHERE request_id = 'd5000000-0000-0000-0000-000000000001' AND text = 'Manager discussion reply'), true);
+SELECT is((SELECT count(*) FROM public.team_activity WHERE property_id = 'd2000000-0000-0000-0000-000000000001' AND action = 'responsible_changed'), 3::bigint, 'unchanged assignments do not duplicate audit events');
+SELECT is((SELECT count(*) FROM public.team_activity WHERE property_id = 'd2000000-0000-0000-0000-000000000001' AND action = 'responsible_changed' AND owner_id = 'd1000000-0000-0000-0000-000000000001' AND actor_id = 'd1000000-0000-0000-0000-000000000003'), 3::bigint, 'assignment audit is attached to the owner team and credits the real manager');
+SELECT is((SELECT count(*) FROM public.notifications WHERE entity_id = 'd2000000-0000-0000-0000-000000000001' AND user_id = 'd1000000-0000-0000-0000-000000000001' AND title = 'Изменён ответственный по объекту'), 3::bigint, 'the owner receives a notification per real manager assignment change');
 SELECT is((SELECT status::text FROM public.requests WHERE id = 'd5000000-0000-0000-0000-000000000001'), 'in_progress', 'status change persisted atomically');
 SELECT is((SELECT user_id FROM public.comments WHERE id = current_setting('test.team_comment_id')::uuid), 'd1000000-0000-0000-0000-000000000003'::uuid, 'comment attribution ignores supplied actor');
 SELECT is((SELECT changed_by FROM public.request_status_events WHERE request_id = 'd5000000-0000-0000-0000-000000000001' AND to_status = 'in_progress'), 'd1000000-0000-0000-0000-000000000003'::uuid, 'ordinary status history records actual staff actor');
@@ -177,6 +213,8 @@ SELECT set_config('request.jwt.claims', '{"sub":"d1000000-0000-0000-0000-0000000
 SET LOCAL ROLE authenticated;
 SELECT lives_ok($$SELECT public.accept_team_invitation(pg_temp.team_invite_token('test.team_viewer'))$$, 'viewer accepts invitation');
 SELECT lives_ok($$SELECT public.team_workspace('d2000000-0000-0000-0000-000000000001')$$, 'viewer can read selected workspace');
+SELECT is(public.team_workspace('d2000000-0000-0000-0000-000000000001') -> 'responsible_assignment', 'null'::jsonb, 'viewer sees no assignment editor roster');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', NULL)$$, '42501', NULL, 'viewer cannot change responsibility for a shared property');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'note', '{"text":"Viewer write"}')$$, '42501', NULL, 'viewer cannot add notes');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'request_status', '{"request_id":"d5000000-0000-0000-0000-000000000001","status":"closed","expected_status":"in_progress"}')$$, '42501', NULL, 'viewer cannot change request status');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'request_comment', '{"request_id":"d5000000-0000-0000-0000-000000000001","text":"Viewer write"}')$$, '42501', NULL, 'viewer cannot comment');
@@ -211,6 +249,7 @@ SELECT is((SELECT count(*) FROM public.team_property_responsibles WHERE membersh
 SELECT set_config('request.jwt.claims', '{"sub":"d1000000-0000-0000-0000-000000000003","role":"authenticated","user_metadata":{"team_role":"manager"}}', true);
 SET LOCAL ROLE authenticated;
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'note', '{"text":"Cached manager role"}')$$, '42501', NULL, 'role change is effective immediately despite stale JWT metadata');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', NULL)$$, '42501', NULL, 'downgraded manager cannot change responsibility with stale JWT metadata');
 SELECT lives_ok($$SELECT public.team_workspace('d2000000-0000-0000-0000-000000000001')$$, 'downgraded member retains selected read access');
 RESET ROLE;
 SELECT set_config('request.jwt.claims', '{"sub":"d1000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -228,6 +267,7 @@ SELECT set_config('request.jwt.claims', '{"sub":"d1000000-0000-0000-0000-0000000
 SET LOCAL ROLE authenticated;
 SELECT throws_ok($$SELECT public.team_workspace('d2000000-0000-0000-0000-000000000004')$$, '42501', NULL, 'old grant cannot read property after ownership transfer');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000004', 'note', '{"text":"Old owner grant"}')$$, '42501', NULL, 'old grant cannot mutate transferred property');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000004', NULL)$$, '42501', NULL, 'old grant cannot change responsibility after ownership transfer');
 SELECT is(jsonb_array_length(public.team_overview() -> 'workspaces'), 1, 'overview immediately excludes transferred property');
 RESET ROLE;
 
@@ -244,6 +284,7 @@ SELECT set_config('test.team_activity_count', (SELECT count(*)::text FROM public
 SELECT set_config('request.jwt.claims', '{"sub":"d1000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 SET LOCAL ROLE authenticated;
 SELECT throws_ok($$SELECT public.team_workspace('d2000000-0000-0000-0000-000000000001')$$, '42501', NULL, 'revoked member immediately loses workspace read access');
+SELECT throws_ok($$SELECT public.set_team_responsible('d2000000-0000-0000-0000-000000000001', NULL)$$, '42501', NULL, 'revoked manager cannot change responsibility');
 SELECT throws_ok($$SELECT public.act_on_team_property('d2000000-0000-0000-0000-000000000001', 'request_comment', '{"request_id":"d5000000-0000-0000-0000-000000000001","text":"After revoke"}')$$, '42501', NULL, 'revoked member cannot add comments');
 SELECT is(jsonb_array_length(public.team_overview() -> 'workspaces'), 0, 'revoked member overview has no granted workspaces');
 SELECT lives_ok($$DELETE FROM public.comments$$, 'unfiltered comment delete is safely filtered after revocation');

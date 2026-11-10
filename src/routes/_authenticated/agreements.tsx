@@ -5,7 +5,7 @@ import {
   mergeSelectedRecord,
   scrollToSearchRecord,
 } from "@/lib/search-record-queries";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -84,8 +84,21 @@ import { cn } from "@/lib/utils";
 import { getAgreementPreparation } from "@/lib/rental-onboarding";
 
 export const Route = createFileRoute("/_authenticated/agreements")({
-  validateSearch: (search: Record<string, unknown>): { agreementId?: string } =>
-    typeof search["agreementId"] === "string" ? { agreementId: search["agreementId"] } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    agreementId?: string;
+    newForProperty?: string;
+    newForTenant?: string;
+  } => ({
+    ...(typeof search["agreementId"] === "string" ? { agreementId: search["agreementId"] } : {}),
+    ...(isSearchRecordId(search["newForProperty"])
+      ? { newForProperty: search["newForProperty"].toLowerCase() }
+      : {}),
+    ...(isSearchRecordId(search["newForTenant"])
+      ? { newForTenant: search["newForTenant"].toLowerCase() }
+      : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Договоры — SmartRent" },
@@ -158,7 +171,8 @@ function optionalNumber(value: string, label: string, options: { min: number; ma
 }
 
 function AgreementsPage() {
-  const { agreementId } = Route.useSearch();
+  const { agreementId, newForProperty, newForTenant } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { user, profile, role } = useAuth();
   const qc = useQueryClient();
   const agreementList = useQuery({ queryKey: ["agreements"], queryFn: fetchAgreements });
@@ -209,16 +223,67 @@ function AgreementsPage() {
   const [renewingFrom, setRenewingFrom] = useState<Agreement | null>(null);
   const [form, setForm] = useState<AgreementForm>(createForm);
   const [statusFilter, setStatusFilter] = useState<"all" | AgreementStatus>("all");
+  const [scopedCreate, setScopedCreate] = useState(false);
 
-  const openCreate = () => {
-    setEditSection("details");
-    setEditing(null);
-    setRenewingFrom(null);
-    setForm(createForm());
-    setOpen(true);
-  };
+  const openCreate = useCallback(
+    ({ propertyId = "", tenantId = "" } = {}) => {
+      setEditSection("details");
+      setEditing(null);
+      setRenewingFrom(null);
+      setScopedCreate(Boolean(propertyId || tenantId));
+      setForm({ ...createForm(), propertyId, tenantId });
+      setOpen(true);
+      if (newForProperty || newForTenant) {
+        void navigate({ search: agreementId ? { agreementId } : {}, replace: true });
+      }
+    },
+    [agreementId, navigate, newForProperty, newForTenant],
+  );
+  const shortcutRequested = !agreementId && Boolean(newForProperty || newForTenant);
+  const ownProperties = (propertyList.data ?? []).filter(
+    (property) => property.owner_id === user?.id,
+  );
+  const ownTenants = (tenantList.data ?? []).filter((tenant) => tenant.owner_id === user?.id);
+  const shortcutLoading =
+    !user ||
+    propertyList.isPending ||
+    propertyList.isFetching ||
+    tenantList.isPending ||
+    tenantList.isFetching;
+  const shortcutFailed = propertyList.isError || tenantList.isError;
+  const shortcutPropertyAvailable =
+    !newForProperty || ownProperties.some((property) => property.id === newForProperty);
+  const shortcutTenantAvailable =
+    !newForTenant || ownTenants.some((tenant) => tenant.id === newForTenant);
+  const missingProperty = shortcutRequested ? !ownProperties.length : !properties.data?.length;
+  const missingTenant = shortcutRequested ? !ownTenants.length : !tenants.data?.length;
+  const shortcutReady =
+    shortcutRequested &&
+    !shortcutLoading &&
+    !shortcutFailed &&
+    !missingProperty &&
+    !missingTenant &&
+    shortcutPropertyAvailable &&
+    shortcutTenantAvailable;
+  useEffect(() => {
+    if (shortcutReady && !open) {
+      openCreate({ propertyId: newForProperty ?? "", tenantId: newForTenant ?? "" });
+    }
+  }, [newForProperty, newForTenant, open, openCreate, shortcutReady]);
+  const shortcutIssue = !shortcutRequested
+    ? null
+    : shortcutLoading
+      ? "Загружаем объект и список арендаторов…"
+      : shortcutFailed
+        ? "Не удалось загрузить объект или арендаторов. Обновите страницу."
+        : !shortcutPropertyAvailable
+          ? "Выбранный объект недоступен для создания договора."
+          : !shortcutTenantAvailable
+            ? "Выбранный арендатор недоступен для создания договора."
+            : null;
 
   const openEdit = (agreement: Agreement, section: "details" | "signed-document" = "details") => {
+    setScopedCreate(false);
     setEditSection(section);
     const details = readAgreementContractDetails(agreement.contract_details);
     setEditing(agreement);
@@ -250,6 +315,7 @@ function AgreementsPage() {
   };
 
   const openRenewal = (agreement: Agreement) => {
+    setScopedCreate(false);
     setEditSection("details");
     const details = readAgreementContractDetails(agreement.contract_details);
     setEditing(null);
@@ -284,6 +350,13 @@ function AgreementsPage() {
       if (!user) throw new Error("Нет сессии");
       if (!form.propertyId || !form.tenantId || !form.startDate || !form.endDate) {
         throw new Error("Заполните объект, арендатора и даты договора");
+      }
+      if (
+        scopedCreate &&
+        (!ownProperties.some((property) => property.id === form.propertyId) ||
+          !ownTenants.some((tenant) => tenant.id === form.tenantId))
+      ) {
+        throw new Error("Объект или арендатор больше недоступен. Обновите страницу.");
       }
       if (form.endDate < form.startDate) throw new Error("Дата окончания раньше даты начала");
       const payment = Number(form.monthlyPayment);
@@ -420,11 +493,27 @@ function AgreementsPage() {
         title="Договоры"
         description="Сроки, суммы и документы по аренде"
         action={
-          <Button onClick={openCreate} disabled={!properties.data?.length || !tenants.data?.length}>
+          <Button
+            onClick={() => openCreate()}
+            disabled={
+              missingProperty ||
+              missingTenant ||
+              (shortcutRequested && (shortcutLoading || shortcutReady))
+            }
+          >
             <Plus className="mr-2 h-4 w-4" /> Новый договор
           </Button>
         }
       />
+
+      {shortcutIssue && (
+        <p
+          role={shortcutLoading ? "status" : "alert"}
+          className="mb-4 text-sm text-muted-foreground"
+        >
+          {shortcutIssue}
+        </p>
+      )}
 
       {agreementId && (
         <p
@@ -440,10 +529,40 @@ function AgreementsPage() {
       )}
       {loading && <p className="text-sm text-muted-foreground">Загружаем договоры…</p>}
       {failed && <p className="text-sm text-destructive">Не удалось загрузить данные договоров.</p>}
-      {!loading && (!properties.data?.length || !tenants.data?.length) && (
+      {!shortcutLoading && !shortcutFailed && (missingProperty || missingTenant) && (
         <Card className="mb-4">
-          <CardContent className="p-5 text-sm text-muted-foreground">
-            Чтобы создать договор, сначала добавьте объект и арендатора.
+          <CardContent className="space-y-3 p-5">
+            <p className="text-sm text-muted-foreground">
+              Чтобы создать договор, сначала добавьте{" "}
+              {missingProperty && missingTenant
+                ? "объект и арендатора"
+                : missingProperty
+                  ? "объект"
+                  : "арендатора"}
+              .
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {missingProperty && (
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/properties">Добавить объект</Link>
+                </Button>
+              )}
+              {missingTenant && (
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    to="/tenants"
+                    search={{
+                      newForAgreement: true,
+                      ...(shortcutRequested && newForProperty && shortcutPropertyAvailable
+                        ? { newForProperty }
+                        : {}),
+                    }}
+                  >
+                    Добавить арендатора
+                  </Link>
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -843,18 +962,18 @@ function AgreementsPage() {
           )}
           <div className="flex flex-col gap-4">
             <div className="space-y-1.5">
-              <Label>Объект</Label>
+              <Label htmlFor="lease-property">Объект</Label>
               <Select
                 value={form.propertyId}
                 onValueChange={(value) =>
                   setForm((current) => ({ ...current, propertyId: value, unitId: "" }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="lease-property">
                   <SelectValue placeholder="Выберите объект" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(properties.data ?? []).map((property) => (
+                  {(scopedCreate ? ownProperties : (properties.data ?? [])).map((property) => (
                     <SelectItem key={property.id} value={property.id}>
                       {property.name}
                     </SelectItem>
@@ -1157,16 +1276,16 @@ function AgreementsPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Арендатор</Label>
+              <Label htmlFor="lease-tenant">Арендатор</Label>
               <Select
                 value={form.tenantId}
                 onValueChange={(value) => setForm((current) => ({ ...current, tenantId: value }))}
               >
-                <SelectTrigger>
+                <SelectTrigger id="lease-tenant">
                   <SelectValue placeholder="Выберите арендатора" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(tenants.data ?? []).map((tenant) => (
+                  {(scopedCreate ? ownTenants : (tenants.data ?? [])).map((tenant) => (
                     <SelectItem key={tenant.id} value={tenant.id}>
                       {tenant.name}
                     </SelectItem>

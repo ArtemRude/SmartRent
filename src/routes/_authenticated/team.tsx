@@ -183,18 +183,21 @@ function TeamPage() {
     qc,
     user?.id,
   ]);
-  const refresh = () => {
+  const refresh = async () => {
     setWorkspaceFailure(null);
-    for (const key of [
-      "team-overview",
-      "team-workspace",
-      "team-selected-request",
-      "requests",
-      "request-comments",
-      "notifications",
-      "property-timeline",
-    ])
-      void qc.invalidateQueries({ queryKey: [key] });
+    await Promise.all(
+      [
+        "team-overview",
+        "team-workspace",
+        "team-selected-request",
+        "requests",
+        "request-comments",
+        "notifications",
+        "property-timeline",
+        "property-hub",
+        "rental-calendar",
+      ].map((key) => qc.invalidateQueries({ queryKey: [key] })),
+    );
   };
   const accept = useMutation({
     mutationFn: async () => {
@@ -410,8 +413,8 @@ function TeamPage() {
                     </article>
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    Управляющий ведёт заявки, ремонты и отбор кандидатов, видит их контакты и
-                    назначает показы. Наблюдатель просматривает общие сведения без контактов
+                    Управляющий меняет ответственного по доступным объектам, ведёт заявки, ремонты и
+                    отбор кандидатов. Наблюдатель просматривает общие сведения без контактов
                     кандидатов. Публикацией, выбором арендатора, договорами и доступами управляет
                     собственник.
                   </p>
@@ -450,14 +453,9 @@ function TeamPage() {
                 )}
                 {overview.workspaces.length > 0 && (
                   <>
-                    {permitted && propertyId && (
-                      <Button asChild variant="outline">
-                        <Link to="/objects/$propertyId" params={{ propertyId }}>
-                          Открыть страницу объекта
-                        </Link>
-                      </Button>
-                    )}
-                    <Label htmlFor="team-property">Объект для совместной работы</Label>
+                    <Label htmlFor="team-property" className="block">
+                      Объект для совместной работы
+                    </Label>
                     <select
                       id="team-property"
                       className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
@@ -475,14 +473,23 @@ function TeamPage() {
                         </option>
                       ))}
                     </select>
-                    {overview.workspaces
-                      .filter((p) => p.id === propertyId)
-                      .map((p) => (
-                        <p className="text-sm text-muted-foreground" key={p.id}>
-                          Помещений: {p.unit_count} · Активных договоров: {p.active_agreements} ·
-                          Открытых заявок: {p.open_requests}
+                    {selectedSummary && (
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-sm text-muted-foreground">
+                          Помещений: {selectedSummary.unit_count} · Активных договоров:{" "}
+                          {selectedSummary.active_agreements} · Открытых заявок:{" "}
+                          {selectedSummary.open_requests}
                         </p>
-                      ))}
+                        <Button asChild variant="outline">
+                          <Link
+                            to="/objects/$propertyId"
+                            params={{ propertyId: selectedSummary.id }}
+                          >
+                            Открыть страницу объекта
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>

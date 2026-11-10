@@ -19,73 +19,73 @@ import { actOnTeamProperty, setTeamResponsible } from "@/lib/team-queries";
 import { scrollToSearchRecord } from "@/lib/search-record-queries";
 import {
   teamRoleLabels,
-  type TeamMember,
   type TeamOverview,
+  type TeamResponsibleAssignment,
   type TeamWorkspace as Workspace,
 } from "@/lib/team";
 
 function ResponsibleEditor({
-  workspace,
-  overview,
+  propertyId,
+  assignment,
   refresh,
 }: {
-  workspace: Workspace;
-  overview: TeamOverview;
-  refresh: () => void;
+  propertyId: string;
+  assignment: TeamResponsibleAssignment;
+  refresh: () => Promise<void>;
 }) {
-  const propertyId = workspace.property.id;
-  const current =
-    overview.assignments.find((a) => a.property_id === propertyId)?.membership_id ?? "";
-  const members = overview.members.filter(
-    (m) =>
-      m.owner_id === workspace.property.owner_id &&
-      m.status === "active" &&
-      m.role === "manager" &&
-      m.property_ids.includes(propertyId),
-  );
+  const current = assignment.membership_id ?? "";
   const [choice, setChoice] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const selected =
+    choice === "" || assignment.candidates.some((candidate) => candidate.id === choice)
+      ? (choice ?? current)
+      : current;
   const save = useMutation({
-    mutationFn: () => setTeamResponsible(propertyId, (choice ?? current) || null),
-    onSuccess: () => {
+    mutationFn: (membershipId: string | null) => setTeamResponsible(propertyId, membershipId),
+    onSuccess: async () => {
+      await refresh();
       setChoice(null);
-      setError("");
-      toast.success("Ответственный назначен");
-      refresh();
+      toast.success("Ответственный изменён");
     },
-    onError: (e: Error) => {
-      setError(e.message);
-      refresh();
+    onError: () => {
+      setChoice(null);
+      void refresh();
     },
   });
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 rounded-xl border bg-muted/30 p-4">
       <Label htmlFor="team-responsible">Ответственный по объекту</Label>
+      <p id="team-responsible-help" className="text-sm text-muted-foreground">
+        Выберите собственника или действующего управляющего этого объекта.
+      </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <select
           id="team-responsible"
+          aria-describedby="team-responsible-help"
           className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
-          value={choice ?? current}
-          onChange={(e) => setChoice(e.target.value)}
+          value={selected}
+          disabled={save.isPending}
+          onChange={(e) => {
+            setChoice(e.target.value);
+            save.reset();
+          }}
         >
           <option value="">Собственник</option>
-          {members.map((m: TeamMember) => (
-            <option key={m.id} value={m.id}>
-              {m.name || m.email}
+          {assignment.candidates.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.name}
             </option>
           ))}
         </select>
         <Button
-          variant="outline"
-          disabled={save.isPending || choice === null || choice === current}
-          onClick={() => save.mutate()}
+          disabled={save.isPending || selected === current}
+          onClick={() => save.mutate(selected || null)}
         >
-          Назначить
+          {save.isPending ? "Сохраняем…" : current ? "Переназначить" : "Назначить"}
         </Button>
       </div>
-      {error && (
+      {save.error && (
         <p role="alert" className="text-sm text-destructive">
-          {error}
+          {save.error.message}
         </p>
       )}
     </div>
@@ -242,12 +242,30 @@ export function TeamWorkspace({
   selectedRequestId?: string | undefined;
   workspace: Workspace;
   overview: TeamOverview;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }) {
   useEffect(() => {
     if (selectedRequestId) scrollToSearchRecord(`team-request-${selectedRequestId}`);
   }, [selectedRequestId]);
   const editable = workspace.property.role !== "viewer";
+  const assignment =
+    workspace.responsible_assignment ??
+    (workspace.property.role === "owner"
+      ? {
+          membership_id:
+            overview.assignments.find((a) => a.property_id === workspace.property.id)
+              ?.membership_id ?? null,
+          candidates: overview.members
+            .filter(
+              (member) =>
+                member.owner_id === workspace.property.owner_id &&
+                member.status === "active" &&
+                member.role === "manager" &&
+                member.property_ids.includes(workspace.property.id),
+            )
+            .map((member) => ({ id: member.id, name: member.name || member.email })),
+        }
+      : null);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const saveNote = useMutation({
@@ -269,9 +287,20 @@ export function TeamWorkspace({
   return (
     <div className="space-y-5" data-testid="team-workspace">
       <Card>
-        <CardHeader>
-          <CardTitle className="break-words">{workspace.property.name}</CardTitle>
-          <p className="break-words text-sm text-muted-foreground">{workspace.property.address}</p>
+        <CardHeader className="gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-1.5">
+            <CardTitle className="break-words">{workspace.property.name}</CardTitle>
+            <p className="break-words text-sm text-muted-foreground">
+              {workspace.property.address}
+            </p>
+          </div>
+          {workspace.property.role === "owner" && (
+            <Button asChild variant="outline" size="sm" className="w-fit shrink-0">
+              <Link to="/agreements" search={{ newForProperty: workspace.property.id }}>
+                Добавить арендатора
+              </Link>
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -288,11 +317,11 @@ export function TeamWorkspace({
               {workspace.property.description}
             </p>
           )}
-          {workspace.property.role === "owner" && (
+          {editable && assignment && (
             <ResponsibleEditor
               key={workspace.property.id}
-              workspace={workspace}
-              overview={overview}
+              propertyId={workspace.property.id}
+              assignment={assignment}
               refresh={refresh}
             />
           )}
