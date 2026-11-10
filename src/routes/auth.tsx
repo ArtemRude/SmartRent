@@ -4,6 +4,7 @@ import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react
 import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { isIsolatedAuthTab } from "@/integrations/supabase/browser-session";
 import { useAuth } from "@/hooks/auth-context";
 import { hasPendingTeamInvitation } from "@/lib/team-invitation";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/auth")({
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({
+    ...(search["session"] === "isolated" ? { session: "isolated" as const } : {}),
     mode: search["mode"] === "signup" ? ("signup" as const) : ("signin" as const),
     role: search["role"] === "tenant" ? ("tenant" as const) : undefined,
     email: typeof search["email"] === "string" ? search["email"].slice(0, 254) : "",
@@ -41,12 +43,20 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { mode, role: invitedRole, email: invitedEmail, name: invitedName } = Route.useSearch();
+  const {
+    mode,
+    role: invitedRole,
+    email: invitedEmail,
+    name: invitedName,
+    session: sessionMode,
+  } = Route.useSearch();
   const navigate = useNavigate();
   const { session, role, loading } = useAuth();
   const hydrated = useHydrated();
+  const isolated = sessionMode === "isolated" || (hydrated && isIsolatedAuthTab());
   const isTenantInvite = invitedRole === "tenant";
-  const [tab, setTab] = useState<"signin" | "signup">(mode);
+  const [selectedTab, setTab] = useState<"signin" | "signup">(mode);
+  const tab = isolated ? "signin" : selectedTab;
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [name, setName] = useState(invitedName);
@@ -208,12 +218,21 @@ function AuthPage() {
         </Link>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as "signin" | "signup")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Вход</TabsTrigger>
-              <TabsTrigger value="signup">Регистрация</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {isolated ? (
+            <>
+              <h1 className="text-lg font-semibold">Вход в другой аккаунт</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Этот вход действует в отдельной вкладке.
+              </p>
+            </>
+          ) : (
+            <Tabs value={tab} onValueChange={(v) => setTab(v as "signin" | "signup")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Вход</TabsTrigger>
+                <TabsTrigger value="signup">Регистрация</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
 
           <form onSubmit={submit} className="mt-6 space-y-4">
             {isTenantInvite && tab === "signup" && (

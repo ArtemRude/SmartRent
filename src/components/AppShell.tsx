@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Building2,
   CreditCard,
+  ExternalLink,
   CalendarClock,
   CalendarDays,
   WalletCards,
@@ -28,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/auth-context";
+import { ISOLATED_SIGN_IN_URL } from "@/integrations/supabase/browser-session";
 import { roleLabels } from "@/lib/domain";
 import { useRentalUpdates } from "@/hooks/use-rental-updates";
 import { notificationQueryOptions, NOTIFICATION_REFRESH_INTERVAL } from "@/lib/notification-query";
@@ -167,6 +169,22 @@ function ScrollToTopButton() {
   );
 }
 
+function OtherAccountLink() {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size="sm"
+      className="w-full justify-start text-muted-foreground"
+    >
+      <a href={ISOLATED_SIGN_IN_URL} target="_blank" rel="noopener">
+        <ExternalLink className="mr-2 h-4 w-4" />
+        Другой аккаунт <span className="sr-only">в новой вкладке</span>
+      </a>
+    </Button>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, profile, role, signOut } = useAuth();
   const { pathname } = useLocation();
@@ -217,10 +235,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               </p>
             </div>
           </div>
+          <div className="mt-2">
+            <OtherAccountLink />
+          </div>
           <Button
             variant="ghost"
             size="sm"
-            className="mt-2 w-full justify-start text-muted-foreground"
+            className="w-full justify-start text-muted-foreground"
             onClick={handleSignOut}
           >
             <LogOut className="mr-2 h-4 w-4" /> Выйти
@@ -236,16 +257,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 bg-sidebar p-4">
+            <SheetContent side="left" className="w-72 overflow-y-auto bg-sidebar p-4">
               <SheetTitle className="sr-only">Навигация</SheetTitle>
               <div className="mb-6">
                 <Brand />
               </div>
               <NavList items={items} unreadCount={unreadCount} onNavigate={() => setOpen(false)} />
+              <div className="mt-6">
+                <OtherAccountLink />
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
-                className="mt-6 w-full justify-start text-muted-foreground"
+                className="w-full justify-start text-muted-foreground"
                 onClick={handleSignOut}
               >
                 <LogOut className="mr-2 h-4 w-4" /> Выйти

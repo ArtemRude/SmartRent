@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isIsolatedAuthTab } from "@/integrations/supabase/browser-session";
 import type { AppRole } from "@/lib/domain";
 import { AuthContext, type Profile } from "@/hooks/auth-context";
 
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: isIsolatedAuthTab() ? "local" : "global" });
     queryClient.clear();
     setProfile(null);
     setRole(null);
