@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CatalogRouteImport } from './routes/catalog'
+import { Route as GuideRouteImport } from './routes/guide'
 import { Route as JoinTeamRouteImport } from './routes/join-team'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAgreementsRouteImport } from './routes/_authenticated/agreements'
@@ -55,6 +56,11 @@ const AuthRoute = AuthRouteImport.update({
 const CatalogRoute = CatalogRouteImport.update({
   id: '/catalog',
   path: '/catalog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JoinTeamRoute = JoinTeamRouteImport.update({
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/catalog': typeof CatalogRoute
+  '/guide': typeof GuideRoute
   '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
@@ -216,6 +223,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/catalog': typeof CatalogRoute
+  '/guide': typeof GuideRoute
   '/join-team': typeof JoinTeamRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/agreements': typeof AuthenticatedAgreementsRoute
@@ -247,6 +255,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/catalog': typeof CatalogRoute
+  '/guide': typeof GuideRoute
   '/join-team': typeof JoinTeamRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/agreements': typeof AuthenticatedAgreementsRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/catalog'
+    | '/guide'
     | '/join-team'
     | '/admin'
     | '/agreements'
@@ -307,6 +317,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/catalog'
+    | '/guide'
     | '/join-team'
     | '/admin'
     | '/agreements'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/catalog'
+    | '/guide'
     | '/join-team'
     | '/_authenticated/admin'
     | '/_authenticated/agreements'
@@ -368,6 +380,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CatalogRoute: typeof CatalogRoute
+  GuideRoute: typeof GuideRoute
   JoinTeamRoute: typeof JoinTeamRoute
   ListingListingIdRoute: typeof ListingListingIdRoute
 }
@@ -400,6 +413,13 @@ declare module '@tanstack/react-router' {
       path: '/catalog'
       fullPath: '/catalog'
       preLoaderRoute: typeof CatalogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/join-team': {
@@ -644,6 +664,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CatalogRoute: CatalogRoute,
+  GuideRoute: GuideRoute,
   JoinTeamRoute: JoinTeamRoute,
   ListingListingIdRoute: ListingListingIdRoute,
 }

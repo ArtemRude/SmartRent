@@ -11,6 +11,7 @@ import {
   Inbox,
   KeyRound,
   LifeBuoy,
+  Maximize2,
   ShieldCheck,
   Users,
   Warehouse,
@@ -68,18 +69,24 @@ const capabilities = [
 const workflow = [
   {
     number: "01",
-    title: "Добавьте недвижимость",
-    text: "Создайте объекты и помещения, загрузите фотографии и укажите основные параметры.",
+    title: "Добавьте объект",
+    text: "В разделе «Объекты» нажмите «Добавить объект». Укажите название, адрес и тип недвижимости.",
+    image: "/guide/object.webp",
+    alt: "Раздел «Объекты» с кнопкой «Добавить объект»",
   },
   {
     number: "02",
-    title: "Свяжите арендатора и договор",
-    text: "Контакты, условия аренды и документы образуют единую актуальную карточку.",
+    title: "Пригласите арендатора и создайте договор",
+    text: "Добавьте арендатора и отправьте ему приглашение. Затем откройте «Договоры» и нажмите «Новый договор».",
+    image: "/guide/agreement.webp",
+    alt: "Раздел «Договоры» с кнопкой «Новый договор»",
   },
   {
     number: "03",
-    title: "Управляйте из одного кабинета",
-    text: "Следите за платежами, сроками и заявками, не переключаясь между чатами и файлами.",
+    title: "Проверяйте начисления и заявки",
+    text: "Сверяйте начисления и поступления в «Платежах». Обращения арендаторов и их статусы смотрите в разделе «Заявки».",
+    image: "/guide/payments.webp",
+    alt: "Раздел «Платежи» с начислениями по аренде",
   },
 ];
 
@@ -249,6 +256,9 @@ function Landing() {
             <a className="transition-colors hover:text-[#318f94]" href="#workflow">
               Как работает
             </a>
+            <Link className="transition-colors hover:text-[#27666b]" to="/guide">
+              Руководство
+            </Link>
             <a className="transition-colors hover:text-[#318f94]" href="#security">
               Безопасность
             </a>
@@ -282,12 +292,15 @@ function Landing() {
             </div>
           )}
         </div>
-        <div className="border-t border-black/8 px-4 py-2 xl:hidden">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-black/8 px-4 py-2 xl:hidden">
           <Link
             to="/catalog"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#318f94]"
           >
             Каталог аренды <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link to="/guide" className="text-sm font-semibold text-[#27666b]">
+            Руководство
           </Link>
         </div>
       </header>
@@ -446,27 +459,63 @@ function Landing() {
           </div>
         </section>
 
-        <section id="workflow" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <section
+          id="workflow"
+          className="mx-auto max-w-7xl scroll-mt-32 px-4 py-20 sm:px-6 lg:px-8 lg:py-28"
+        >
           <div className="text-center">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#318f94]">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#27666b]">
               Как это работает
             </p>
             <h2 className="mx-auto mt-5 max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">
-              От объекта до полной картины — три шага
+              Первые три шага в SmartRent
             </h2>
           </div>
           <div className="mt-14 grid gap-4 lg:grid-cols-3">
             {workflow.map((item) => (
               <article
                 key={item.number}
-                className="rounded-[24px] border border-black/8 bg-white p-7 sm:p-8"
+                className="overflow-hidden rounded-[24px] border border-black/8 bg-white"
               >
-                <span className="font-display text-sm font-bold text-[#318f94]">{item.number}</span>
-                <div className="my-7 h-px bg-black/8" />
-                <h3 className="text-xl font-bold">{item.title}</h3>
-                <p className="mt-3 leading-6 text-[#687371]">{item.text}</p>
+                <a
+                  href={item.image}
+                  target="_blank"
+                  rel="noopener"
+                  className="relative block border-b border-black/8 bg-[#dce9e7] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#318f94]"
+                >
+                  <img
+                    src={item.image}
+                    alt={item.alt}
+                    loading="lazy"
+                    decoding="async"
+                    width={1472}
+                    height={928}
+                    className="h-auto w-full"
+                  />
+                  <span className="absolute bottom-2 right-2 grid size-8 place-items-center rounded-lg bg-[#121719] text-white">
+                    <Maximize2 className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="sr-only">Открыть снимок в новой вкладке</span>
+                </a>
+                <div className="p-6 sm:p-7">
+                  <span className="font-display text-sm font-bold text-[#27666b]">
+                    {item.number}
+                  </span>
+                  <h3 className="mt-3 text-xl font-bold">{item.title}</h3>
+                  <p className="mt-3 leading-6 text-[#687371]">{item.text}</p>
+                </div>
               </article>
             ))}
+          </div>
+          <div className="mt-9 text-center">
+            <Button
+              asChild
+              className="rounded-full bg-[#121719] px-6 text-white hover:bg-[#263032]"
+            >
+              <Link to="/guide">
+                Открыть руководство <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
+              </Link>
+            </Button>
           </div>
         </section>
 
@@ -648,6 +697,9 @@ function Landing() {
             <a className="hover:text-white" href="#workflow">
               Как работает
             </a>
+            <Link className="hover:text-white" to="/guide">
+              Руководство
+            </Link>
             <a className="hover:text-white" href="#support">
               Поддержка
             </a>
