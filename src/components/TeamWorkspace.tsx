@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { TeamAgreementDraftButton } from "@/components/TeamAgreementDraftButton";
 import {
   agreementStatusLabels,
   formatDate,
@@ -294,12 +295,14 @@ export function TeamWorkspace({
               {workspace.property.address}
             </p>
           </div>
-          {workspace.property.role === "owner" && (
-            <Button asChild variant="outline" size="sm" className="w-fit shrink-0">
-              <Link to="/agreements" search={{ newForProperty: workspace.property.id }}>
-                Добавить арендатора
-              </Link>
-            </Button>
+          {workspace.property.status === "active" && workspace.property.role !== "viewer" && (
+            <TeamAgreementDraftButton
+              mode={workspace.property.role}
+              propertyId={workspace.property.id}
+              propertyName={workspace.property.name}
+              units={workspace.units}
+              onCreated={refresh}
+            />
           )}
         </CardHeader>
         <CardContent className="space-y-4">

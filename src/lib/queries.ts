@@ -38,6 +38,7 @@ export type Agreement = {
   rent_schedule?: RentTerm[];
   original_end_date?: string;
   terms_locked?: boolean;
+  team_prepared?: boolean;
   id: string;
   created_at: string;
   owner_id: string;

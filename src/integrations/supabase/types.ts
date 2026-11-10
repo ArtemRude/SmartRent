@@ -164,6 +164,7 @@ export type Database = {
           start_date: string
           status: AgreementStatus
           status_changed_at: string
+          team_prepared: boolean
           tenant_id: string
           unit_id: string | null
         }
@@ -182,6 +183,7 @@ export type Database = {
           start_date: string
           status?: AgreementStatus
           status_changed_at?: string
+          team_prepared?: boolean
           tenant_id: string
           unit_id?: string | null
         }
@@ -200,6 +202,7 @@ export type Database = {
           start_date?: string
           status?: AgreementStatus
           status_changed_at?: string
+          team_prepared?: boolean
           tenant_id?: string
           unit_id?: string | null
         }
@@ -915,6 +918,19 @@ export type Database = {
       accept_team_invitation: { Args: { p_token: string }; Returns: string }
       manage_team_member: { Args: { p_membership_id: string; p_revision: number; p_role: string; p_property_ids: string[]; p_revoke?: boolean }; Returns: string }
       set_team_responsible: { Args: { p_property_id: string; p_membership_id: string | null }; Returns: string }
+      create_team_agreement_draft: {
+        Args: {
+          p_property_id: string
+          p_tenant_id: string
+          p_draft_id: string
+          p_start_date: string
+          p_end_date: string
+          p_monthly_payment: number
+          p_unit_id?: string | null
+          p_payment_due_day?: number | null
+        }
+        Returns: string
+      }
       act_on_team_property: { Args: { p_property_id: string; p_action: string; p_values: Json }; Returns: string }
       save_lease_amendment: { Args: { p_agreement_id: string; p_values: Json; p_id: string | null; p_revision: number | null }; Returns: string }
       act_on_lease_amendment: { Args: { p_id: string; p_action: string; p_revision: number; p_note: string | null }; Returns: string }

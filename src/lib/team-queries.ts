@@ -98,6 +98,29 @@ export async function setTeamResponsible(propertyId: string, membershipId: strin
   if (error) fail(error);
   return data;
 }
+export async function createTeamAgreementDraft(values: {
+  propertyId: string;
+  tenantId: string;
+  draftId: string;
+  startDate: string;
+  endDate: string;
+  monthlyPayment: number;
+  unitId: string | null;
+  paymentDueDay: number | null;
+}) {
+  const { data, error } = await supabase.rpc("create_team_agreement_draft", {
+    p_property_id: values.propertyId,
+    p_tenant_id: values.tenantId,
+    p_draft_id: values.draftId,
+    p_start_date: values.startDate,
+    p_end_date: values.endDate,
+    p_monthly_payment: values.monthlyPayment,
+    p_unit_id: values.unitId,
+    p_payment_due_day: values.paymentDueDay,
+  });
+  if (error) fail(error);
+  return data;
+}
 export async function actOnTeamProperty(
   propertyId: string,
   action: "note" | "request_status" | "request_comment",

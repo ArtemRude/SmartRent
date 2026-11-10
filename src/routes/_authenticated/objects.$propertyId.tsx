@@ -17,6 +17,7 @@ import {
 import { ListingEditor } from "@/components/ListingEditor";
 import { ListingPhoto } from "@/components/ListingPhoto";
 import { RentalApplicationCard } from "@/components/RentalApplicationCard";
+import { TeamAgreementDraftButton } from "@/components/TeamAgreementDraftButton";
 import { fetchPropertyHub, actOnListing, RecruitmentError } from "@/lib/recruitment-queries";
 import {
   listingLabels,
@@ -61,6 +62,7 @@ function PropertyHubPage() {
       "recruitment",
       "public-listing",
       "agreements",
+      "agreement-status-events",
       "tenants",
       "team-overview",
       "team-workspace",
@@ -84,6 +86,14 @@ function PropertyHubPage() {
   const hub = !query.isError ? query.data : undefined;
   const owner = hub?.property.role === "owner";
   const canRecruit = owner || hub?.property.role === "manager";
+  const draftMode =
+    hub?.property.status === "active"
+      ? hub.property.owner_id === user?.id
+        ? "owner"
+        : hub.property.role === "manager"
+          ? "manager"
+          : null
+      : null;
   return (
     <>
       <PageHeader
@@ -94,9 +104,21 @@ function PropertyHubPage() {
             : "Заявки, обслуживание и поиск арендатора"
         }
         action={
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            Обновить
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {hub && draftMode && (
+              <TeamAgreementDraftButton
+                key={hub.property.id}
+                mode={draftMode}
+                propertyId={hub.property.id}
+                propertyName={hub.property.name}
+                units={hub.units}
+                onCreated={refresh}
+              />
+            )}
+            <Button variant="outline" onClick={() => void query.refetch()}>
+              Обновить
+            </Button>
+          </div>
         }
       />
       {query.isPending && <p className="text-sm text-muted-foreground">Загружаем объект…</p>}

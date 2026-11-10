@@ -642,6 +642,11 @@ function AgreementsPage() {
                         <span className="font-semibold">{property?.name ?? "Объект"}</span>
                       )}
                       <AgreementStatusBadge status={agreement.status} />
+                      {canManage && agreement.status === "draft" && agreement.team_prepared && (
+                        <span className="rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground">
+                          Черновик от команды
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {tenant?.name ?? "Арендатор"}
